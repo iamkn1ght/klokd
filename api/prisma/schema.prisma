@@ -1,0 +1,475 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ──────────────────────────────────────────────
+
+enum UserRole {
+  WORKER
+  EMPLOYER
+  ADMIN
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ShiftStatus {
+  POSTED
+  CONFIRMED
+  ACCEPTED
+  ACTIVE
+  COMPLETED
+  DISPUTED
+  PAID
+  CANCELLED
+}
+
+enum ApplicationStatus {
+  PENDING
+  SELECTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum EscrowStatus {
+  PENDING
+  FUNDED
+  RELEASED
+  REFUNDED
+  DISPUTED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  RETRYING
+}
+
+enum DisputeType {
+  NO_SHOW
+  INCOMPLETE_SHIFT
+  CONDUCT_ISSUE
+  PAYMENT_NOT_RECEIVED
+  UNSAFE_CONDITIONS
+  OTHER
+}
+
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  ESCALATED
+}
+
+// ─── CORE TABLES ────────────────────────────────────────
+
+model User {
+  id            String           @id @default(uuid())
+  tenantId      String           @map("tenant_id")
+  phone         String           @unique
+  passwordHash  String?          @map("password_hash")
+  role          UserRole
+  isActive      Boolean          @default(true) @map("is_active")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  worker        Worker?
+  employer      Employer?
+  refreshTokens RefreshToken[]
+  auditLogs     AuditLog[]       @relation("actor")
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+// ─── WORKER ─────────────────────────────────────────────
+
+model Worker {
+  id                  String             @id @default(uuid())
+  tenantId            String             @map("tenant_id")
+  userId              String             @unique @map("user_id")
+  firstName           String             @map("first_name")
+  lastName            String             @map("last_name")
+  idNumberHash        String?            @map("id_number_hash")
+  idFrontKey          String?            @map("id_front_key")
+  idBackKey           String?            @map("id_back_key")
+  selfieKey           String?            @map("selfie_key")
+  verificationStatus  VerificationStatus @default(PENDING) @map("verification_status")
+  skills              String             @default("[]")
+  certificationKeys   String             @default("[]") @map("certification_keys")
+  mpesaNumberEnc      String?            @map("mpesa_number_enc")
+  consentIdentity     Boolean            @default(false) @map("consent_identity")
+  consentGps          Boolean            @default(false) @map("consent_gps")
+  consentedAt         DateTime?          @map("consented_at")
+  showUpRate          Float?             @map("show_up_rate")
+  ratingAggregate     Float?             @map("rating_aggregate")
+  ratingCount         Int                @default(0) @map("rating_count")
+  totalShifts         Int                @default(0) @map("total_shifts")
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
+
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  applications ShiftApplication[]
+  shifts       Shift[]           @relation("worker_shifts")
+  ratings      Rating[]          @relation("worker_ratings")
+  disputes     Dispute[]         @relation("worker_disputes")
+  payments     Payment[]
+
+  @@map("workers")
+}
+
+// ─── EMPLOYER ───────────────────────────────────────────
+
+model Employer {
+  id                String             @id @default(uuid())
+  tenantId          String             @map("tenant_id")
+  userId            String             @unique @map("user_id")
+  businessName      String             @map("business_name")
+  kraPin            String?            @map("kra_pin")
+  contactPerson     String?            @map("contact_person")
+  wibaPolicyRef     String?            @map("wiba_policy_ref")
+  wibaInsurer       String?            @map("wiba_insurer")
+  wibaPolicyExpiry  DateTime?          @map("wiba_policy_expiry")
+  mpesaMethod       String?            @map("mpesa_method")
+  mpesaAccountEnc   String?            @map("mpesa_account_enc")
+  ratingAggregate   Float?             @map("rating_aggregate")
+  ratingCount       Int                @default(0) @map("rating_count")
+  totalShifts       Int                @default(0) @map("total_shifts")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shifts   Shift[]
+  ratings  Rating[]   @relation("employer_ratings")
+  disputes Dispute[]  @relation("employer_disputes")
+  escrows  Escrow[]
+
+  @@map("employers")
+}
+
+// ─── SHIFT ──────────────────────────────────────────────
+
+model Shift {
+  id            String      @id @default(uuid())
+  tenantId      String      @map("tenant_id")
+  employerId    String      @map("employer_id")
+  workerId      String?     @map("worker_id")
+  role          String
+  description   String?
+  date          DateTime
+  startTime     DateTime    @map("start_time")
+  endTime       DateTime    @map("end_time")
+  rateKes       Int         @map("rate_kes")
+  locationLat   Float       @map("location_lat")
+  locationLng   Float       @map("location_lng")
+  locationName  String?     @map("location_name")
+  geoHash       String?     @map("geo_hash")
+  status        ShiftStatus @default(POSTED)
+  clockInAt     DateTime?   @map("clock_in_at")
+  clockInGeoHash String?    @map("clock_in_geo_hash")
+  clockOutAt    DateTime?   @map("clock_out_at")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  employer     Employer          @relation(fields: [employerId], references: [id])
+  worker       Worker?           @relation("worker_shifts", fields: [workerId], references: [id])
+  applications ShiftApplication[]
+  events       ShiftEvent[]
+  contract     Contract?
+  escrow       Escrow?
+  payment      Payment?
+  dispute      Dispute?
+  ratings      Rating[]
+
+  @@map("shifts")
+}
+
+model ShiftApplication {
+  id        String            @id @default(uuid())
+  tenantId  String            @map("tenant_id")
+  shiftId   String            @map("shift_id")
+  workerId  String            @map("worker_id")
+  status    ApplicationStatus @default(PENDING)
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+
+  shift  Shift  @relation(fields: [shiftId], references: [id])
+  worker Worker @relation(fields: [workerId], references: [id])
+
+  @@unique([shiftId, workerId])
+  @@map("shift_applications")
+}
+
+// ─── SHIFT EVENT LOG (immutable audit trail) ────────────
+
+model ShiftEvent {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  shiftId   String   @map("shift_id")
+  fromState String?  @map("from_state")
+  toState   String   @map("to_state")
+  actorId   String   @map("actor_id")
+  metadata  String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  shift Shift @relation(fields: [shiftId], references: [id])
+
+  @@index([shiftId])
+  @@map("shift_events")
+}
+
+// ─── CONTRACT ───────────────────────────────────────────
+
+model Contract {
+  id              String   @id @default(uuid())
+  tenantId        String   @map("tenant_id")
+  shiftId         String   @unique @map("shift_id")
+  documentKey     String   @map("document_key")
+  workerAcceptedAt  DateTime? @map("worker_accepted_at")
+  employerAcceptedAt DateTime? @map("employer_accepted_at")
+  retainUntil     DateTime @map("retain_until")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  shift Shift @relation(fields: [shiftId], references: [id])
+
+  @@map("contracts")
+}
+
+// ─── ESCROW ─────────────────────────────────────────────
+
+model Escrow {
+  id              String       @id @default(uuid())
+  tenantId        String       @map("tenant_id")
+  shiftId         String       @unique @map("shift_id")
+  employerId      String       @map("employer_id")
+  amountKes       Int          @map("amount_kes")
+  feeKes          Int          @map("fee_kes")
+  status          EscrowStatus @default(PENDING)
+  stkPushRef      String?      @map("stk_push_ref")
+  fundedAt        DateTime?    @map("funded_at")
+  releasedAt      DateTime?    @map("released_at")
+  autoReleaseAt   DateTime?    @map("auto_release_at")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  shift    Shift    @relation(fields: [shiftId], references: [id])
+  employer Employer @relation(fields: [employerId], references: [id])
+
+  @@map("escrows")
+}
+
+// ─── PAYMENT ────────────────────────────────────────────
+
+model Payment {
+  id              String        @id @default(uuid())
+  tenantId        String        @map("tenant_id")
+  shiftId         String        @unique @map("shift_id")
+  workerId        String        @map("worker_id")
+  grossKes        Int           @map("gross_kes")
+  payeKes         Int           @default(0) @map("paye_kes")
+  nssfTier1Kes    Int           @default(0) @map("nssf_tier1_kes")
+  nssfTier2Kes    Int           @default(0) @map("nssf_tier2_kes")
+  shifKes         Int           @default(0) @map("shif_kes")
+  ahlKes          Int           @default(0) @map("ahl_kes")
+  platformFeeKes  Int           @default(0) @map("platform_fee_kes")
+  netKes          Int           @map("net_kes")
+  status          PaymentStatus @default(PENDING)
+  darajaRef       String?       @map("daraja_ref")
+  retryCount      Int           @default(0) @map("retry_count")
+  paidAt          DateTime?     @map("paid_at")
+  retainUntil     DateTime      @map("retain_until")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  shift  Shift  @relation(fields: [shiftId], references: [id])
+  worker Worker @relation(fields: [workerId], references: [id])
+
+  @@map("payments")
+}
+
+// ─── COMPLIANCE CONFIG ──────────────────────────────────
+
+model ComplianceConfig {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  key       String
+  value     String
+  updatedBy String?  @map("updated_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, key])
+  @@map("compliance_config")
+}
+
+// ─── MINIMUM WAGE ───────────────────────────────────────
+
+model MinimumWage {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  sector    String
+  location  String
+  rateKes   Int      @map("rate_kes")
+  period    String   @default("daily")
+  effectiveFrom DateTime @map("effective_from")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, sector, location])
+  @@map("minimum_wages")
+}
+
+// ─── DISPUTE ────────────────────────────────────────────
+
+model Dispute {
+  id          String        @id @default(uuid())
+  tenantId    String        @map("tenant_id")
+  shiftId     String        @unique @map("shift_id")
+  workerId    String?       @map("worker_id")
+  employerId  String?       @map("employer_id")
+  type        DisputeType
+  description String
+  evidenceKeys String       @default("[]") @map("evidence_keys")
+  status      DisputeStatus @default(OPEN)
+  resolution  String?
+  resolvedBy  String?       @map("resolved_by")
+  resolvedAt  DateTime?     @map("resolved_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  shift    Shift     @relation(fields: [shiftId], references: [id])
+  worker   Worker?   @relation("worker_disputes", fields: [workerId], references: [id])
+  employer Employer? @relation("employer_disputes", fields: [employerId], references: [id])
+
+  @@map("disputes")
+}
+
+// ─── RATING ─────────────────────────────────────────────
+
+model Rating {
+  id         String   @id @default(uuid())
+  tenantId   String   @map("tenant_id")
+  shiftId    String   @map("shift_id")
+  workerId   String?  @map("worker_id")
+  employerId String?  @map("employer_id")
+  raterRole  UserRole @map("rater_role")
+  stars      Int
+  comment    String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  shift    Shift     @relation(fields: [shiftId], references: [id])
+  worker   Worker?   @relation("worker_ratings", fields: [workerId], references: [id])
+  employer Employer? @relation("employer_ratings", fields: [employerId], references: [id])
+
+  @@unique([shiftId, raterRole])
+  @@map("ratings")
+}
+
+// ─── NOTIFICATION ───────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  userId    String   @map("user_id")
+  channel   String
+  type      String
+  title     String
+  body      String
+  sent      Boolean  @default(false)
+  sentAt    DateTime? @map("sent_at")
+  failedAt  DateTime? @map("failed_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}
+
+// ─── AUDIT LOG (append-only) ────────────────────────────
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  actorId   String   @map("actor_id")
+  action    String
+  resource  String
+  resourceId String? @map("resource_id")
+  metadata  String?
+  ipHash    String?  @map("ip_hash")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  actor User @relation("actor", fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([resource, resourceId])
+  @@map("audit_logs")
+}
+
+// ─── ANALYTICS EVENT LOG ────────────────────────────────
+
+model AnalyticsEvent {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  eventType String   @map("event_type")
+  geoHash   String?  @map("geo_hash")
+  metadata  String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([eventType])
+  @@index([tenantId])
+  @@map("analytics_events")
+}
+
+// ─── WEBHOOK ────────────────────────────────────────────
+
+model WebhookSubscription {
+  id          String   @id @default(uuid())
+  tenantId    String   @map("tenant_id")
+  endpointUrl String   @map("endpoint_url")
+  eventTypes  String   @default("[]") @map("event_types")
+  secret      String
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  deliveries WebhookDelivery[]
+
+  @@map("webhook_subscriptions")
+}
+
+model WebhookDelivery {
+  id             String   @id @default(uuid())
+  subscriptionId String   @map("subscription_id")
+  eventType      String   @map("event_type")
+  payload        String
+  responseCode   Int?     @map("response_code")
+  status         String
+  attempts       Int      @default(0)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  subscription WebhookSubscription @relation(fields: [subscriptionId], references: [id])
+
+  @@map("webhook_deliveries")
+}

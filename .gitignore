@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+
+# Environment files (NEVER commit secrets)
+.env
+.env.local
+.env*.local
+
+# Build output
+dist/
+
+# Database
+*.db
+*.db-journal
+
+# Expo
+.expo/
+web-build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.*
+
+# Coverage
+coverage/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Native builds
+/ios
+/android
+
+# Keys & secrets
+*.pem
+*.key
+*.p8
+*.p12
+*.jks
+*.mobileprovision

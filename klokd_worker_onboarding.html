@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html>
+<head>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased;}
+  body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:#0A0A0F;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:2rem 1rem;}
+  :root{--e:#00E5A0;--v:#BCFF4E;--ink:#0A0A0F;--slate:#1A1A2E;--mid:#6B7280;--err:#FF6B6B;}
+
+  /* ── PAGE ── */
+  .page{display:flex;flex-direction:column;align-items:center;gap:0;}
+  .page-label{font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.16);margin-bottom:6px;}
+  .page-sublabel{font-size:11.5px;font-weight:600;color:rgba(255,255,255,.32);margin-bottom:18px;}
+  .glow{position:fixed;top:15%;left:50%;transform:translateX(-50%);width:480px;height:480px;border-radius:50%;background:radial-gradient(circle,rgba(0,229,160,.055) 0%,transparent 70%);pointer-events:none;}
+
+  /* ── PHONE ── */
+  .phone{width:296px;border-radius:44px;background:#111;box-shadow:0 0 0 1.5px #1e1e1e,0 0 0 3.5px #0d0d0d,0 48px 120px rgba(0,0,0,.75),0 0 80px rgba(0,229,160,.055);overflow:hidden;position:relative;}
+  .notch{height:34px;background:#111;display:flex;align-items:center;justify-content:center;}
+  .notch-pill{width:76px;height:12px;background:#0A0A0F;border-radius:999px;}
+  .status-bar{display:flex;justify-content:space-between;align-items:center;padding:2px 22px 8px;background:#0A0A0F;}
+  .status-time{font-size:10px;font-weight:700;color:#fff;}
+  .status-dots{display:flex;gap:4px;}
+  .dot{width:5px;height:5px;border-radius:50%;}
+  .screen-wrap{background:#0A0A0F;height:580px;overflow:hidden;position:relative;}
+  .screen{position:absolute;inset:0;display:flex;flex-direction:column;overflow-y:auto;}
+  .screen.enter{animation:slideUp .32s cubic-bezier(.4,0,.2,1) both;}
+  .home-bar{height:28px;background:#0A0A0F;display:flex;align-items:center;justify-content:center;}
+  .home-pill{width:90px;height:4px;background:rgba(255,255,255,.12);border-radius:999px;}
+  @keyframes slideUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+  /* ── STEP PROGRESS ── */
+  .step-dots{display:flex;gap:8px;margin-top:22px;}
+  .step-dot{height:7px;border-radius:999px;transition:all .35s cubic-bezier(.4,0,.2,1);}
+
+  /* ── SHARED ── */
+  .gbtn{width:100%;padding:14px 0;border-radius:14px;border:none;background:linear-gradient(135deg,var(--e),var(--v));color:var(--ink);font-size:14px;font-weight:700;letter-spacing:-.01em;cursor:pointer;font-family:inherit;transition:opacity .2s;}
+  .gbtn:disabled{background:rgba(255,255,255,.08);color:rgba(255,255,255,.25);cursor:default;}
+  .back-btn{width:34px;height:34px;border-radius:50%;border:.5px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;}
+  .progress-track{display:flex;gap:4px;flex:1;}
+  .progress-seg{flex:1;height:3px;border-radius:999px;transition:background .4s;}
+
+  /* ── UPLOAD ZONE ── */
+  .upload-zone{border-radius:14px;padding:13px 15px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:all .25s;}
+  .upload-zone.idle{border:1.5px dashed rgba(255,255,255,.11);background:rgba(255,255,255,.02);}
+  .upload-zone.done{border:1.5px solid var(--e);background:rgba(0,229,160,.06);}
+  .upload-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .25s;}
+  .upload-icon.idle{background:rgba(255,255,255,.05);}
+  .upload-icon.done{background:rgba(0,229,160,.15);}
+
+  /* ── CHIP ── */
+  .chip{padding:8px 15px;border-radius:999px;font-size:12.5px;cursor:pointer;font-family:inherit;transition:all .2s;}
+  .chip.off{border:1.5px solid rgba(255,255,255,.1);background:rgba(255,255,255,.03);color:rgba(255,255,255,.42);font-weight:400;}
+  .chip.on{border:1.5px solid var(--e);background:rgba(0,229,160,.13);color:var(--e);font-weight:700;}
+  .chip.more{border:1.5px dashed rgba(255,255,255,.1);background:transparent;color:rgba(255,255,255,.25);font-weight:400;}
+
+  /* ── NUMPAD ── */
+  .numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+  .nkey{padding:13px 0;border-radius:12px;font-size:17px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .15s;}
+  .nkey.num{border:.5px solid rgba(255,255,255,.07);background:rgba(255,255,255,.05);color:#fff;}
+  .nkey.num:active{background:rgba(255,255,255,.1);}
+  .nkey.del{border:.5px solid rgba(255,80,80,.18);background:rgba(255,80,80,.07);color:var(--err);}
+  .nkey.empty{border:none;background:transparent;cursor:default;}
+
+  /* ── SUCCESS STATE ── */
+  .success-glow{width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--e),var(--v));display:flex;align-items:center;justify-content:center;margin:0 auto 20px;box-shadow:0 0 48px rgba(0,229,160,.28);}
+
+  /* SCREEN SECTIONS */
+  .sec{padding:16px 20px 0;}
+  .sec-h{font-size:16px;font-weight:700;color:#fff;letter-spacing:-.02em;margin-bottom:4px;}
+  .sec-sub{font-size:11.5px;color:rgba(255,255,255,.38);line-height:1.65;margin-bottom:18px;}
+</style>
+</head>
+<body>
+
+<div class="glow"></div>
+
+<div class="page">
+  <div class="page-label">Klokd · Worker Onboarding</div>
+  <div class="page-sublabel" id="screenLabel">Welcome</div>
+
+  <div class="phone">
+    <div class="notch"><div class="notch-pill"></div></div>
+    <div class="status-bar">
+      <span class="status-time">9:07</span>
+      <div class="status-dots">
+        <div class="dot" style="background:var(--e)"></div>
+        <div class="dot" style="background:rgba(255,255,255,.32)"></div>
+        <div class="dot" style="background:rgba(255,255,255,.18)"></div>
+      </div>
+    </div>
+    <div class="screen-wrap" id="screenWrap"></div>
+    <div class="home-bar"><div class="home-pill"></div></div>
+  </div>
+
+  <div class="step-dots" id="stepDots"></div>
+  <div style="margin-top:10px;font-size:9px;color:rgba(255,255,255,.14);letter-spacing:.1em;text-transform:uppercase;">Tap Continue to progress through the flow</div>
+</div>
+
+<script>
+const T={e:'#00E5A0',v:'#BCFF4E',ink:'#0A0A0F',mid:'#6B7280',err:'#FF6B6B'};
+let currentScreen=0;
+const LABELS=['Welcome','Verify ID','Skills','M-Pesa Setup'];
+
+// ── STATE ──
+let slideIdx=0;
+let slideTimer=null;
+let idFront=false,idBack=false,idSelfie=false;
+let selectedSkills=new Set(['Waiter']);
+let showCert=false;
+let certDone=false;
+let phoneNum='0722';
+let confirmed=false;
+let stepComplete=false;
+
+// ── SLIDE DATA ──
+const SLIDES=[
+  {
+    headline:'Verified once.\nWork everywhere.',
+    sub:'One ID check. Every employer on Klokd already trusts you.',
+    svg:`<svg width="80" height="80" viewBox="0 0 80 80" fill="none"><circle cx="40" cy="40" r="35" fill="rgba(0,229,160,.1)"/><circle cx="40" cy="40" r="24" fill="rgba(0,229,160,.06)"/><path d="M40 18L45 31H59L48.5 39.5L52.5 54L40 47L27.5 54L31.5 39.5L21 31H35L40 18Z" fill="${T.e}"/><circle cx="40" cy="40" r="5.5" fill="${T.v}"/></svg>`,
+    glow:'rgba(0,229,160,.12)',
+  },
+  {
+    headline:'Shifts near you.\nApply in seconds.',
+    sub:'See what's open today. One tap to accept. Show up and work.',
+    svg:`<svg width="80" height="80" viewBox="0 0 80 80" fill="none"><circle cx="40" cy="40" r="35" fill="rgba(0,229,160,.08)"/><circle cx="40" cy="37" r="15" stroke="${T.e}" stroke-width="1.8" fill="none"/><path d="M40 22V37L48 45" stroke="${T.v}" stroke-width="2.2" stroke-linecap="round"/><circle cx="40" cy="62" r="5" fill="${T.e}" opacity=".55"/><circle cx="23" cy="54" r="4" fill="${T.e}" opacity=".28"/><circle cx="57" cy="54" r="4" fill="${T.e}" opacity=".28"/><path d="M23 54L40 62L57 54" stroke="rgba(0,229,160,.2)" stroke-width="1.2"/></svg>`,
+    glow:'rgba(0,229,160,.1)',
+  },
+  {
+    headline:'Clock out.\nM-Pesa pays you.',
+    sub:'KES in your M-Pesa within 30 minutes of clocking out. Every shift.',
+    svg:`<svg width="80" height="80" viewBox="0 0 80 80" fill="none"><circle cx="40" cy="40" r="35" fill="rgba(188,255,78,.07)"/><rect x="22" y="26" width="36" height="26" rx="7" stroke="${T.e}" stroke-width="1.8" fill="none"/><path d="M30 37H50M30 44H42" stroke="${T.v}" stroke-width="1.8" stroke-linecap="round"/><path d="M40 52L40 62" stroke="${T.e}" stroke-width="1.8" stroke-linecap="round"/><circle cx="40" cy="62" r="3.5" fill="${T.v}"/></svg>`,
+    glow:'rgba(188,255,78,.09)',
+  },
+];
+
+// ── HELPERS ──
+function fmtPhone(p){
+  if(p.length<=4) return p;
+  if(p.length<=7) return p.slice(0,4)+' '+p.slice(4);
+  return p.slice(0,4)+' '+p.slice(4,7)+' '+p.slice(7);
+}
+
+function goStep(n){
+  currentScreen=n;
+  document.getElementById('screenLabel').textContent=LABELS[n];
+  renderDots();
+  renderScreen();
+}
+
+function renderDots(){
+  const c=document.getElementById('stepDots');
+  c.innerHTML='';
+  LABELS.forEach((_,i)=>{
+    const d=document.createElement('div');
+    d.className='step-dot';
+    d.style.width=(i===currentScreen?'24px':'7px');
+    d.style.background=(i<=currentScreen?T.e:'rgba(255,255,255,.1)');
+    c.appendChild(d);
+  });
+}
+
+function startSlideTimer(){
+  if(slideTimer) clearInterval(slideTimer);
+  slideTimer=setInterval(()=>{ slideIdx=(slideIdx+1)%3; if(currentScreen===0) renderSlide(); },3400);
+}
+
+function renderSlide(){
+  const s=SLIDES[slideIdx];
+  const ic=document.getElementById('slideIcon');
+  const ht=document.getElementById('slideHeadline');
+  const sb=document.getElementById('slideSub');
+  const bg=document.getElementById('slideBg');
+  if(!ic) return;
+  ic.style.opacity='0';
+  setTimeout(()=>{ ic.innerHTML=s.svg; ic.style.opacity='1'; },220);
+  ht.style.opacity='0';
+  sb.style.opacity='0';
+  setTimeout(()=>{
+    ht.innerHTML=s.headline.replace('\n','<br>');
+    sb.textContent=s.sub;
+    bg.style.background=`radial-gradient(circle at 50% 55%, ${s.glow} 0%, transparent 68%)`;
+    ht.style.opacity='1'; sb.style.opacity='1';
+  },220);
+  // dots
+  const dots=document.querySelectorAll('.sdot');
+  dots.forEach((d,i)=>{
+    d.style.width=i===slideIdx?'22px':'6px';
+    d.style.background=i===slideIdx?T.e:'rgba(255,255,255,.15)';
+  });
+}
+
+// ── SCREENS ──
+function screenWelcome(){
+  const s=SLIDES[slideIdx];
+  return `
+    <div class="screen enter" style="padding:18px 20px 24px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="width:30px;height:30px;background:linear-gradient(135deg,${T.e},${T.v});border-radius:8px;display:flex;align-items:center;justify-content:center;">
+          <span style="color:${T.ink};font-weight:900;font-size:14px;letter-spacing:-.04em;">K</span>
+        </div>
+        <span style="font-weight:900;font-size:15px;color:#fff;letter-spacing:-.05em;">klokd</span>
+      </div>
+
+      <div id="slideBg" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px 12px;background:radial-gradient(circle at 50% 55%, ${s.glow} 0%, transparent 68%);border-radius:20px;margin:14px 0;transition:background .4s;">
+        <div id="slideIcon" style="margin-bottom:18px;transition:opacity .22s;">${s.svg}</div>
+        <div id="slideHeadline" style="font-size:22px;font-weight:800;color:#fff;letter-spacing:-.03em;line-height:1.22;margin-bottom:10px;transition:opacity .22s;">${s.headline.replace('\n','<br>')}</div>
+        <div id="slideSub" style="font-size:12px;color:rgba(255,255,255,.42);line-height:1.68;max-width:215px;transition:opacity .22s;">${s.sub}</div>
+      </div>
+
+      <div style="display:flex;justify-content:center;gap:6px;margin-bottom:22px;">
+        ${[0,1,2].map(i=>`<button class="sdot" onclick="jumpSlide(${i})" style="height:6px;width:${i===slideIdx?'22px':'6px'};border-radius:999px;background:${i===slideIdx?T.e:'rgba(255,255,255,.15)'};border:none;cursor:pointer;padding:0;transition:all .3s cubic-bezier(.4,0,.2,1);"></button>`).join('')}
+      </div>
+
+      <button class="gbtn" onclick="goStep(1)">Get started</button>
+      <div style="text-align:center;margin-top:12px;font-size:11px;color:rgba(255,255,255,.26);">
+        Already verified? <span style="color:${T.e};cursor:pointer;font-weight:600;">Sign in</span>
+      </div>
+    </div>
+  `;
+}
+
+function screenVerify(){
+  const cnt=[idFront,idBack,idSelfie].filter(Boolean).length;
+  const allDone=cnt===3;
+  function zone(id,label,sub,doneVal,fn){
+    return `
+      <div class="upload-zone ${doneVal?'done':'idle'}" onclick="${fn}()">
+        <div class="upload-icon ${doneVal?'done':'idle'}">
+          ${doneVal
+            ?`<svg width="17" height="17" viewBox="0 0 17 17" fill="none"><path d="M3.5 8.5L7 12L13.5 5" stroke="${T.e}" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+            :`<svg width="17" height="17" viewBox="0 0 17 17" fill="none"><rect x="2" y="4.5" width="13" height="9" rx="2" stroke="rgba(255,255,255,.28)" stroke-width="1.3" fill="none"/><circle cx="6" cy="9" r="1.8" stroke="rgba(255,255,255,.28)" stroke-width="1.2" fill="none"/><path d="M9.5 7.5H13M9.5 10H11.5" stroke="rgba(255,255,255,.28)" stroke-width="1" stroke-linecap="round"/></svg>`
+          }
+        </div>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:${doneVal?T.e:'#fff'};margin-bottom:2px;">${label}</div>
+          <div style="font-size:10.5px;color:rgba(255,255,255,.3);">${doneVal?'Uploaded ✓':sub}</div>
+        </div>
+      </div>
+    `;
+  }
+  return `
+    <div class="screen enter" style="padding:16px 20px 24px;overflow-y:auto;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+        <button class="back-btn" onclick="goStep(0)">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 10L3 6L8 2" stroke="rgba(255,255,255,.55)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="progress-track">
+          ${[0,1,2,3].map(i=>`<div class="progress-seg" style="background:${i<2?T.e:'rgba(255,255,255,.1)'};"></div>`).join('')}
+        </div>
+        <div style="font-size:10px;color:rgba(255,255,255,.25);white-space:nowrap;letter-spacing:.05em;">Step 2 of 4</div>
+      </div>
+
+      <div style="background:linear-gradient(135deg,#141428,#0c1020);border:1px solid rgba(0,229,160,.22);border-radius:16px;padding:13px 15px;margin-bottom:18px;display:flex;align-items:center;gap:13px;">
+        <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,${T.e},${T.v});display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 2L12.5 7.5L19 8.5L14.2 13.2L15.5 20L10 17L4.5 20L5.8 13.2L1 8.5L7.5 7.5L10 2Z" fill="${T.ink}"/></svg>
+        </div>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:3px;">Earn your <span style="color:${T.e};">Verified ✦</span> badge</div>
+          <div style="font-size:10.5px;color:rgba(255,255,255,.38);line-height:1.6;">Employers see it on every application. Verified workers get hired first.</div>
+        </div>
+      </div>
+
+      <div class="sec-h">Verify your identity</div>
+      <div class="sec-sub">We verify everyone so you're always working somewhere safe.</div>
+
+      <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:20px;">
+        ${zone('f','National ID — Front','Tap to upload',idFront,'toggleFront')}
+        ${zone('b','National ID — Back','Tap to upload',idBack,'toggleBack')}
+        ${zone('s','Quick selfie','To match your ID',idSelfie,'toggleSelfie')}
+      </div>
+
+      <div style="margin-top:auto;">
+        ${!allDone?`<div style="font-size:10px;color:rgba(255,255,255,.2);text-align:center;margin-bottom:10px;">Tap each item to simulate upload (${cnt}/3)</div>`:''}
+        <button class="gbtn" ${allDone?'':'disabled'} onclick="${allDone?'goStep(2)':''}">
+          ${allDone?'Continue →':`${cnt} of 3 uploaded`}
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+const ROLES=['Waiter','Barista','Chef','Cashier','Security','Cleaner','Receptionist','Bartender'];
+function screenSkills(){
+  return `
+    <div class="screen enter" style="padding:16px 20px 24px;overflow-y:auto;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+        <button class="back-btn" onclick="goStep(1)">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 10L3 6L8 2" stroke="rgba(255,255,255,.55)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="progress-track">
+          ${[0,1,2,3].map(i=>`<div class="progress-seg" style="background:${i<3?T.e:'rgba(255,255,255,.1)'};"></div>`).join('')}
+        </div>
+        <div style="font-size:10px;color:rgba(255,255,255,.25);white-space:nowrap;letter-spacing:.05em;">Step 3 of 4</div>
+      </div>
+
+      <div class="sec-h">What do you do?</div>
+      <div class="sec-sub">Select all roles that apply. You'll only see matching shifts.</div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;">
+        ${ROLES.map(r=>`<button class="chip ${selectedSkills.has(r)?'on':'off'}" onclick="toggleSkill('${r}')">${selectedSkills.has(r)?'✓ ':''}${r}</button>`).join('')}
+        <button class="chip more">+ More</button>
+      </div>
+
+      <button onclick="toggleCert()" style="width:100%;background:rgba(255,255,255,.04);border:.5px solid rgba(255,255,255,.09);border-radius:14px;padding:12px 15px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:space-between;margin-bottom:${showCert?'10px':'0'};">
+        <div style="text-align:left;">
+          <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:2px;">Got a certificate?</div>
+          <div style="font-size:10.5px;color:rgba(255,255,255,.28);">Food handler · First aid · Health &amp; safety</div>
+        </div>
+        <div style="width:22px;height:22px;border-radius:50%;border:.5px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.35);font-size:13px;">${showCert?'−':'+'}</div>
+      </button>
+
+      ${showCert?`
+        <div onclick="toggleCertDone()" style="border:1.5px ${certDone?'solid':'dashed'} ${certDone?T.e:'rgba(255,255,255,.1)'};border-radius:14px;padding:13px 15px;margin-bottom:12px;background:${certDone?'rgba(0,229,160,.06)':'transparent'};cursor:pointer;display:flex;align-items:center;gap:12px;transition:all .25s;">
+          <div style="width:36px;height:36px;border-radius:8px;background:${certDone?'rgba(0,229,160,.16)':'rgba(255,255,255,.05)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            ${certDone
+              ?`<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8L6.5 11.5L13 4.5" stroke="${T.e}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+              :`<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="1.5" width="12" height="14" rx="2.5" stroke="rgba(255,255,255,.25)" stroke-width="1.3" fill="none"/><path d="M5 6.5H11M5 9.5H8.5" stroke="rgba(255,255,255,.25)" stroke-width="1.1" stroke-linecap="round"/></svg>`
+            }
+          </div>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:${certDone?T.e:'#fff'};margin-bottom:2px;">${certDone?'Certificate added ✓':'Upload certificate'}</div>
+            <div style="font-size:10.5px;color:rgba(255,255,255,.28);">PDF or photo · Max 5MB</div>
+          </div>
+        </div>
+      `:''}
+
+      <div style="margin-top:auto;">
+        <button class="gbtn" ${selectedSkills.size>0?'':'disabled'} onclick="${selectedSkills.size>0?'goStep(3)':''}">
+          ${selectedSkills.size>0?`Continue with ${selectedSkills.size} skill${selectedSkills.size>1?'s':''} →`:'Select at least one role'}
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function screenMpesa(){
+  const ready=phoneNum.length===10;
+  if(confirmed) return `
+    <div class="screen enter" style="padding:28px 24px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;">
+      <div class="success-glow">
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><path d="M7 16L13.5 22.5L25.5 9.5" stroke="${T.ink}" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div style="font-size:24px;font-weight:900;color:#fff;letter-spacing:-.04em;margin-bottom:6px;">You're in.</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.4);line-height:1.75;max-width:210px;margin-bottom:30px;">Your Klokd account is active. Open shifts are waiting near you right now.</div>
+      <div style="background:rgba(0,229,160,.08);border:1px solid rgba(0,229,160,.22);border-radius:16px;padding:14px 18px;width:100%;text-align:left;margin-bottom:24px;">
+        <div style="font-size:9.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:${T.e};margin-bottom:7px;">Payment ready</div>
+        <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:3px;">M-Pesa · ${fmtPhone(phoneNum)}</div>
+        <div style="font-size:10.5px;color:rgba(255,255,255,.3);">Paid within 30 min of every clock-out</div>
+      </div>
+      <button class="gbtn" onclick="resetAll()">See open shifts →</button>
+      <div style="margin-top:12px;font-size:10.5px;color:rgba(255,255,255,.22);cursor:pointer;" onclick="resetAll()">↺ Reset demo</div>
+    </div>
+  `;
+  return `
+    <div class="screen enter" style="padding:16px 20px 20px;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+        <button class="back-btn" onclick="goStep(2)">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 10L3 6L8 2" stroke="rgba(255,255,255,.55)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="progress-track">
+          ${[0,1,2,3].map(i=>`<div class="progress-seg" style="background:${T.e};"></div>`).join('')}
+        </div>
+        <div style="font-size:10px;color:rgba(255,255,255,.25);white-space:nowrap;letter-spacing:.05em;">Step 4 of 4</div>
+      </div>
+
+      <div class="sec-h">Where do we send your money?</div>
+      <div class="sec-sub">Enter your M-Pesa number. Paid after every shift.</div>
+
+      <div style="background:rgba(255,255,255,.04);border:1.5px solid ${ready?T.e:'rgba(255,255,255,.1)'};border-radius:14px;padding:13px 18px;margin-bottom:12px;transition:border-color .3s;">
+        <div style="font-size:9.5px;color:rgba(255,255,255,.28);margin-bottom:4px;letter-spacing:.07em;text-transform:uppercase;">M-PESA NUMBER</div>
+        <div style="font-size:23px;font-weight:800;color:${ready?T.e:'#fff'};letter-spacing:.04em;min-height:30px;">
+          ${phoneNum.length>0?fmtPhone(phoneNum):'<span style="opacity:.2">07__ ___ ___</span>'}
+        </div>
+      </div>
+
+      <div style="background:rgba(0,229,160,.07);border-left:2px solid ${T.e};border-radius:0 10px 10px 0;padding:10px 13px;margin-bottom:14px;">
+        <div style="font-size:11px;color:rgba(255,255,255,.45);line-height:1.6;">
+          <span style="color:${T.e};font-weight:600;">30-minute guarantee</span> — KES lands in <span style="font-weight:700;color:#fff;">${ready?fmtPhone(phoneNum):'your M-Pesa'}</span> after every clock-out.
+        </div>
+      </div>
+
+      <div class="numpad" style="margin-bottom:14px;">
+        ${['1','2','3','4','5','6','7','8','9','','0','⌫'].map((d,i)=>
+          d===''?`<div class="nkey empty"></div>`
+          :d==='⌫'?`<button class="nkey del" onclick="numDel()">⌫</button>`
+          :`<button class="nkey num" onclick="numPress('${d}')">${d}</button>`
+        ).join('')}
+      </div>
+
+      <button class="gbtn" ${ready?'':'disabled'} onclick="${ready?'doConfirm()':''}">
+        ${ready?'I\'m ready to work →':'Enter your M-Pesa number'}
+      </button>
+    </div>
+  `;
+}
+
+// ── ACTIONS ──
+window.jumpSlide=function(i){ slideIdx=i; renderSlide(); };
+window.toggleFront=function(){ idFront=!idFront; renderScreen(); };
+window.toggleBack=function(){ idBack=!idBack; renderScreen(); };
+window.toggleSelfie=function(){ idSelfie=!idSelfie; renderScreen(); };
+window.toggleSkill=function(r){ if(selectedSkills.has(r)) selectedSkills.delete(r); else selectedSkills.add(r); renderScreen(); };
+window.toggleCert=function(){ showCert=!showCert; renderScreen(); };
+window.toggleCertDone=function(){ certDone=!certDone; renderScreen(); };
+window.numPress=function(d){ if(phoneNum.length<10){ phoneNum+=d; renderScreen(); }};
+window.numDel=function(){ if(phoneNum.length>0){ phoneNum=phoneNum.slice(0,-1); renderScreen(); }};
+window.doConfirm=function(){ confirmed=true; renderScreen(); };
+window.resetAll=function(){
+  currentScreen=0;idFront=false;idBack=false;idSelfie=false;
+  selectedSkills=new Set(['Waiter']);showCert=false;certDone=false;
+  phoneNum='0722';confirmed=false;slideIdx=0;
+  goStep(0);startSlideTimer();
+};
+
+function renderScreen(){
+  const wrap=document.getElementById('screenWrap');
+  switch(currentScreen){
+    case 0: wrap.innerHTML=screenWelcome(); break;
+    case 1: wrap.innerHTML=screenVerify(); break;
+    case 2: wrap.innerHTML=screenSkills(); break;
+    case 3: wrap.innerHTML=screenMpesa(); break;
+  }
+}
+
+renderDots();
+renderScreen();
+startSlideTimer();
+</script>
+</body>
+</html>

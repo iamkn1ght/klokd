@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Klokd · Sprint Backlog v1.0</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --ink:#0A0A0F;--slate:#1A1A2E;--e:#00E5A0;--v:#BCFF4E;
+  --mid:#6B7280;--mist:#F4F6F3;--soft:#E8EDE8;
+  --amber:#FFB347;--purple:#A78BFA;--blue:#60A5FA;--err:#FF6B6B;
+  --phase0:#FFB347;--phase1:#00E5A0;--phase2:#FFB347;
+  --phase3:#A78BFA;--phase4:#60A5FA;--phase5:#00E5A0;
+  --phase6:#F472B6;--phase7:#BCFF4E;
+}
+body{font-family:'Inter',sans-serif;background:#0A0A0F;color:#fff;min-height:100vh;-webkit-font-smoothing:antialiased;}
+
+/* ── HEADER ── */
+.header{background:#111827;border-bottom:1px solid rgba(255,255,255,.06);padding:0 24px;display:flex;align-items:center;gap:16px;height:56px;position:sticky;top:0;z-index:100;}
+.logo{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.logo-k{width:28px;height:28px;background:linear-gradient(135deg,var(--e),var(--v));border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;color:var(--ink);}
+.logo-text{font-weight:900;font-size:15px;letter-spacing:-.04em;}
+.header-tag{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--e);background:rgba(0,229,160,.1);padding:3px 8px;border-radius:999px;border:1px solid rgba(0,229,160,.2);}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:12px;}
+.stat-pill{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:999px;padding:4px 12px;}
+.stat-pill .num{font-size:12px;font-weight:700;color:var(--e);}
+.stat-pill .lbl{font-size:10px;color:rgba(255,255,255,.35);}
+
+/* ── LAYOUT ── */
+.layout{display:grid;grid-template-columns:220px 1fr;height:calc(100vh - 56px);}
+.sidebar{background:#111827;border-right:1px solid rgba(255,255,255,.06);overflow-y:auto;padding:16px 0;}
+.main{overflow-y:auto;padding:24px;}
+
+/* ── SIDEBAR ── */
+.sidebar-section{padding:0 12px;margin-bottom:4px;}
+.sidebar-label{font-size:8.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.2);padding:8px 8px 6px;display:block;}
+.phase-btn{width:100%;display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;border:none;cursor:pointer;background:transparent;font-family:inherit;transition:background .15s;}
+.phase-btn:hover{background:rgba(255,255,255,.05);}
+.phase-btn.active{background:rgba(0,229,160,.08);border:1px solid rgba(0,229,160,.18);}
+.phase-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.phase-btn .pname{font-size:11.5px;font-weight:600;color:rgba(255,255,255,.7);text-align:left;flex:1;}
+.phase-btn.active .pname{color:#fff;}
+.phase-btn .pcnt{font-size:10px;color:rgba(255,255,255,.25);}
+.phase-btn.active .pcnt{color:var(--e);}
+.sprint-btn{width:100%;display:flex;align-items:center;gap:8px;padding:5px 8px 5px 28px;border-radius:6px;border:none;cursor:pointer;background:transparent;font-family:inherit;transition:background .15s;}
+.sprint-btn:hover{background:rgba(255,255,255,.04);}
+.sprint-btn.active{background:rgba(255,255,255,.06);}
+.sprint-btn .sname{font-size:10.5px;color:rgba(255,255,255,.45);text-align:left;flex:1;}
+.sprint-btn.active .sname{color:rgba(255,255,255,.8);}
+.sprint-btn .spts{font-size:9px;font-weight:600;color:rgba(255,255,255,.2);}
+
+/* ── PHASE VIEW ── */
+.phase-header{background:var(--slate);border-radius:14px;padding:20px 22px;margin-bottom:20px;border:1px solid rgba(255,255,255,.06);position:relative;overflow:hidden;}
+.phase-header::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:14px 0 0 14px;}
+.phase-header .ph-num{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:6px;}
+.phase-header .ph-title{font-size:18px;font-weight:800;letter-spacing:-.02em;margin-bottom:6px;}
+.phase-header .ph-obj{font-size:11.5px;color:rgba(255,255,255,.45);line-height:1.65;margin-bottom:10px;}
+.phase-header .ph-exit{font-size:10.5px;color:rgba(255,255,255,.35);line-height:1.55;}
+.phase-stats{display:flex;gap:10px;margin-top:14px;}
+.phase-stat{background:rgba(255,255,255,.05);border-radius:8px;padding:8px 14px;text-align:center;}
+.phase-stat .psn{font-size:18px;font-weight:800;letter-spacing:-.03em;}
+.phase-stat .psl{font-size:9px;color:rgba(255,255,255,.35);margin-top:2px;}
+
+/* ── SPRINT CARD ── */
+.sprint-card{background:var(--slate);border:1px solid rgba(255,255,255,.06);border-radius:12px;margin-bottom:16px;overflow:hidden;}
+.sprint-head{display:flex;align-items:center;gap:12px;padding:14px 18px;background:rgba(255,255,255,.03);border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer;}
+.sprint-id{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px;flex-shrink:0;}
+.sprint-title{font-size:13px;font-weight:700;color:#fff;flex:1;}
+.sprint-weeks{font-size:10px;color:rgba(255,255,255,.3);}
+.sprint-pts-badge{background:rgba(0,229,160,.12);border:1px solid rgba(0,229,160,.25);border-radius:999px;padding:3px 10px;font-size:10px;font-weight:700;color:var(--e);}
+.sprint-obj{padding:10px 18px;font-size:10.5px;color:rgba(255,255,255,.35);font-style:italic;background:rgba(255,255,255,.01);border-bottom:1px solid rgba(255,255,255,.04);}
+.sprint-toggle{font-size:12px;color:rgba(255,255,255,.25);margin-left:8px;}
+
+/* ── STORY TABLE ── */
+.story-table{width:100%;border-collapse:collapse;}
+.story-table th{padding:8px 14px;font-size:8px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.25);text-align:left;border-bottom:1px solid rgba(255,255,255,.06);}
+.story-row{border-bottom:.5px solid rgba(255,255,255,.04);cursor:pointer;transition:background .15s;}
+.story-row:hover{background:rgba(255,255,255,.03);}
+.story-row td{padding:12px 14px;vertical-align:top;}
+.story-id{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;color:var(--e);white-space:nowrap;}
+.story-text{font-size:11.5px;color:rgba(255,255,255,.75);line-height:1.55;}
+.story-pts{font-size:14px;font-weight:800;letter-spacing:-.02em;text-align:center;}
+.story-ac{font-size:10.5px;color:rgba(255,255,255,.35);line-height:1.6;}
+.story-ac .ac-item{display:flex;gap:6px;margin-bottom:3px;}
+.story-ac .ac-dot{flex-shrink:0;margin-top:3px;width:4px;height:4px;border-radius:50%;background:var(--e);opacity:.5;}
+
+/* STATUS badges */
+.status-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;font-size:8.5px;font-weight:700;cursor:pointer;border:none;font-family:inherit;transition:all .2s;white-space:nowrap;}
+.status-badge.todo{background:rgba(255,255,255,.06);color:rgba(255,255,255,.35);}
+.status-badge.progress{background:rgba(96,165,250,.12);color:#60A5FA;border:1px solid rgba(96,165,250,.25);}
+.status-badge.done{background:rgba(0,229,160,.12);color:var(--e);border:1px solid rgba(0,229,160,.25);}
+.status-badge.blocked{background:rgba(255,107,107,.1);color:var(--err);border:1px solid rgba(255,107,107,.2);}
+
+/* ── DOD PANEL ── */
+.dod-panel{background:var(--slate);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px;margin-bottom:20px;}
+.dod-panel h3{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px;}
+.dod-item{display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:.5px solid rgba(255,255,255,.04);cursor:pointer;}
+.dod-item:last-child{border-bottom:none;}
+.dod-check{width:18px;height:18px;border-radius:5px;border:1.5px solid rgba(255,255,255,.15);flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .2s;margin-top:1px;}
+.dod-check.checked{background:var(--e);border-color:var(--e);}
+.dod-check svg{opacity:0;transition:opacity .15s;}
+.dod-check.checked svg{opacity:1;}
+.dod-text{font-size:11px;color:rgba(255,255,255,.55);line-height:1.55;}
+.dod-text.checked{text-decoration:line-through;color:rgba(255,255,255,.2);}
+
+/* ── OVERVIEW ── */
+.overview-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:24px;}
+.overview-card{background:var(--slate);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:16px 18px;}
+.overview-card .oc-num{font-size:28px;font-weight:900;letter-spacing:-.04em;margin-bottom:4px;}
+.overview-card .oc-lbl{font-size:10.5px;color:rgba(255,255,255,.35);}
+.progress-bar{height:4px;background:rgba(255,255,255,.06);border-radius:999px;margin-top:10px;overflow:hidden;}
+.progress-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--e),var(--v));transition:width .4s cubic-bezier(.4,0,.2,1);}
+
+.phase-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:24px;}
+.phase-overview-card{background:var(--slate);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:14px 16px;cursor:pointer;transition:border-color .2s;}
+.phase-overview-card:hover{border-color:rgba(255,255,255,.15);}
+.poc-top{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+.poc-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.poc-name{font-size:12px;font-weight:700;}
+.poc-weeks{font-size:9.5px;color:rgba(255,255,255,.3);}
+.poc-obj{font-size:10px;color:rgba(255,255,255,.35);line-height:1.55;margin-bottom:8px;}
+.poc-stats{display:flex;gap:12px;}
+.poc-stat .psn{font-size:13px;font-weight:800;color:var(--e);}
+.poc-stat .psl{font-size:9px;color:rgba(255,255,255,.25);}
+
+/* ── COMPLIANCE CRITICAL PATH ── */
+.cp-table{width:100%;border-collapse:collapse;font-size:10.5px;}
+.cp-table th{padding:8px 12px;font-size:8px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.25);text-align:left;border-bottom:1px solid rgba(255,255,255,.08);}
+.cp-table td{padding:10px 12px;border-bottom:.5px solid rgba(255,255,255,.04);color:rgba(255,255,255,.65);vertical-align:top;line-height:1.5;}
+.cp-table tr:hover td{background:rgba(255,255,255,.02);}
+.cp-p0{color:var(--err);}
+.cp-p1{color:var(--amber);}
+
+/* ── EXPORT BTN ── */
+.export-btn{display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:rgba(255,255,255,.55);font-size:10.5px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .2s;}
+.export-btn:hover{background:rgba(255,255,255,.1);color:#fff;}
+
+/* ── SEARCH ── */
+.search-wrap{position:relative;margin-bottom:16px;}
+.search-input{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:8px 12px 8px 36px;color:#fff;font-size:11.5px;font-family:inherit;outline:none;transition:border-color .2s;}
+.search-input:focus{border-color:rgba(0,229,160,.4);}
+.search-input::placeholder{color:rgba(255,255,255,.2);}
+.search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.25);}
+
+/* SCROLLBARS */
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:999px;}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo">
+    <div class="logo-k">K</div>
+    <span class="logo-text">klokd</span>
+  </div>
+  <div class="header-tag">Sprint Backlog v1.0</div>
+  <div class="header-right">
+    <div class="stat-pill"><span class="num">23</span><span class="lbl">sprints</span></div>
+    <div class="stat-pill"><span class="num">46</span><span class="lbl">weeks</span></div>
+    <div class="stat-pill"><span class="num">387</span><span class="lbl">points</span></div>
+    <div class="stat-pill" id="done-stat"><span class="num" id="done-count">0</span><span class="lbl">done</span></div>
+    <button class="export-btn" onclick="exportCSV()">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1V8M6 8L3.5 5.5M6 8L8.5 5.5M1 9.5V10.5C1 10.78 1.22 11 1.5 11H10.5C10.78 11 11 10.78 11 10.5V9.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Export CSV
+    </button>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <span class="sidebar-label">Navigation</span>
+      <button class="phase-btn active" onclick="showView('overview')" id="btn-overview">
+        <div class="phase-dot" style="background:linear-gradient(135deg,var(--e),var(--v));"></div>
+        <span class="pname">Overview</span>
+      </button>
+      <button class="phase-btn" onclick="showView('dod')" id="btn-dod">
+        <div class="phase-dot" style="background:var(--purple);"></div>
+        <span class="pname">Definition of Done</span>
+      </button>
+      <button class="phase-btn" onclick="showView('compliance')" id="btn-compliance">
+        <div class="phase-dot" style="background:var(--err);"></div>
+        <span class="pname">Compliance Path</span>
+      </button>
+    </div>
+    <div class="sidebar-section">
+      <span class="sidebar-label">Phases</span>
+      <div id="phase-nav"></div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main" id="main-content"></div>
+</div>
+
+<script>
+// ── DATA ──
+const PHASES = [
+  {
+    id:0, color:'#FFB347', label:'Phase 0', name:'Validation & Legal Foundation',
+    weeks:'1–4', sprints:'S1–S2', points:41,
+    objective:'Confirm market demand · Secure legal opinion · Stand up infrastructure · Recruit beta cohort',
+    exit:'Legal opinion received · 20 employer + 30 worker interviews complete · All P0 compliance actions initiated',
+    sprints_data:[
+      {
+        id:'S1', label:'Sprint 1', weeks:'1–2', pts:19,
+        obj:'Legal counsel engaged · Infrastructure stood up · Investor outreach initiated',
+        stories:[
+          {id:'S1-01',pts:2,story:'Engage Kenyan labour counsel for written legal opinion on PAYE/NSSF/WIBA/entity classification',ac:['SoW signed','Briefing session complete','Opinion deadline agreed (end Week 4)'],status:'todo'},
+          {id:'S1-02',pts:3,story:'Stand up AWS dev/staging/production environments in af-south-1',ac:['Three environments created in af-south-1','RDS PostgreSQL provisioned with encryption','S3 buckets with encryption at rest'],status:'todo'},
+          {id:'S1-03',pts:3,story:'Complete Daraja B2C sandbox integration including all failure scenarios',ac:['Sandbox credentials active','B2C initiation call succeeds','All failure scenarios documented (insufficient funds, invalid number, timeout)'],status:'todo'},
+          {id:'S1-04',pts:1,story:'Submit Safaricom production access application',ac:['Application submitted','Reference number filed'],status:'todo'},
+          {id:'S1-05',pts:2,story:'Finalise and pilot-test employer interview script',ac:['Covers staffing pain, WhatsApp reliance, payment timing, WTP 4%','Pilot-tested with 1 contact'],status:'todo'},
+          {id:'S1-06',pts:2,story:'Finalise and pilot-test worker interview script',ac:['Covers income reliability, ID concerns, M-Pesa trust, shift discovery','Pilot-tested with 1 worker'],status:'todo'},
+          {id:'S1-07',pts:2,story:'Send Wave 1 investor outreach to 10+ target investors',ac:['Pack confirmed final','10+ investors contacted (Savannah Fund, Kepple, Safaricom Spark Fund priority)'],status:'todo'},
+          {id:'S1-08',pts:2,story:'Submit ODPC Data Controller and Data Processor registration applications',ac:['Both applications submitted','Reference numbers filed'],status:'todo'},
+          {id:'S1-09',pts:1,story:'Submit KRA PIN application',ac:['Application submitted','Reference filed'],status:'todo'},
+          {id:'S1-10',pts:1,story:'Submit BRS company registration application',ac:['Application submitted','Certificate expected within 7 days'],status:'todo'},
+        ]
+      },
+      {
+        id:'S2', label:'Sprint 2', weeks:'3–4', pts:22,
+        obj:'20 employer + 30 worker interviews complete · Legal opinion received · WIBA confirmed',
+        stories:[
+          {id:'S2-01',pts:5,story:'Complete 20 employer in-person interviews in Nairobi hospitality',ac:['20 interviews complete','Findings documented','≥10 express intent to use platform'],status:'todo'},
+          {id:'S2-02',pts:5,story:'Complete 30 worker in-person interviews',ac:['30 interviews complete','Findings documented','≥20 express intent to join platform'],status:'todo'},
+          {id:'S2-03',pts:3,story:'Receive and review legal opinion on PAYE/NSSF/WIBA/entity classification',ac:['Written opinion received','PAYE/NSSF/WIBA positions confirmed','AHL enforceability status confirmed'],status:'todo'},
+          {id:'S2-04',pts:2,story:'Confirm WIBA coverage option (A or B) and finalise clock-in gate architecture',ac:['Option A (employer-held policy) confirmed for MVP','WIBA declaration flow designed','Insurance partner scoped for Option B'],status:'todo'},
+          {id:'S2-05',pts:3,story:'Design and review base database schema with tenant_id on all tables',ac:['ERD approved by both founders','All core tables: users, workers, employers, shifts, shift_events, contracts, payments, compliance_records, audit_log','tenant_id on all tables confirmed'],status:'todo'},
+          {id:'S2-06',pts:2,story:'Confirm AHL enforceability and set compliance engine toggle',ac:['Legal counsel confirms current status','Toggle set appropriately in config','Decision documented in Reboot Pack'],status:'todo'},
+          {id:'S2-07',pts:2,story:'Obtain minimum wage schedules for hospitality, health, and retail sectors',ac:['Current schedules obtained from Ministry of Labour','Staged in config table (not hardcoded)','Update mechanism documented'],status:'todo'},
+        ]
+      },
+    ]
+  },
+  {
+    id:1, color:'#00E5A0', label:'Phase 1', name:'Core Platform API',
+    weeks:'5–12', sprints:'S3–S6', points:78,
+    objective:'All Layer 1 services scaffolded and tested. Database live. Authentication working.',
+    exit:'Postman collection for all core endpoints passing on staging · No P0 bugs',
+    sprints_data:[
+      {
+        id:'S3', label:'Sprint 3', weeks:'5–6', pts:19,
+        obj:'Project scaffold · Authentication · Identity Service · ShiftEventLog',
+        stories:[
+          {id:'S3-01',pts:3,story:'Complete project scaffold — Express 5/TypeScript monorepo with CI/CD pipeline',ac:['ESLint + Jest configured','GitHub branch protection active','GitHub Actions → AWS staging pipeline live'],status:'todo'},
+          {id:'S3-02',pts:5,story:'Implement JWT authentication with OTP registration via Africa\'s Talking',ac:['JWT + refresh tokens working','Role-based: worker/employer/admin','OTP expires 5min','Rate limit: 3 attempts/10min'],status:'todo'},
+          {id:'S3-03',pts:5,story:'Build Identity Service — National ID upload, encryption, and selfie liveness',ac:['ID images AES-256 encrypted in S3','Verification status: pending/approved/rejected','ID number hashed in DB (not plaintext)'],status:'todo'},
+          {id:'S3-04',pts:3,story:'Implement append-only audit log on all sensitive operations',ac:['audit_log: user_id, action, timestamp, ip_hash','Covers identity, payment initiation, data access, admin config','No deletes ever permitted'],status:'todo'},
+          {id:'S3-05',pts:3,story:'Implement ShiftEventLog for all shift state transitions',ac:['shift_events: shift_id, from_state, to_state, actor_id, timestamp, metadata','All transitions emit to log','States: posted→matched→confirmed→active→completed→disputed→paid'],status:'todo'},
+        ]
+      },
+      {
+        id:'S4', label:'Sprint 4', weeks:'7–8', pts:21,
+        obj:'Shift Service · Employer/worker profiles · Minimum wage gate · Shift application',
+        stories:[
+          {id:'S4-01',pts:5,story:'Build Shift Service — POST /shifts with full field and date validation',ac:['Role, date, time, rate, location (lat/lng) all validated','Future date enforced','Returns shift_id, status: posted'],status:'todo'},
+          {id:'S4-02',pts:3,story:'Implement minimum wage validation blocking below-minimum shift creation',ac:['Rate compared against config table for sector + location','Below minimum: 422 with minimum wage value and sector','Config table updatable without code deploy'],status:'todo'},
+          {id:'S4-03',pts:3,story:'Build worker profile — skills, certifications, availability',ac:['PUT /workers/profile accepts skills array, cert file refs, availability','Profile completeness score calculated','Incomplete profiles cannot apply'],status:'todo'},
+          {id:'S4-04',pts:3,story:'Build employer profile — business details and mandatory WIBA declaration',ac:['KRA PIN, contact, WIBA policy reference + insurer + expiry all required','WIBA fields mandatory before first shift can be posted'],status:'todo'},
+          {id:'S4-05',pts:5,story:'Build GET /shifts/available — proximity-filtered and sorted shift feed',ac:['Filter: lat/lng radius (default 5km), role, date','Sorted distance ASC','Employer rating and shift count included per result'],status:'todo'},
+          {id:'S4-06',pts:2,story:'Build shift application — POST /shifts/:id/apply with overlap check',ac:['Worker must be identity-verified (status: approved)','Cannot apply if confirmed on overlapping shift','Application status: pending'],status:'todo'},
+        ]
+      },
+      {
+        id:'S5', label:'Sprint 5', weeks:'9–10', pts:19,
+        obj:'Worker matching · Employer selection · Confirmation · Escrow · Section 37',
+        stories:[
+          {id:'S5-01',pts:5,story:'Build GET /shifts/:id/applicants — ranked worker list for employer',ac:['Sorted: distance ASC, rating DESC, show-up rate DESC','Worker card: name, show-up rate, rating (if ≥3 shifts), distance, skills, certs'],status:'todo'},
+          {id:'S5-02',pts:3,story:'Build shift confirmation — employer selects worker, others notified',ac:['Shift status: confirmed','Worker and other applicants notified','ShiftEventLog: posted→confirmed'],status:'todo'},
+          {id:'S5-03',pts:3,story:'Build worker acceptance and contract generation trigger',ac:['Shift status: accepted','Contract Service triggered','Employer notified','ShiftEventLog: confirmed→accepted'],status:'todo'},
+          {id:'S5-04',pts:5,story:'Implement escrow funding via STK Push on shift confirmation',ac:['STK Push initiated to employer on confirmation','Funding confirmed: escrow_status=funded','Funding declined/timeout: shift reverts to posted, employer notified'],status:'todo'},
+          {id:'S5-05',pts:3,story:'Implement Section 37 threshold monitoring with alert escalation',ac:['Alert at 20 days: warning in API response','Alert at 25 days: explicit employer acknowledgement required','At 30 days: shift confirmation blocked, admin notified'],status:'todo'},
+        ]
+      },
+      {
+        id:'S6', label:'Sprint 6', weeks:'11–12', pts:19,
+        obj:'GPS clock-in · WIBA gate · Clock-out · Notifications · Dispute initiation',
+        stories:[
+          {id:'S6-01',pts:5,story:'Build GPS clock-in with 500m validation, WIBA gate, and offline queue',ac:['500m radius enforced via lat/lng calculation','Outside range: 422 with distance + venue address','Offline: request queued locally, replayed on reconnect','GPS stored as geo_hash only — raw coordinates never persisted'],status:'todo'},
+          {id:'S6-02',pts:3,story:'Implement WIBA hard gate — blocks clock-in if coverage unconfirmed',ac:['GET /compliance/wiba/:shiftId called before every clock-in','Not confirmed: 403 with reason code','Reason surfaced clearly in both Worker and Employer apps'],status:'todo'},
+          {id:'S6-03',pts:3,story:'Build clock-out endpoint and auto-release timer',ac:['Clock-out timestamp recorded','Shift status: completed','4-hour auto-release timer started','ShiftEventLog: active→completed'],status:'todo'},
+          {id:'S6-04',pts:5,story:'Implement FCM push notifications with WhatsApp Business API fallback',ac:['FCM primary for all events: shift matched, 1hr reminder, payment sent, rating received','WhatsApp fallback if push not acknowledged in 5 min','All notification events logged in notification_log','Bilingual templates (Swahili/English)','Tested on physical Android device'],status:'todo'},
+          {id:'S6-05',pts:3,story:'Build dispute initiation with auto-release pause',ac:['POST /disputes: shift_id, type, description, optional photo evidence','Auto-release timer paused on dispute creation','Both parties and admin notified immediately'],status:'todo'},
+        ]
+      },
+    ]
+  },
+  {
+    id:2, color:'#FFB347', label:'Phase 2', name:'Compliance Engine & Contracts',
+    weeks:'13–14', sprints:'S7', points:26,
+    objective:'All statutory compliance logic live as discrete Layer 1 services. Clean API surface callable by all future Layer 2 clients.',
+    exit:'All compliance endpoints tested · WIBA gate integration tested · Contract generation producing Employment Act s.9-compliant output',
+    sprints_data:[
+      {
+        id:'S7', label:'Sprint 7', weeks:'13–14', pts:26,
+        obj:'Compliance Engine (PAYE/NSSF/SHIF/WIBA/S37/MinWage) · Contract Service · Webhook Service · Analytics',
+        stories:[
+          {id:'S7-01',pts:5,story:'Implement PAYE calculation per shift and monthly aggregate — all rates in config',ac:['2025/26 PAYE bands from config table (never hardcoded)','Personal relief KES 2,400/month applied','Returns: taxable_income, paye_deduction, net_pay'],status:'todo'},
+          {id:'S7-02',pts:3,story:'Implement NSSF Tier I and Tier II with monthly aggregation and ceiling enforcement',ac:['Tier I: 6% up to KES 480 each party','Tier II: 6% on KES 8,001–72,000 band','Ceiling enforced — no over-deduction across shifts'],status:'todo'},
+          {id:'S7-03',pts:3,story:'Implement SHIF calculation with monthly aggregation and KES 300 minimum',ac:['2.75% of gross monthly earnings','Minimum KES 300/month enforced','Returns: shif_deduction, month_gross'],status:'todo'},
+          {id:'S7-04',pts:2,story:'Implement AHL toggle — config-driven on/off without code deployment',ac:['ahl_enabled flag in compliance_config table','Toggle change logged in audit_log with actor_id, timestamp, previous value','Returns KES 0 with reason when disabled'],status:'todo'},
+          {id:'S7-05',pts:2,story:'Implement minimum wage validation endpoint for Compliance Engine',ac:['POST /compliance/minwage/validate','Config table updatable without deploy','Returns: valid, minimum_wage, sector, source'],status:'todo'},
+          {id:'S7-06',pts:5,story:'Build Contract Service — Employment Act s.9-compliant auto-generated contract per shift',ac:['PDF generated for every shift','All s.9 fields present: employer, worker, role, place, date, rate, hours, WIBA coverage','Stored in S3 with 7-year retention tag','Digital acceptance recorded with timestamp'],status:'todo'},
+          {id:'S7-07',pts:3,story:'Build Webhook Service with HMAC-SHA256 signing and retry logic',ac:['WebhookSubscription model: endpoint_url, event_types, secret','HMAC-SHA256 signing on all payloads','3-attempt retry with exponential backoff','WebhookDeliveryLog: status, response_code, timestamp'],status:'todo'},
+          {id:'S7-08',pts:2,story:'Implement Analytics Event Log — all platform events, geo_hash only, no PII',ac:['All events logged: type, geo_hash, tenant_id, timestamp','No raw PII in event log','Indefinite retention (aggregated, anonymised)'],status:'todo'},
+          {id:'S7-09',pts:1,story:'Implement NITA levy calculation (KES 50/worker/month)',ac:['KES 50 per worker per month','Monthly aggregation enforced (not per shift)','Included in compliance calculation response'],status:'todo'},
+        ]
+      },
+    ]
+  },
+  {
+    id:3, color:'#A78BFA', label:'Phase 3', name:'Worker App MVP',
+    weeks:'15–22', sprints:'S8–S11', points:69,
+    objective:'Complete Worker App from onboarding through payment confirmation. Android-first. Brand guide applied.',
+    exit:'End-to-end worker flow tested on physical Android device · All 5 onboarding screens complete · Payment confirmed on staging',
+    sprints_data:[
+      {id:'S8',label:'Sprint 8',weeks:'15–16',pts:21,obj:'Worker onboarding — all 5 screens (Welcome · Privacy/Consent · ID Verify · Skills · M-Pesa)',stories:[
+        {id:'S8-01',pts:3,story:'Build Welcome screen — auto-advancing 3-slide carousel with manual dot navigation',ac:['3 slides at 3.4s interval','Manual dot navigation','Dark shell (ink background)','Get started CTA → Privacy/Consent screen'],status:'todo'},
+        {id:'S8-02',pts:5,story:'Build Privacy & Consent screen — explicit DPA 2019 compliant consent before any data collection',ac:['Lists all data categories collected with purpose and retention','Two explicit consent toggles (identity + GPS) — both required','Privacy Policy link active','ODPC biometric data consent requirement met'],status:'todo'},
+        {id:'S8-03',pts:5,story:'Build ID Verification screen — National ID (front/back) + selfie upload zones',ac:['Verified badge preview shown before upload begins','Three interactive zones: idle (dashed) → uploaded (mint border + checkmark)','All three required before Continue enables','Images transmitted encrypted, S3 storage with 3-year retention'],status:'todo'},
+        {id:'S8-04',pts:3,story:'Build Skills & Certifications screen — role chips + optional cert upload',ac:['Role chips: Waiter, Barista, Chef, Cashier, Security, Cleaner, Receptionist, Bartender','At least one chip required before Continue enables','Optional cert upload (expandable), PDF/photo, max 5MB'],status:'todo'},
+        {id:'S8-05',pts:5,story:'Build M-Pesa Setup screen — custom numpad, real-time formatting, 30-min guarantee',ac:['Custom numpad (not system keyboard)','Number formatted in real time: 0722 400 500','30-minute guarantee messaging displayed','M-Pesa number encrypted at rest','CTA active when 10 digits entered'],status:'todo'},
+      ]},
+      {id:'S9',label:'Sprint 9',weeks:'17–18',pts:18,obj:'Home screen · Shift Detail · Contract acknowledgement · Accept/Decline · Notifications',stories:[
+        {id:'S9-01',pts:5,story:'Build Home screen — stats card and proximity-sorted available shift feed',ac:['Stats card: show-up rate, rating (if ≥3 shifts), total shifts','Shift feed sorted proximity ASC','Top card visually dominant (mint border), others progressively subdued','Bottom nav: Home (active), Shifts, Pay, Me'],status:'todo'},
+        {id:'S9-02',pts:5,story:'Build Shift Detail screen — full shift info, employer profile, payment guarantee, Accept/Decline',ac:['Role, venue, date, time, distance, earnings (large, mint)','Employer section: name, shifts posted, rating','Payment guarantee strip with masked M-Pesa number','Contract preview link','Accept (gradient) and Decline (ghost) CTAs'],status:'todo'},
+        {id:'S9-03',pts:5,story:'Build Contract Acknowledgement screen — full contract display with explicit acceptance required',ac:['Displays all s.9 Employment Act fields','Explicit "I agree" checkbox — required before Accept enables','Acceptance timestamp recorded in DB','Save as PDF available'],status:'todo'},
+        {id:'S9-04',pts:3,story:'Configure and test all worker push notification events with WhatsApp fallback',ac:['FCM: shift confirmed, 1hr reminder, payment sent, rating received','WhatsApp fallback templates approved and tested','All notifications received on physical test device'],status:'todo'},
+      ]},
+      {id:'S10',label:'Sprint 10',weeks:'19–20',pts:16,obj:'Clock-In (GPS + WIBA gate) · Active Shift · Clock-Out · Payment Confirmed',stories:[
+        {id:'S10-01',pts:8,story:'Build Clock-In screen — GPS radius ring, WIBA status gate, offline state',ac:['GPS ring: locating → within 500m (green) → outside range (red + distance)','Clock In CTA disabled until within range','WIBA confirmed (green ✓) or blocked (red + reason + contact employer link)','Offline state: "Low signal — request queued" explanation displayed'],status:'todo'},
+        {id:'S10-02',pts:3,story:'Build Active Shift screen — elapsed timer, Clock Out with confirmation',ac:['Live elapsed timer (HH:MM:SS)','Clock Out requires confirmation tap with amount shown','Dispute button visible but not prominent (bottom corner)'],status:'todo'},
+        {id:'S10-03',pts:5,story:'Build Payment Confirmed screen — celebration state, deduction breakdown, pay statement, rating',ac:['Gradient circle checkmark success state','KES amount large (mint, Black weight)','Deduction breakdown: gross → PAYE → NSSF → SHIF → net','Pay statement download (PDF)','1–5 star employer rating prompt'],status:'todo'},
+      ]},
+      {id:'S11',label:'Sprint 11',weeks:'21–22',pts:14,obj:'Shifts Tab · Pay Tab (deduction breakdown) · Profile/Me Tab · Dispute Flow',stories:[
+        {id:'S11-01',pts:3,story:'Build Shifts Tab — Upcoming / Active / History with 7-year retention enforced',ac:['Three sections: Upcoming, Active, History','History: read-only, 7-year retention enforced (no delete)','Notice: "Your payment history is kept for 7 years as required by Kenyan law"'],status:'todo'},
+        {id:'S11-02',pts:5,story:'Build Pay Tab — monthly aggregation with full deduction breakdown',ac:['"This month" summary: shifts, total earned, total deducted, net received','Line items: gross → PAYE → NSSF → SHIF → AHL (KES 0 + suspended note if off) → net','M-Pesa transaction ID per entry','Date range filter'],status:'todo'},
+        {id:'S11-03',pts:3,story:'Build Profile/Me Tab — portable reputation and Privacy & Data panel',ac:['Show-up rate (large), rating, total shifts, badges','Privacy & Data panel: download data, correct info, delete account, manage consent','All data subject rights are real functional actions (not email links)'],status:'todo'},
+        {id:'S11-04',pts:3,story:'Build Dispute Flow — type selection, description, evidence, submit, status tracking',ac:['Types: payment not received, shift cancelled, unsafe conditions, other','Optional photo evidence (max 3)','Reference number returned on submit','Status tracking visible in Shifts Tab'],status:'todo'},
+      ]},
+    ]
+  },
+  {
+    id:4, color:'#60A5FA', label:'Phase 4', name:'Employer App MVP',
+    weeks:'23–30', sprints:'S12–S15', points:62,
+    objective:'Complete Employer App from onboarding through shift completion. Light shell. WIBA capture in onboarding.',
+    exit:'End-to-end employer flow tested · WIBA screen complete · Minimum wage gate tested · Section 37 alert tested',
+    sprints_data:[
+      {id:'S12',label:'Sprint 12',weeks:'23–24',pts:18,obj:'Employer onboarding — Welcome · Business Verify · WIBA & Insurance · M-Pesa Setup',stories:[
+        {id:'S12-01',pts:3,story:'Build Employer Welcome screen — "For Business" identity, three value prop cards',ac:['"For Business" pill in header','Three stacked value prop cards: Post in 2min / Verified workers / Pay on completion','Light mist shell','Set up your account gradient CTA'],status:'todo'},
+        {id:'S12-02',pts:5,story:'Build Business Verify screen — KRA PIN validation and escrow explainer',ac:['Business name, KRA PIN (11-char format), contact person','KRA PIN format validated','Escrow explainer: 3-step inline card','Continue enables when all fields valid'],status:'todo'},
+        {id:'S12-03',pts:5,story:'Build WIBA & Insurance screen — mandatory policy declaration for employers',ac:['WIBA policy reference, insurer name, expiry date (all required)','Expiry must be future date','"No policy? Coming soon: Klokd per-shift cover" primes Option B','WIBA data stored and linked to employer profile'],status:'todo'},
+        {id:'S12-04',pts:5,story:'Build M-Pesa Setup screen — Paybill / Till / Personal selector with escrow visual',ac:['Three payment methods with radio selection','Account number displayed and editable per method','3-step escrow visual: You fund → Klokd holds → Worker paid','Activation success state: "You\'re live."','4% fee / no monthly fees / no lock-in footer'],status:'todo'},
+      ]},
+      {id:'S13',label:'Sprint 13',weeks:'25–26',pts:19,obj:'Dashboard · Post a Shift (min wage gate + S37 alert + rate intelligence) · Select Worker',stories:[
+        {id:'S13-01',pts:3,story:'Build Employer Dashboard — staffing status at a glance and Post a Shift CTA',ac:['Confirmed/pending/completed counts visible immediately','Post a Shift gradient CTA prominent','Upcoming shifts list with status dots','Bottom nav: Home, Shifts, Pay, Team'],status:'todo'},
+        {id:'S13-02',pts:8,story:'Build Post a Shift screen — under 2 minutes, min wage gate, rate intelligence strip',ac:['Role chips, date, time pickers, rate stepper','Rate intelligence strip: "KES [min]–[max] for [role] in [area]"','Min wage gate: CTA disabled + "Adjust to continue" if below minimum','All fields required before Find workers enables'],status:'todo'},
+        {id:'S13-03',pts:3,story:'Implement Section 37 alert inline in shift posting flow',ac:['Yellow advisory at 20 days when recent/saved worker is being considered','Explicit acknowledgement required at 25 days','Hard block + admin notification at 30 days'],status:'todo'},
+        {id:'S13-04',pts:5,story:'Build Select Worker screen — ranked cards with show-up rate prominent',ac:['Cards sorted: proximity ASC, rating DESC, show-up rate DESC','Show-up rate sits directly under name — primary anxiety signal','Top card dominant (gradient CTA), others progressively subdued','Select [name] triggers confirmation flow'],status:'todo'},
+      ]},
+      {id:'S14',label:'Sprint 14',weeks:'27–28',pts:14,obj:'Active shift monitoring · Clock-Out confirm (with easy release / friction dispute) · Rating · Dispute',stories:[
+        {id:'S14-01',pts:3,story:'Build Active Shift Monitoring screen — confirmation worker is live',ac:['Worker clocked in confirmation with timestamp','Elapsed timer','Worker contact link (WhatsApp)','Dispute button bottom corner (visible, not prominent)'],status:'todo'},
+        {id:'S14-02',pts:5,story:'Build Clock-Out Confirm — easy release (gradient), intentional dispute (ghost)',ac:['"Release KES [amount] or raise a dispute?" framing','Release: gradient CTA (easy, default)','Dispute: ghost button (intentional friction)','4-hour auto-release countdown displayed','Release triggers Daraja B2C disbursement'],status:'todo'},
+        {id:'S14-03',pts:3,story:'Build Rating Screen — post-shift worker rating with minimum threshold display',ac:['1–5 star selector + optional text','Appears after payment released','Rating visible on worker profile only when ≥3 ratings collected'],status:'todo'},
+        {id:'S14-04',pts:3,story:'Build Employer Dispute Flow — no-show, incomplete shift, conduct issue',ac:['Types: no-show, incomplete, conduct, other','Description + photo evidence (max 3)','Auto-release paused, admin notified','Reference number returned'],status:'todo'},
+      ]},
+      {id:'S15',label:'Sprint 15',weeks:'29–30',pts:11,obj:'Shifts Tab · Team Tab (favourites + re-hire) · Pay/Billing Tab',stories:[
+        {id:'S15-01',pts:3,story:'Build Employer Shifts Tab — complete shift history with filters',ac:['All shifts: completed, active, pending, disputed','Filter: role, date, worker, status','Per entry: role, date, worker name/rating, status pill, amount'],status:'todo'},
+        {id:'S15-02',pts:5,story:'Build Team Tab — saved workers with one-tap re-hire (primary retention mechanic)',ac:['Saved workers: one-tap re-hire initiates shift posting pre-filled with that worker','Blocked workers: excluded from match results','Save and Block actions on worker profile page','This is the key platform retention mechanic'],status:'todo'},
+        {id:'S15-03',pts:3,story:'Build Pay/Billing Tab — escrow balance, spend summary, CSV export',ac:['Escrow balance (current)','Total spend this month','Per-shift: role, date, worker, gross + 4% fee, M-Pesa confirmation','Export to CSV'],status:'todo'},
+      ]},
+    ]
+  },
+  {
+    id:5, color:'#00E5A0', label:'Phase 5', name:'Payment & Escrow',
+    weeks:'31–36', sprints:'S16–S18', points:42,
+    objective:'Production-grade payment flow. Daraja B2C production keys active. Escrow auto-release tested end-to-end.',
+    exit:'Real KES disbursed to real M-Pesa number in production · Auto-release tested · Dispute pausing tested',
+    sprints_data:[
+      {id:'S16',label:'Sprint 16',weeks:'31–32',pts:18,obj:'Daraja B2C production integration · Escrow STK Push · Deduction-adjusted disbursement',stories:[
+        {id:'S16-01',pts:8,story:'Build Daraja B2C production integration with full error handling',ac:['Production keys configured','All states handled: Success, Failed, Timeout','Failed: retry once at 60s, then admin alert','All transactions logged with Daraja reference'],status:'todo'},
+        {id:'S16-02',pts:5,story:'Implement escrow funding via STK Push on shift confirmation',ac:['STK Push to employer on confirmation','Funded: escrow_status=funded, shift proceeds','Declined/timeout: shift reverts to posted, employer notified'],status:'todo'},
+        {id:'S16-03',pts:5,story:'Apply compliance deductions before disbursement — worker receives correct net',ac:['Compliance Engine called before every disbursement','PAYE + NSSF + SHIF deducted from gross','Deduction record created per shift','Worker receives net amount via Daraja B2C'],status:'todo'},
+      ]},
+      {id:'S17',label:'Sprint 17',weeks:'33–34',pts:11,obj:'Pay statement PDF generation · 7-year retention enforcement · Auto-release implementation',stories:[
+        {id:'S17-01',pts:5,story:'Build pay statement PDF generation per shift with WhatsApp sharing',ac:['PDF: employer, worker, date, role, hours, gross, itemised deductions, net, M-Pesa reference','S3 storage with 7-year retention tag','Downloadable from Payment Confirmed screen and Shifts Tab','WhatsApp pre-formatted share intent'],status:'todo'},
+        {id:'S17-02',pts:3,story:'Enforce 7-year retention on all payment records and contracts',ac:['S3 lifecycle policy: 7 years before deletion','retain_until field on all payment DB records','Delete account flow: profile anonymised, payment records retained with notice'],status:'todo'},
+        {id:'S17-03',pts:3,story:'Implement auto-release timer — 4 hours post clock-out, paused by dispute',ac:['4-hour timer starts on clock-out confirmation','Paused when dispute opened, resumes on dispute close without action','On expiry: Daraja B2C disbursement auto-initiated','Employer notified of auto-release'],status:'todo'},
+      ]},
+      {id:'S18',label:'Sprint 18',weeks:'35–36',pts:13,obj:'Payment failure handling · Dispute resolution workflow · Monthly reconciliation',stories:[
+        {id:'S18-01',pts:5,story:'Build payment failure handling — workers never left unpaid',ac:['Failure types: timeout, insufficient funds, network error','All failures: admin immediately notified','Worker notified: "Payment delayed — we\'re resolving this now"','3-attempt retry at 60s intervals','Manual release via Admin Portal after 3 failures'],status:'todo'},
+        {id:'S18-02',pts:5,story:'Build admin dispute resolution workflow',ac:['Admin sees: dispute details, both accounts, evidence, shift history','Resolution options: release, partial, reverse escrow, escalate','Resolution logged: admin_id, reason, timestamp','Both parties notified of resolution'],status:'todo'},
+        {id:'S18-03',pts:3,story:'Build monthly payment reconciliation report',ac:['Monthly job: 1st of month','Total disbursed, fees collected, PAYE deducted, net platform revenue','Report available in Admin Portal'],status:'todo'},
+      ]},
+    ]
+  },
+  {
+    id:6, color:'#F472B6', label:'Phase 6', name:'Admin Portal & Compliance Operations',
+    weeks:'37–42', sprints:'S19–S21', points:35,
+    objective:'Admin Portal operational. Compliance configuration live. Data subject rights workflow implemented. Breach response tooled.',
+    exit:'All statutory rate toggles tested · Data subject request workflow tested end-to-end · ODPC notification template verified',
+    sprints_data:[
+      {id:'S19',label:'Sprint 19',weeks:'37–38',pts:13,obj:'Compliance Config panel · Monthly dashboard · Worker/employer management',stories:[
+        {id:'S19-01',pts:5,story:'Build Compliance Configuration panel with audit trail',ac:['Toggles: AHL on/off, PAYE bands, NSSF ceilings, SHIF %','Confirmation dialog before any change','All changes logged: actor_id, previous value, new value, timestamp'],status:'todo'},
+        {id:'S19-02',pts:5,story:'Build Monthly Compliance Dashboard — PAYE/NSSF/SHIF aggregations, KRA export',ac:['PAYE: total taxable income, total deducted, due date countdown','NSSF: Tier I + II per worker + employer contributions','CSV export formatted for KRA iTax Form P10'],status:'todo'},
+        {id:'S19-03',pts:3,story:'Build worker and employer management view for beta cohort',ac:['Worker list: verification status, shift count, last active','Employer list: WIBA status, shift count, outstanding disputes','Manual approve/reject, flag, suspend actions'],status:'todo'},
+      ]},
+      {id:'S20',label:'Sprint 20',weeks:'39–40',pts:13,obj:'Data Subject Rights workflow · Breach Response Panel · DPA rights functional in-app',stories:[
+        {id:'S20-01',pts:5,story:'Build Data Subject Request management workflow for ODPC compliance',ac:['Request types: access, rectification, deletion, portability, restrict, object','Log: request_id, type, subject_id, submitted_at, status, resolved_at','Data export: ZIP of all personal data for subject','Deletion: anonymises profile, retains payment records with legal basis note'],status:'todo'},
+        {id:'S20-02',pts:5,story:'Build Breach Response Panel — 72-hour ODPC notification with countdown timer',ac:['Breach declaration captures: type, affected subjects, data categories, cause','72-hour countdown starts on declaration','ODPC notification template pre-filled','Breach log: immutable, date/time-stamped'],status:'todo'},
+        {id:'S20-03',pts:3,story:'Implement data subject rights as real functional features in Profile/Me Tab',ac:['"Download my data" → ZIP within 24hrs, link to phone','Correct info → update form reviewed in 7 days','Delete account → anonymisation with retention notice','Manage consent → toggle GPS consent, view current state'],status:'todo'},
+      ]},
+      {id:'S21',label:'Sprint 21',weeks:'41–42',pts:9,obj:'API monitoring · Encryption audit · Rate limiting · OWASP review',stories:[
+        {id:'S21-01',pts:3,story:'Implement CloudWatch API monitoring with P95 alerting',ac:['P50/P95/P99 dashboards per endpoint','Alert: P95 > 500ms for 5min → PagerDuty alert','Alert: Error rate > 1% for 2min → immediate alert'],status:'todo'},
+        {id:'S21-02',pts:3,story:'Complete encryption audit — all sensitive data encrypted at rest and in transit',ac:['National ID images: AES-256 in S3','M-Pesa numbers: encrypted at application layer','GPS: geo_hash only stored','TLS 1.2 minimum on all endpoints','Certificate pinning in mobile apps'],status:'todo'},
+        {id:'S21-03',pts:3,story:'Implement rate limiting and input validation on all endpoints, OWASP review',ac:['Auth: 3/10min, shift posting: 20/hr, shift application: 50/hr','All inputs sanitised, parameterised queries throughout','OWASP Top 10 checklist reviewed and signed off'],status:'todo'},
+      ]},
+    ]
+  },
+  {
+    id:7, color:'#BCFF4E', label:'Phase 7', name:'Beta Preparation & Go-Live',
+    weeks:'43–46', sprints:'S22–S23', points:34,
+    objective:'50 employers and 200 workers ready. End-to-end system tested. All compliance gates confirmed. First live shift.',
+    exit:'MVP DoD checklist complete · Beta cohort onboarded · First live shift completed · Real KES disbursed',
+    sprints_data:[
+      {id:'S22',label:'Sprint 22',weeks:'43–44',pts:18,obj:'E2E integration testing · Load test 80 concurrent users · Beta cohort onboarded',stories:[
+        {id:'S22-01',pts:8,story:'Complete full end-to-end integration test covering all compliance gates',ac:['Full loop: post → match → confirm → escrow funded → clock-in (WIBA confirmed) → clock-out → payment → rating','WIBA blocked clock-in tested','Min wage blocked posting tested','S37 alert at 20/25/30 days tested','Auto-release at 4 hours tested','Dispute pausing auto-release tested'],status:'todo'},
+        {id:'S22-02',pts:5,story:'Execute load test — 80 concurrent users, 30 minutes sustained',ac:['k6 load test: 80 VUs, 30 minutes','P95 response time < 500ms on all core endpoints','Zero errors during 30-minute window','RDS connection pooling validated'],status:'todo'},
+        {id:'S22-03',pts:5,story:'Onboard beta cohort — 50 employers and 200 workers',ac:['50 employer accounts: business verified, WIBA declared, M-Pesa configured','200 worker accounts: identity verified, skills set, M-Pesa configured','≥10 shifts posted by employers before go-live day'],status:'todo'},
+      ]},
+      {id:'S23',label:'Sprint 23',weeks:'45–46',pts:16,obj:'First live shift · Real KES disbursed · P0/P1 bugs resolved · Investor update',stories:[
+        {id:'S23-01',pts:8,story:'Complete controlled first live shift — real worker, real employer, real M-Pesa payment',ac:['Known employer from beta cohort posts shift','Known worker accepts and clocks in','Real KES disbursed to real M-Pesa number','All ShiftEventLog states confirmed in sequence','Pay statement generated','Admin notified at each step'],status:'todo'},
+        {id:'S23-02',pts:3,story:'Prepare and send beta investor update',ac:['Covers: beta cohort size, first shift completed, compliance architecture, legal opinion status','Next milestones: Week 8 (20 shifts), Week 12 (50 shifts)'],status:'todo'},
+        {id:'S23-03',pts:5,story:'Resolve all P0 and P1 bugs, document P2 backlog',ac:['Zero P0 bugs','Zero P1 bugs','P2 bugs documented with resolution timeline'],status:'todo'},
+      ]},
+    ]
+  },
+];
+
+const STATUSES = ['todo','progress','done','blocked'];
+const STATUS_LABELS = {todo:'To Do',progress:'In Progress',done:'Done',blocked:'Blocked'};
+
+// ── STATE ──
+let storyStatuses = {};
+let currentView = 'overview';
+let currentPhase = null;
+let currentSprint = null;
+let dodState = {};
+let collapsed = {};
+
+// Init statuses
+PHASES.forEach(p => p.sprints_data.forEach(s => s.stories.forEach(st => {
+  storyStatuses[st.id] = st.status;
+})));
+
+// Init DoD
+const DOD_ITEMS = {
+  story: ['All acceptance criteria pass','Unit tests written and passing (coverage ≥ 80% service layer)','Integration test written and passing','No TypeScript errors (tsc --noEmit clean)','ESLint passes with zero warnings','API endpoint documented (if applicable)','Error states handled — no unhandled promise rejections','Mobile screens reviewed at 360px and 390px','Accessibility: touch targets ≥ 44px, sufficient colour contrast','DPA 2019 requirements met for any sensitive data handling','Story status updated to Done in Trello'],
+  sprint: ['All committed stories meet story-level DoD','Sprint review conducted — both founders present','All API endpoints deployed to staging','Staging smoke test passing (Postman collection)','No P0 or P1 bugs open','Sprint retrospective completed, action items logged','Reboot Pack updated with any new decisions','Risk register reviewed'],
+  phase: ['All sprints in phase meet sprint-level DoD','Phase deliverables demonstrated to external stakeholder','Legal/compliance dependencies for next phase confirmed','Infrastructure costs reviewed against budget','Investor update prepared and sent (if milestone)'],
+  mvp: ['All Phase 0–7 sprints meet sprint-level DoD','50 employers + 200 workers onboarded and active','End-to-end shift flow: post → match → clock-in → clock-out → M-Pesa → rating','WIBA hard gate confirmed blocking uncovered shifts','Minimum wage gate confirmed blocking below-minimum shifts','Section 37 alert triggering at correct thresholds','Real KES disbursed to real M-Pesa number via Daraja production','Escrow auto-release confirmed at 4 hours post clock-out','ODPC registered as Data Controller and Data Processor','Privacy Policy published · DPAs executed with all processors','All data confirmed in AWS af-south-1 only','API P95 < 500ms under 80 concurrent users','Load test: 80 VUs, 30 minutes, zero errors','KRA PIN obtained · PAYE filing setup on iTax','NSSF and SHIF (SHA) registrations complete'],
+};
+Object.entries(DOD_ITEMS).forEach(([k,items]) => {
+  dodState[k] = items.map(() => false);
+});
+
+// ── RENDER ──
+function totalDone(){
+  return Object.values(storyStatuses).filter(s=>s==='done').length;
+}
+function totalStories(){
+  return Object.keys(storyStatuses).length;
+}
+function updateHeader(){
+  document.getElementById('done-count').textContent = totalDone();
+}
+
+function showView(v, phaseId, sprintId){
+  currentView = v;
+  currentPhase = phaseId !== undefined ? phaseId : currentPhase;
+  currentSprint = sprintId || null;
+  renderSidebar();
+  renderMain();
+  updateHeader();
+}
+
+function renderSidebar(){
+  const nav = document.getElementById('phase-nav');
+  nav.innerHTML = PHASES.map(p => {
+    const done = p.sprints_data.flatMap(s=>s.stories).filter(st=>storyStatuses[st.id]==='done').length;
+    const total = p.sprints_data.flatMap(s=>s.stories).length;
+    const isActive = currentView==='phase' && currentPhase===p.id;
+    let html = `<div class="sidebar-section" style="padding:0 12px;">
+      <button class="phase-btn ${isActive?'active':''}" onclick="showView('phase',${p.id})">
+        <div class="phase-dot" style="background:${p.color};"></div>
+        <span class="pname">${p.label}: ${p.name.split(' ').slice(0,3).join(' ')}</span>
+        <span class="pcnt">${done}/${total}</span>
+      </button>`;
+    if(isActive){
+      html += p.sprints_data.map(s=>{
+        const sDone = s.stories.filter(st=>storyStatuses[st.id]==='done').length;
+        const isActiveSprint = currentSprint===s.id;
+        return `<button class="sprint-btn ${isActiveSprint?'active':''}" onclick="showView('sprint',${p.id},'${s.id}')">
+          <span class="sname">${s.label} · W${s.weeks}</span>
+          <span class="spts">${sDone}/${s.stories.length}</span>
+        </button>`;
+      }).join('');
+    }
+    html += '</div>';
+    return html;
+  }).join('');
+
+  // Update top nav buttons
+  ['overview','dod','compliance'].forEach(v => {
+    const btn = document.getElementById(`btn-${v}`);
+    if(btn) btn.classList.toggle('active', currentView===v);
+  });
+}
+
+function renderMain(){
+  const main = document.getElementById('main-content');
+  if(currentView==='overview') main.innerHTML = renderOverview();
+  else if(currentView==='dod') main.innerHTML = renderDoD();
+  else if(currentView==='compliance') main.innerHTML = renderCompliance();
+  else if(currentView==='phase') main.innerHTML = renderPhase();
+  else if(currentView==='sprint') main.innerHTML = renderSprint();
+}
+
+function renderOverview(){
+  const done = totalDone(), total = totalStories();
+  const pct = Math.round(done/total*100);
+  const totalPts = PHASES.reduce((a,p)=>a+p.points,0);
+  const donePts = PHASES.reduce((a,p)=>a+p.sprints_data.flatMap(s=>s.stories).filter(st=>storyStatuses[st.id]==='done').reduce((b,st)=>b+st.pts,0),0);
+  return `
+    <div style="max-width:900px;">
+      <div style="margin-bottom:20px;">
+        <div style="font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.3);margin-bottom:6px;">Klokd · MVP Sprint Backlog</div>
+        <div style="font-size:22px;font-weight:800;letter-spacing:-.03em;margin-bottom:4px;">Product Overview</div>
+        <div style="font-size:12px;color:rgba(255,255,255,.35);">23 sprints · 46 weeks · 387 story points · Nairobi beachhead · Controlled beta launch</div>
+      </div>
+
+      <div class="overview-grid">
+        <div class="overview-card">
+          <div class="oc-num" style="color:var(--e);">${done}<span style="font-size:14px;color:rgba(255,255,255,.25)">/${total}</span></div>
+          <div class="oc-lbl">Stories complete</div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;"></div></div>
+        </div>
+        <div class="overview-card">
+          <div class="oc-num" style="color:var(--v);">23</div>
+          <div class="oc-lbl">Total sprints</div>
+        </div>
+        <div class="overview-card">
+          <div class="oc-num" style="color:var(--amber);">46</div>
+          <div class="oc-lbl">Weeks to beta</div>
+        </div>
+        <div class="overview-card">
+          <div class="oc-num" style="color:var(--purple);">${donePts}<span style="font-size:14px;color:rgba(255,255,255,.25)">/${totalPts}</span></div>
+          <div class="oc-lbl">Story points</div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${Math.round(donePts/totalPts*100)}%;"></div></div>
+        </div>
+      </div>
+
+      <div style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.2);margin-bottom:12px;">Phases</div>
+      <div class="phase-grid">
+        ${PHASES.map(p=>{
+          const done = p.sprints_data.flatMap(s=>s.stories).filter(st=>storyStatuses[st.id]==='done').length;
+          const total = p.sprints_data.flatMap(s=>s.stories).length;
+          const pct = total>0?Math.round(done/total*100):0;
+          return `<div class="phase-overview-card" onclick="showView('phase',${p.id})">
+            <div class="poc-top">
+              <div class="poc-dot" style="background:${p.color};"></div>
+              <div>
+                <div class="poc-name">${p.label}</div>
+                <div class="poc-weeks">Weeks ${p.weeks}</div>
+              </div>
+            </div>
+            <div class="poc-obj">${p.name}</div>
+            <div class="poc-stats">
+              <div class="poc-stat"><div class="psn">${p.points}</div><div class="psl">pts</div></div>
+              <div class="poc-stat"><div class="psn">${p.sprints_data.length}</div><div class="psl">sprints</div></div>
+              <div class="poc-stat"><div class="psn">${done}/${total}</div><div class="psl">done</div></div>
+            </div>
+            <div class="progress-bar" style="margin-top:10px;"><div class="progress-fill" style="width:${pct}%;background:${p.color};"></div></div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+}
+
+function statusBadge(storyId){
+  const s = storyStatuses[storyId];
+  return `<button class="status-badge ${s}" onclick="cycleStatus('${storyId}',event)">${STATUS_LABELS[s]}</button>`;
+}
+window.cycleStatus = function(id, e){
+  e.stopPropagation();
+  const i = STATUSES.indexOf(storyStatuses[id]);
+  storyStatuses[id] = STATUSES[(i+1)%STATUSES.length];
+  updateHeader();
+  renderMain();
+  renderSidebar();
+};
+
+function ptColor(p){ return p>=5?'#FF6B6B':p>=3?'#FFB347':'#00E5A0'; }
+
+function renderStoryTable(stories, search=''){
+  const filtered = search ? stories.filter(st=>
+    st.story.toLowerCase().includes(search) || st.id.toLowerCase().includes(search)
+  ) : stories;
+  if(!filtered.length) return '<div style="padding:20px;text-align:center;color:rgba(255,255,255,.2);font-size:11px;">No stories match your search.</div>';
+  return `<table class="story-table">
+    <thead><tr>
+      <th style="width:70px;">ID</th>
+      <th>User Story</th>
+      <th style="width:40px;text-align:center;">Pts</th>
+      <th style="width:200px;">Acceptance Criteria</th>
+      <th style="width:100px;">Status</th>
+    </tr></thead>
+    <tbody>
+    ${filtered.map(st=>`
+      <tr class="story-row">
+        <td><span class="story-id">${st.id}</span></td>
+        <td><span class="story-text">${st.story}</span></td>
+        <td style="text-align:center;"><span class="story-pts" style="color:${ptColor(st.pts)};">${st.pts}</span></td>
+        <td><div class="story-ac">${st.ac.map(a=>`<div class="ac-item"><div class="ac-dot"></div><span>${a}</span></div>`).join('')}</div></td>
+        <td>${statusBadge(st.id)}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+function renderPhase(){
+  const p = PHASES[currentPhase];
+  if(!p) return '<div style="padding:40px;color:rgba(255,255,255,.3);">Select a phase from the sidebar.</div>';
+  const allStories = p.sprints_data.flatMap(s=>s.stories);
+  const done = allStories.filter(st=>storyStatuses[st.id]==='done').length;
+  const pts = allStories.reduce((a,st)=>a+st.pts,0);
+  const donePts = allStories.filter(st=>storyStatuses[st.id]==='done').reduce((a,st)=>a+st.pts,0);
+  return `
+    <div style="max-width:900px;">
+      <div class="phase-header" style="--c:${p.color};">
+        <div style="position:absolute;left:0;top:0;bottom:0;width:4px;background:${p.color};border-radius:14px 0 0 14px;"></div>
+        <div class="ph-num" style="color:${p.color};">${p.label} · Weeks ${p.weeks}</div>
+        <div class="ph-title">${p.name}</div>
+        <div class="ph-obj">${p.objective}</div>
+        <div class="ph-exit"><span style="color:${p.color};font-weight:600;">Exit: </span>${p.exit}</div>
+        <div class="phase-stats">
+          <div class="phase-stat"><div class="psn" style="color:${p.color};">${p.sprints_data.length}</div><div class="psl">sprints</div></div>
+          <div class="phase-stat"><div class="psn" style="color:${p.color};">${pts}</div><div class="psl">total pts</div></div>
+          <div class="phase-stat"><div class="psn" style="color:${p.color};">${done}/${allStories.length}</div><div class="psl">done</div></div>
+          <div class="phase-stat"><div class="psn" style="color:${p.color};">${donePts}/${pts}</div><div class="psl">pts done</div></div>
+        </div>
+      </div>
+      ${p.sprints_data.map(s=>renderSprintCard(s,p)).join('')}
+    </div>`;
+}
+
+function renderSprintCard(s, p){
+  const done = s.stories.filter(st=>storyStatuses[st.id]==='done').length;
+  const isCollapsed = collapsed[s.id];
+  return `
+    <div class="sprint-card">
+      <div class="sprint-head" onclick="toggleCollapse('${s.id}')">
+        <span class="sprint-id" style="background:${p.color}18;color:${p.color};border:1px solid ${p.color}35;">${s.label}</span>
+        <span class="sprint-title">${s.obj.split('·')[0].trim()}</span>
+        <span class="sprint-weeks">Weeks ${s.weeks}</span>
+        <span class="sprint-pts-badge">${done}/${s.stories.length} · ${s.pts}pts</span>
+        <span class="sprint-toggle">${isCollapsed?'▶':'▼'}</span>
+      </div>
+      <div class="sprint-obj">${s.obj}</div>
+      ${isCollapsed?'':`<div style="overflow-x:auto;">${renderStoryTable(s.stories)}</div>`}
+    </div>`;
+}
+
+window.toggleCollapse = function(id){
+  collapsed[id] = !collapsed[id];
+  renderMain();
+};
+
+function renderSprint(){
+  const p = PHASES[currentPhase];
+  if(!p) return '';
+  const s = p.sprints_data.find(sp=>sp.id===currentSprint);
+  if(!s) return '';
+  const done = s.stories.filter(st=>storyStatuses[st.id]==='done').length;
+  return `
+    <div style="max-width:900px;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+        <button onclick="showView('phase',${p.id})" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:6px 12px;color:rgba(255,255,255,.45);font-size:11px;cursor:pointer;font-family:inherit;">← ${p.label}</button>
+        <span style="font-size:18px;font-weight:800;letter-spacing:-.02em;">${s.label} — ${s.obj.split('·')[0].trim()}</span>
+      </div>
+      <div class="sprint-card">
+        <div class="sprint-head" style="cursor:default;">
+          <span class="sprint-id" style="background:${p.color}18;color:${p.color};">${s.label}</span>
+          <span class="sprint-title">Weeks ${s.weeks}</span>
+          <span class="sprint-pts-badge">${done}/${s.stories.length} stories · ${s.pts} points</span>
+        </div>
+        <div class="sprint-obj">${s.obj}</div>
+        <div style="overflow-x:auto;">${renderStoryTable(s.stories)}</div>
+      </div>
+    </div>`;
+}
+
+function renderDoD(){
+  const LABELS = {story:'Story-Level DoD',sprint:'Sprint-Level DoD',phase:'Phase-Level DoD',mvp:'MVP DoD — Beta-Ready'};
+  const COLORS = {story:'var(--e)',sprint:'var(--purple)',phase:'var(--blue)',mvp:'var(--amber)'};
+  return `
+    <div style="max-width:720px;">
+      <div style="margin-bottom:20px;">
+        <div style="font-size:22px;font-weight:800;letter-spacing:-.03em;margin-bottom:4px;">Definition of Done</div>
+        <div style="font-size:11.5px;color:rgba(255,255,255,.35);">Check off items as they are validated. State persists during this session.</div>
+      </div>
+      ${Object.entries(DOD_ITEMS).map(([k,items])=>{
+        const done = dodState[k].filter(Boolean).length;
+        const pct = Math.round(done/items.length*100);
+        return `
+          <div class="dod-panel">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+              <h3 style="color:${COLORS[k]};">${LABELS[k]}</h3>
+              <span style="font-size:10px;color:rgba(255,255,255,.3);">${done}/${items.length} · ${pct}%</span>
+            </div>
+            <div class="progress-bar" style="margin-bottom:14px;"><div class="progress-fill" style="width:${pct}%;background:${COLORS[k]};"></div></div>
+            ${items.map((item,i)=>`
+              <div class="dod-item" onclick="toggleDod('${k}',${i})">
+                <div class="dod-check ${dodState[k][i]?'checked':''}">
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5L4.5 7.5L8.5 3" stroke="${dodState[k][i]?'#0A0A0F':'transparent'}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <span class="dod-text ${dodState[k][i]?'checked':''}">${item}</span>
+              </div>`).join('')}
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+
+window.toggleDod = function(k, i){
+  dodState[k][i] = !dodState[k][i];
+  renderMain();
+};
+
+function renderCompliance(){
+  const items = [
+    {action:'Legal opinion: PAYE/NSSF/WIBA/entity classification',owner:'Chamia',deadline:'End Sprint 1',blocks:'Everything',priority:'P0'},
+    {action:'ODPC Data Controller + Processor registration confirmed',owner:'Chamia',deadline:'End Sprint 2',blocks:'Sprint 8 — identity data collection',priority:'P0'},
+    {action:'KRA PIN obtained',owner:'Chamia',deadline:'End Sprint 1',blocks:'Sprint 19 — PAYE remittance',priority:'P0'},
+    {action:'WIBA coverage option confirmed (A or B)',owner:'Ivy',deadline:'End Sprint 2',blocks:'Sprint 6 — clock-in gate',priority:'P0'},
+    {action:'AHL enforceability status confirmed',owner:'Legal counsel',deadline:'End Sprint 2',blocks:'Sprint 7 — Compliance Engine build',priority:'P1'},
+    {action:'Escrow model / CBK licensing position confirmed',owner:'Legal counsel',deadline:'End Sprint 2',blocks:'Sprint 16 — Payment Service',priority:'P1'},
+    {action:'Minimum wage schedules for hospitality/health/retail obtained',owner:'Developer',deadline:'End Phase 1',blocks:'Sprint 7 — minimum wage gate',priority:'P1'},
+    {action:'DPAs executed: AWS, Safaricom, WhatsApp, Africa\'s Talking',owner:'Chamia',deadline:'Before Sprint 22',blocks:'Go-live',priority:'P1'},
+    {action:'Daraja B2C production keys obtained',owner:'Chamia',deadline:'Before Sprint 16',blocks:'Payment Service',priority:'P1'},
+    {action:'DPIA completed',owner:'Ivy + Legal',deadline:'Before Sprint 8',blocks:'Worker onboarding / data collection',priority:'P1'},
+    {action:'Privacy Policy published on platform',owner:'Legal',deadline:'Before Sprint 22',blocks:'DPA 2019 compliance',priority:'P2'},
+    {action:'Data breach response plan documented and tooled',owner:'Chamia + Developer',deadline:'Before Sprint 22',blocks:'ODPC DPA s.43 compliance',priority:'P2'},
+  ];
+  return `
+    <div style="max-width:900px;">
+      <div style="margin-bottom:20px;">
+        <div style="font-size:22px;font-weight:800;letter-spacing:-.03em;margin-bottom:4px;">Compliance Critical Path</div>
+        <div style="font-size:11.5px;color:rgba(255,255,255,.35);">These actions must complete before the sprint that depends on them. Missing these blocks development.</div>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:6px;font-size:10px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--err);display:inline-block;"></span><span style="color:rgba(255,255,255,.4);">P0 — blocks everything</span></div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:10px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--amber);display:inline-block;"></span><span style="color:rgba(255,255,255,.4);">P1 — blocks named sprint</span></div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:10px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--blue);display:inline-block;"></span><span style="color:rgba(255,255,255,.4);">P2 — blocks go-live</span></div>
+      </div>
+      <div style="background:var(--slate);border:1px solid rgba(255,255,255,.06);border-radius:12px;overflow:hidden;">
+        <table class="cp-table" style="width:100%;">
+          <thead><tr>
+            <th>Action</th><th>Owner</th><th>Deadline</th><th>Blocks</th><th>Priority</th>
+          </tr></thead>
+          <tbody>
+          ${items.map(item=>{
+            const c = item.priority==='P0'?'var(--err)':item.priority==='P1'?'var(--amber)':'var(--blue)';
+            return `<tr>
+              <td style="font-weight:600;color:rgba(255,255,255,.75);">${item.action}</td>
+              <td style="color:var(--e);">${item.owner}</td>
+              <td style="white-space:nowrap;">${item.deadline}</td>
+              <td>${item.blocks}</td>
+              <td><span style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:999px;background:${c}18;color:${c};border:1px solid ${c}35;">${item.priority}</span></td>
+            </tr>`;
+          }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+// ── EXPORT ──
+window.exportCSV = function(){
+  const rows = [['Phase','Sprint','Story ID','Story','Points','AC','Status']];
+  PHASES.forEach(p=>p.sprints_data.forEach(s=>s.stories.forEach(st=>{
+    rows.push([p.label,s.label,st.id,`"${st.story.replace(/"/g,'""')}"`,st.pts,`"${st.ac.join(' | ').replace(/"/g,'""')}"`,storyStatuses[st.id]]);
+  })));
+  const csv = rows.map(r=>r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'klokd_sprint_backlog.csv';
+  a.click();
+};
+
+// ── INIT ──
+renderSidebar();
+renderMain();
+</script>
+</body>
+</html>
