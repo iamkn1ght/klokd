@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GradientButton } from '../../components/GradientButton';
+import { useApi } from '../../hooks/useApi';
 import { colors, typography, spacing, radius } from '../../theme';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
@@ -9,8 +10,10 @@ type Props = { navigation: NativeStackNavigationProp<any> };
 const ROLES = ['Waiter', 'Barista', 'Chef', 'Cashier', 'Security', 'Cleaner'];
 
 export function PostShiftScreen({ navigation }: Props) {
+  const { post } = useApi();
   const [selectedRole, setSelectedRole] = useState('Waiter');
   const [rate, setRate] = useState(1800);
+  const [posting, setPosting] = useState(false);
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.scrollContent}>
@@ -81,7 +84,29 @@ export function PostShiftScreen({ navigation }: Props) {
         <Text style={styles.rateIntelSub}>KES 1,500–1,900 for waiters in Westlands</Text>
       </View>
 
-      <GradientButton title="Find workers" onPress={() => navigation.navigate('SelectWorker')} />
+      <GradientButton title={posting ? 'Posting...' : 'Find workers'} disabled={posting} onPress={async () => {
+        setPosting(true);
+        try {
+          const now = new Date();
+          const start = new Date(now); start.setHours(17, 0, 0, 0);
+          const end = new Date(now); end.setHours(22, 0, 0, 0);
+          const shift = await post<any>('/shifts', {
+            role: selectedRole,
+            date: now.toISOString(),
+            startTime: start.toISOString(),
+            endTime: end.toISOString(),
+            rateKes: rate,
+            locationLat: -1.2636,
+            locationLng: 36.8036,
+            locationName: 'Westlands',
+          });
+          navigation.navigate('SelectWorker', { shiftId: shift.id });
+        } catch (err: any) {
+          Alert.alert('Error', err.message || 'Failed to post shift');
+        } finally {
+          setPosting(false);
+        }
+      }} />
     </ScrollView>
   );
 }

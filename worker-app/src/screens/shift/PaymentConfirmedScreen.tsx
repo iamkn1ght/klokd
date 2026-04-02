@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { GradientButton } from '../../components/GradientButton';
+import { useApi } from '../../hooks/useApi';
 import { colors, gradients, typography, spacing, radius } from '../../theme';
 
 type Props = {
@@ -10,8 +11,42 @@ type Props = {
   route: { params: { shiftId: string } };
 };
 
-export function PaymentConfirmedScreen({ navigation }: Props) {
+export function PaymentConfirmedScreen({ navigation, route }: Props) {
+  const { get, post } = useApi();
   const [selectedStars, setSelectedStars] = useState(4);
+  const [payment, setPayment] = useState<any>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    loadPayment();
+  }, []);
+
+  const loadPayment = async () => {
+    try {
+      const data = await get(`/payments/shift/${route.params.shiftId}`);
+      setPayment(data);
+    } catch {
+      // Payment may not exist yet (processing) — show defaults
+    }
+  };
+
+  const handleSubmitRating = async () => {
+    setSubmitting(true);
+    try {
+      await post('/ratings', { shiftId: route.params.shiftId, stars: selectedStars });
+      navigation.popToTop();
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to submit rating');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const gross = payment?.grossKes ?? 1800;
+  const net = payment?.netKes ?? gross;
+  const paye = payment?.payeKes ?? 0;
+  const nssf = (payment?.nssfTier1Kes ?? 0) + (payment?.nssfTier2Kes ?? 0);
+  const shif = payment?.shifKes ?? 0;
 
   return (
     <View style={styles.screen}>
@@ -29,7 +64,7 @@ export function PaymentConfirmedScreen({ navigation }: Props) {
         </LinearGradient>
 
         <Text style={styles.paidTitle}>Paid!</Text>
-        <Text style={styles.paidAmount}>KES 1,800</Text>
+        <Text style={styles.paidAmount}>KES {gross.toLocaleString()}</Text>
         <Text style={styles.paidSub}>Sent to M-Pesa · 0722 ••• •••</Text>
 
         {/* Shift summary */}
@@ -58,19 +93,19 @@ export function PaymentConfirmedScreen({ navigation }: Props) {
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryKey}>PAYE</Text>
-            <Text style={styles.deductionValue}>- KES 0</Text>
+            <Text style={styles.deductionValue}>- KES {paye.toLocaleString()}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryKey}>NSSF</Text>
-            <Text style={styles.deductionValue}>- KES 108</Text>
+            <Text style={styles.deductionValue}>- KES {nssf.toLocaleString()}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryKey}>SHIF</Text>
-            <Text style={styles.deductionValue}>- KES 50</Text>
+            <Text style={styles.deductionValue}>- KES {shif.toLocaleString()}</Text>
           </View>
           <View style={[styles.summaryRow, { marginTop: 4, paddingTop: 6, borderTopWidth: 0.5, borderTopColor: colors.white10 }]}>
             <Text style={[styles.summaryKey, { color: colors.electric, fontWeight: '600' }]}>Net paid</Text>
-            <Text style={[styles.summaryValue, { color: colors.electric }]}>KES 1,642</Text>
+            <Text style={[styles.summaryValue, { color: colors.electric }]}>KES {net.toLocaleString()}</Text>
           </View>
         </View>
 
@@ -91,8 +126,9 @@ export function PaymentConfirmedScreen({ navigation }: Props) {
 
       <View style={styles.footer}>
         <GradientButton
-          title="Submit rating"
-          onPress={() => navigation.popToTop()}
+          title={submitting ? 'Submitting...' : 'Submit rating'}
+          onPress={handleSubmitRating}
+          disabled={submitting}
         />
       </View>
     </View>

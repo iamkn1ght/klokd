@@ -37,7 +37,7 @@ export class IdentityService {
   }
 
   /**
-   * Submit ID for verification. In production, images go to S3.
+   * Submit ID for verification. In production, images go to Supabase Storage.
    * National ID number is hashed, never stored in plaintext.
    */
   async submitIdVerification(

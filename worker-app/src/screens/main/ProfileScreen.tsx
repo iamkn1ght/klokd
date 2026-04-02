@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '../../context/AuthContext';
 import { colors, gradients, typography, spacing, radius } from '../../theme';
 
 const MOCK_PROFILE = {
@@ -24,6 +25,14 @@ const MENU_ITEMS = [
 ];
 
 export function ProfileScreen() {
+  const { logout } = useAuth();
+
+  const handleSignOut = () => {
+    Alert.alert('Sign out', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign out', style: 'destructive', onPress: () => logout() },
+    ]);
+  };
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.scrollContent}>
       {/* Profile header */}
@@ -77,6 +86,7 @@ export function ProfileScreen() {
             key={item.label}
             style={[styles.menuItem, i < MENU_ITEMS.length - 1 && styles.menuItemBorder]}
             activeOpacity={0.7}
+            onPress={item.danger ? handleSignOut : undefined}
           >
             <View style={styles.menuLeft}>
               <Text style={styles.menuIcon}>{item.icon}</Text>

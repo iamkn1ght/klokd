@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, Animated, Easing, Alert } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Location from 'expo-location';
 import { GradientButton } from '../../components/GradientButton';
+import { useApi } from '../../hooks/useApi';
 import { colors, gradients, typography, spacing, radius } from '../../theme';
 
 type Props = {
@@ -11,19 +13,41 @@ type Props = {
 };
 
 export function ClockInScreen({ navigation, route }: Props) {
+  const { post, get } = useApi();
   const [status, setStatus] = useState<'checking' | 'ready' | 'too_far' | 'wiba_fail'>('checking');
   const [distance, setDistance] = useState(0);
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Simulate GPS check
+  // Real GPS check + WIBA verification
   useEffect(() => {
-    const timer = setTimeout(() => {
-      // Simulate: within range
-      setDistance(127);
-      setStatus('ready');
-    }, 1500);
-    return () => clearTimeout(timer);
+    checkLocation();
   }, []);
+
+  const checkLocation = async () => {
+    try {
+      const { status: permStatus } = await Location.requestForegroundPermissionsAsync();
+      if (permStatus !== 'granted') {
+        setStatus('too_far');
+        return;
+      }
+
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      setCoords({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+
+      // Check WIBA
+      const wibaResult = await get<{ confirmed: boolean; reason?: string }>(`/compliance/wiba/${route.params.shiftId}`);
+      if (!wibaResult.confirmed) {
+        setStatus('wiba_fail');
+        return;
+      }
+
+      setDistance(Math.round(loc.coords.accuracy || 0));
+      setStatus('ready');
+    } catch {
+      setStatus('ready'); // Fallback: allow attempt, server will validate
+    }
+  };
 
   // Pulse animation for the GPS ring
   useEffect(() => {
@@ -112,7 +136,15 @@ export function ClockInScreen({ navigation, route }: Props) {
       <View style={styles.footer}>
         <GradientButton
           title={isReady ? 'Clock in →' : 'Verifying...'}
-          onPress={() => navigation.navigate('ActiveShift', { shiftId: route.params.shiftId })}
+          onPress={async () => {
+            if (!coords) return;
+            try {
+              await post(`/shifts/${route.params.shiftId}/clockin`, { lat: coords.lat, lng: coords.lng });
+              navigation.navigate('ActiveShift', { shiftId: route.params.shiftId });
+            } catch (err: any) {
+              Alert.alert('Clock-in Failed', err.message || 'Unable to clock in');
+            }
+          }}
           disabled={!isReady}
         />
       </View>

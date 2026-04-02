@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ProgressBar } from '../../components/ProgressBar';
 import { GradientButton } from '../../components/GradientButton';
+import { useApi } from '../../hooks/useApi';
 import { colors, gradients, typography, spacing, radius } from '../../theme';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
@@ -17,8 +18,10 @@ function formatPhone(p: string): string {
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'];
 
 export function MpesaSetupScreen({ navigation }: Props) {
+  const { put } = useApi();
   const [phone, setPhone] = useState('0722');
   const [confirmed, setConfirmed] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const ready = phone.length === 10;
 
@@ -110,9 +113,19 @@ export function MpesaSetupScreen({ navigation }: Props) {
 
       <View style={styles.footer}>
         <GradientButton
-          title={ready ? "I'm ready to work →" : 'Enter your M-Pesa number'}
-          onPress={() => setConfirmed(true)}
-          disabled={!ready}
+          title={loading ? 'Saving...' : ready ? "I'm ready to work →" : 'Enter your M-Pesa number'}
+          onPress={async () => {
+            setLoading(true);
+            try {
+              await put('/identity/workers/mpesa', { mpesaNumber: phone });
+              setConfirmed(true);
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Failed to save M-Pesa number');
+            } finally {
+              setLoading(false);
+            }
+          }}
+          disabled={!ready || loading}
         />
       </View>
     </View>

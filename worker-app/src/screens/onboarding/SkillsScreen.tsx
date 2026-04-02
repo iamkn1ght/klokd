@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ProgressBar } from '../../components/ProgressBar';
 import { GradientButton } from '../../components/GradientButton';
+import { useApi } from '../../hooks/useApi';
 import { colors, typography, spacing, radius } from '../../theme';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
@@ -10,17 +11,34 @@ type Props = { navigation: NativeStackNavigationProp<any> };
 const ROLES = ['Waiter', 'Barista', 'Chef', 'Cashier', 'Security', 'Cleaner', 'Receptionist', 'Bartender'];
 
 export function SkillsScreen({ navigation }: Props) {
-  const [selected, setSelected] = useState<Set<string>>(new Set(['Waiter']));
+  const { put } = useApi();
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [showCert, setShowCert] = useState(false);
   const [certDone, setCertDone] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const toggleSkill = (role: string) => {
     setSelected(prev => {
       const next = new Set(prev);
-      if (next.has(role)) next.delete(role);
-      else next.add(role);
+      next.has(role) ? next.delete(role) : next.add(role);
       return next;
     });
+  };
+
+  const handleContinue = async () => {
+    setLoading(true);
+    try {
+      await put('/identity/workers/profile', {
+        firstName: 'User', // In production: captured from earlier input or ID verification
+        lastName: 'Name',
+        skills: Array.from(selected),
+      });
+      navigation.navigate('Consent');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to save skills');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const hasSelection = selected.size > 0;
@@ -37,12 +55,8 @@ export function SkillsScreen({ navigation }: Props) {
           {ROLES.map(role => {
             const isOn = selected.has(role);
             return (
-              <TouchableOpacity
-                key={role}
-                style={[styles.chip, isOn ? styles.chipOn : styles.chipOff]}
-                onPress={() => toggleSkill(role)}
-                activeOpacity={0.7}
-              >
+              <TouchableOpacity key={role} style={[styles.chip, isOn ? styles.chipOn : styles.chipOff]}
+                onPress={() => toggleSkill(role)} activeOpacity={0.7}>
                 <Text style={[styles.chipText, isOn ? styles.chipTextOn : styles.chipTextOff]}>
                   {isOn ? '✓ ' : ''}{role}
                 </Text>
@@ -54,36 +68,22 @@ export function SkillsScreen({ navigation }: Props) {
           </TouchableOpacity>
         </View>
 
-        {/* Certificate section */}
-        <TouchableOpacity
-          style={styles.certToggle}
-          onPress={() => setShowCert(!showCert)}
-          activeOpacity={0.7}
-        >
+        <TouchableOpacity style={styles.certToggle} onPress={() => setShowCert(!showCert)} activeOpacity={0.7}>
           <View>
             <Text style={styles.certTitle}>Got a certificate?</Text>
             <Text style={styles.certSub}>Food handler · First aid · Health & safety</Text>
           </View>
-          <View style={styles.certPlusBtn}>
-            <Text style={styles.certPlusText}>{showCert ? '−' : '+'}</Text>
-          </View>
+          <View style={styles.certPlusBtn}><Text style={styles.certPlusText}>{showCert ? '−' : '+'}</Text></View>
         </TouchableOpacity>
 
         {showCert && (
-          <TouchableOpacity
-            style={[styles.certUpload, certDone && styles.certUploadDone]}
-            onPress={() => setCertDone(!certDone)}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity style={[styles.certUpload, certDone && styles.certUploadDone]}
+            onPress={() => setCertDone(!certDone)} activeOpacity={0.7}>
             <View style={[styles.certIcon, certDone && styles.certIconDone]}>
-              <Text style={{ color: certDone ? colors.electric : colors.white25, fontSize: 16 }}>
-                {certDone ? '✓' : '📄'}
-              </Text>
+              <Text style={{ color: certDone ? colors.electric : colors.white25, fontSize: 16 }}>{certDone ? '✓' : '📄'}</Text>
             </View>
             <View>
-              <Text style={[styles.certLabel, certDone && { color: colors.electric }]}>
-                {certDone ? 'Certificate added ✓' : 'Upload certificate'}
-              </Text>
+              <Text style={[styles.certLabel, certDone && { color: colors.electric }]}>{certDone ? 'Certificate added ✓' : 'Upload certificate'}</Text>
               <Text style={styles.certFileSub}>PDF or photo · Max 5MB</Text>
             </View>
           </TouchableOpacity>
@@ -92,12 +92,8 @@ export function SkillsScreen({ navigation }: Props) {
 
       <View style={styles.footer}>
         <GradientButton
-          title={hasSelection
-            ? `Continue with ${selected.size} skill${selected.size > 1 ? 's' : ''} →`
-            : 'Select at least one role'}
-          onPress={() => navigation.navigate('Consent')}
-          disabled={!hasSelection}
-        />
+          title={loading ? 'Saving...' : hasSelection ? `Continue with ${selected.size} skill${selected.size > 1 ? 's' : ''} →` : 'Select at least one role'}
+          onPress={handleContinue} disabled={!hasSelection || loading} />
       </View>
     </View>
   );
@@ -117,54 +113,15 @@ const styles = StyleSheet.create({
   chipTextOff: { color: colors.white42, fontWeight: '400' },
   chipTextOn: { color: colors.electric, fontWeight: '700' },
   chipMore: { borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.white10, backgroundColor: 'transparent' },
-  chipMoreText: { color: colors.white25, fontSize: 12.5, fontWeight: '400' },
-  certToggle: {
-    backgroundColor: colors.white05,
-    borderWidth: 0.5,
-    borderColor: colors.white10,
-    borderRadius: radius.lg,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
+  chipMoreText: { color: colors.white25, fontSize: 12.5 },
+  certToggle: { backgroundColor: colors.white05, borderWidth: 0.5, borderColor: colors.white10, borderRadius: radius.lg, padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   certTitle: { fontSize: typography.size.body, fontWeight: '600', color: '#fff', marginBottom: 2 },
   certSub: { fontSize: typography.size.label, color: colors.white30 },
-  certPlusBtn: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 0.5,
-    borderColor: colors.white12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  certPlusBtn: { width: 22, height: 22, borderRadius: 11, borderWidth: 0.5, borderColor: colors.white12, alignItems: 'center', justifyContent: 'center' },
   certPlusText: { color: colors.white38, fontSize: 13 },
-  certUpload: {
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: colors.white10,
-    borderRadius: radius.lg,
-    padding: 13,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-  },
-  certUploadDone: {
-    borderStyle: 'solid',
-    borderColor: colors.electric,
-    backgroundColor: colors.electricAlpha['06'],
-  },
-  certIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: colors.white05,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  certUpload: { borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.white10, borderRadius: radius.lg, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+  certUploadDone: { borderStyle: 'solid', borderColor: colors.electric, backgroundColor: colors.electricAlpha['06'] },
+  certIcon: { width: 36, height: 36, borderRadius: 8, backgroundColor: colors.white05, alignItems: 'center', justifyContent: 'center' },
   certIconDone: { backgroundColor: colors.electricAlpha['15'] },
   certLabel: { fontSize: typography.size.body, fontWeight: '600', color: '#fff', marginBottom: 2 },
   certFileSub: { fontSize: typography.size.label, color: colors.white30 },

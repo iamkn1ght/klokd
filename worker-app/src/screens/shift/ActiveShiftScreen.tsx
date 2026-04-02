@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GradientButton } from '../../components/GradientButton';
+import { useApi } from '../../hooks/useApi';
 import { colors, typography, spacing, radius } from '../../theme';
 
 type Props = {
@@ -10,7 +11,9 @@ type Props = {
 };
 
 export function ActiveShiftScreen({ navigation, route }: Props) {
+  const { post } = useApi();
   const [elapsed, setElapsed] = useState(0);
+  const [clockingOut, setClockingOut] = useState(false);
 
   // Live timer
   useEffect(() => {
@@ -71,8 +74,18 @@ export function ActiveShiftScreen({ navigation, route }: Props) {
 
       <View style={styles.footer}>
         <GradientButton
-          title="Clock out"
-          onPress={() => navigation.navigate('PaymentConfirmed', { shiftId: route.params.shiftId })}
+          title={clockingOut ? 'Clocking out...' : 'Clock out'}
+          disabled={clockingOut}
+          onPress={async () => {
+            setClockingOut(true);
+            try {
+              await post(`/shifts/${route.params.shiftId}/clockout`);
+              navigation.navigate('PaymentConfirmed', { shiftId: route.params.shiftId });
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Failed to clock out');
+              setClockingOut(false);
+            }
+          }}
         />
         <Text style={styles.footerHint}>
           Payment will be sent within 30 minutes of clock-out

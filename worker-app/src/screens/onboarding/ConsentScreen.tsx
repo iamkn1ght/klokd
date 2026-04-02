@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ProgressBar } from '../../components/ProgressBar';
 import { GradientButton } from '../../components/GradientButton';
+import { useApi } from '../../hooks/useApi';
 import { colors, typography, spacing, radius } from '../../theme';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
@@ -30,7 +31,9 @@ const CONSENTS: ConsentItem[] = [
 ];
 
 export function ConsentScreen({ navigation }: Props) {
+  const { post } = useApi();
   const [consented, setConsented] = useState({ identity: false, gps: false });
+  const [loading, setLoading] = useState(false);
   const allConsented = consented.identity && consented.gps;
 
   const toggle = (key: keyof typeof consented) => {
@@ -98,9 +101,19 @@ export function ConsentScreen({ navigation }: Props) {
           <Text style={styles.footerHint}>Both consents are required to proceed</Text>
         )}
         <GradientButton
-          title={allConsented ? 'Continue →' : 'Give consent to continue'}
-          onPress={() => navigation.navigate('MpesaSetup')}
-          disabled={!allConsented}
+          title={loading ? 'Saving...' : allConsented ? 'Continue →' : 'Give consent to continue'}
+          onPress={async () => {
+            setLoading(true);
+            try {
+              await post('/identity/workers/consent', { consentIdentity: true, consentGps: true });
+              navigation.navigate('MpesaSetup');
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Failed to save consent');
+            } finally {
+              setLoading(false);
+            }
+          }}
+          disabled={!allConsented || loading}
         />
       </View>
     </View>

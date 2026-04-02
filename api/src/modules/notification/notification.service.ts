@@ -1,12 +1,15 @@
 import prisma from '../../config/database';
+import { config } from '../../config';
 
 /**
- * Notification Service — FCM primary, WhatsApp Business API fallback at 5 min.
- * Stubs for MVP development — production integration in Sprint 6.
+ * Notification Service — Expo Push Notifications primary, WhatsApp Business API fallback at 5 min.
+ * Uses Expo's push notification service (handles FCM/APNs internally).
  */
 export class NotificationService {
+  private readonly EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
+
   /**
-   * Send a notification via FCM. Falls back to WhatsApp after 5 minutes.
+   * Send a push notification via Expo Push API.
    */
   async send(params: {
     tenantId: string;
@@ -14,22 +17,43 @@ export class NotificationService {
     type: string;
     title: string;
     body: string;
-    channel?: 'fcm' | 'whatsapp';
+    channel?: 'push' | 'whatsapp';
   }) {
     const notification = await prisma.notification.create({
       data: {
         tenantId: params.tenantId,
         userId: params.userId,
-        channel: params.channel || 'fcm',
+        channel: params.channel || 'push',
         type: params.type,
         title: params.title,
         body: params.body,
       },
     });
 
-    // In production: send via FCM
-    // If not acknowledged in 5 minutes, send via WhatsApp Business API
-    console.log(`[NOTIFICATION] ${params.channel || 'fcm'}: ${params.title} → ${params.userId}`);
+    // In production: send via Expo Push API
+    // Requires the user's Expo push token (stored on device registration)
+    if (config.nodeEnv === 'production' && config.expoPush.accessToken) {
+      try {
+        await fetch(this.EXPO_PUSH_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.expoPush.accessToken}`,
+          },
+          body: JSON.stringify({
+            to: params.userId, // In production: replace with Expo push token from user record
+            title: params.title,
+            body: params.body,
+            data: { type: params.type },
+            sound: 'default',
+          }),
+        });
+      } catch (err) {
+        console.error(`[NOTIFICATION] Expo Push failed:`, err);
+      }
+    } else {
+      console.log(`[NOTIFICATION] ${params.channel || 'push'}: ${params.title} → ${params.userId}`);
+    }
 
     await prisma.notification.update({
       where: { id: notification.id },

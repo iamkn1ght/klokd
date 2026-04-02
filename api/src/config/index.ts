@@ -30,9 +30,14 @@ export const config = {
     env: process.env.DARAJA_ENV || 'sandbox',
   },
 
-  aws: {
-    region: process.env.AWS_REGION || 'af-south-1',
-    s3Bucket: process.env.AWS_S3_BUCKET || 'klokd-documents',
+  supabase: {
+    url: process.env.SUPABASE_URL || '',
+    serviceKey: process.env.SUPABASE_SERVICE_KEY || '',
+    storageBucket: process.env.SUPABASE_STORAGE_BUCKET || 'klokd-documents',
+  },
+
+  expoPush: {
+    accessToken: process.env.EXPO_PUSH_TOKEN || '',
   },
 
   platform: {
