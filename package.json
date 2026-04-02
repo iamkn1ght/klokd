@@ -4,13 +4,13 @@
   "private": true,
   "description": "Klokd — Casual Labour Marketplace",
   "scripts": {
-    "dev": "cd api && npm run dev",
+    "dev": "cd octopus-api && npm run dev",
     "dev:worker": "cd worker-app && npx expo start",
     "dev:employer": "cd employer-app && npx expo start",
-    "build": "cd api && npm run build",
-    "test": "cd api && npm test",
-    "start": "cd api && npm start",
-    "prisma:studio": "cd api && npx prisma studio"
+    "build": "cd octopus-api && npm run build",
+    "test": "cd octopus-api && npm test",
+    "start": "cd octopus-api && npm start",
+    "prisma:studio": "cd octopus-api && npx prisma studio"
   },
   "author": "Kirimon Market Ventures",
   "license": "UNLICENSED"
