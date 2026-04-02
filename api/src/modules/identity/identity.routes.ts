@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { identityService } from './identity.service';
 import { authenticate, authorize } from '../../middleware/auth';
+import { storageService } from '../storage/storage.service';
 
 const router = Router();
 
@@ -127,6 +128,39 @@ router.put('/employers/mpesa', authenticate, authorize('EMPLOYER'), async (req: 
 
   const result = await identityService.setEmployerMpesa(employer.id, method, accountNumber);
   res.json({ success: true, ...result });
+});
+
+// ─── File Upload ───────────────────────────────────────
+
+router.post('/upload', authenticate, async (req: Request, res: Response) => {
+  const schema = z.object({
+    type: z.enum(['id-front', 'id-back', 'selfie', 'certificate']),
+    data: z.string().min(1), // base64 encoded
+    contentType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']).default('image/jpeg'),
+  });
+  const { type, data, contentType } = schema.parse(req.body);
+
+  const worker = await (await import('../../config/database')).default.worker.findUnique({
+    where: { userId: req.user!.userId },
+  });
+  if (!worker) {
+    res.status(404).json({ success: false, error: 'Worker profile not found' });
+    return;
+  }
+
+  const buffer = Buffer.from(data, 'base64');
+
+  let storageKey: string;
+  if (type === 'selfie') {
+    storageKey = await storageService.uploadSelfie(worker.id, buffer, contentType);
+  } else if (type === 'certificate') {
+    storageKey = await storageService.uploadCertificate(worker.id, buffer, contentType);
+  } else {
+    const side = type === 'id-front' ? 'front' : 'back';
+    storageKey = await storageService.uploadIdDocument(worker.id, side, buffer, contentType);
+  }
+
+  res.json({ success: true, data: { storageKey } });
 });
 
 // ─── Admin ──────────────────────────────────────────────

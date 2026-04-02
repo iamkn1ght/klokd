@@ -1,6 +1,7 @@
 import PDFDocument from 'pdfkit';
 import prisma from '../../config/database';
 import { AppError } from '../../middleware/errorHandler';
+import { storageService } from '../storage/storage.service';
 
 /**
  * Pay Statement PDF Service.
@@ -122,6 +123,16 @@ export class PayStatementService {
 
       doc.end();
     });
+  }
+
+  /**
+   * Generate pay statement PDF and store in Supabase Storage.
+   * Returns the storage key for retrieval.
+   */
+  async generateAndStore(paymentId: string): Promise<string> {
+    const pdfBuffer = await this.generatePayStatement(paymentId);
+    const storageKey = await storageService.uploadPayStatement(paymentId, pdfBuffer);
+    return storageKey;
   }
 
   /**
