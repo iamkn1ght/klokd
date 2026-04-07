@@ -5,7 +5,7 @@
 
 const BASE_URL = __DEV__
   ? 'http://10.0.2.2:3000/api/v1'   // Android emulator → host localhost
-  : 'https://api.klokd.co.ke/api/v1';
+  : 'https://klokd-production.up.railway.app/api/v1';
 
 interface ApiOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
