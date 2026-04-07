@@ -67,7 +67,7 @@ export function HomeScreen({ navigation }: Props) {
             <Text style={styles.greeting}>Good morning</Text>
             <Text style={styles.name}>Worker</Text>
           </View>
-          <LinearGradient colors={[...gradients.cta]} style={styles.avatar} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+          <LinearGradient colors={[gradients.cta[0], gradients.cta[1]]} style={styles.avatar} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
             <Text style={styles.avatarText}>W</Text>
           </LinearGradient>
         </View>

@@ -53,7 +53,7 @@ export function PaymentConfirmedScreen({ navigation, route }: Props) {
       <View style={styles.content}>
         {/* Celebration checkmark */}
         <LinearGradient
-          colors={[...gradients.cta]}
+          colors={[gradients.cta[0], gradients.cta[1]]}
           style={styles.successGlow}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}

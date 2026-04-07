@@ -1,0 +1,57 @@
+name: Octopus API CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'octopus-api/**'
+      - '.github/workflows/api.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'octopus-api/**'
+
+jobs:
+  test:
+    name: Lint, Build & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: octopus-api
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: octopus-api/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: 'file:./test.db'
+
+      - name: Run migrations (SQLite)
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: 'file:./test.db'
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        run: npm test
+        env:
+          DATABASE_URL: 'file:./test.db'
+          JWT_SECRET: 'test-secret'
+          JWT_REFRESH_SECRET: 'test-refresh-secret'
+
+      - name: Build
+        run: npm run build

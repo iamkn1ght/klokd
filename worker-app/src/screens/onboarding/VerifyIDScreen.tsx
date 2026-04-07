@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'rea
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { ProgressBar } from '../../components/ProgressBar';
 import { GradientButton } from '../../components/GradientButton';
 import { useApi } from '../../hooks/useApi';
@@ -21,10 +22,17 @@ const UPLOADS: UploadItem[] = [
 export function VerifyIDScreen({ navigation }: Props) {
   const { post } = useApi();
   const [uploads, setUploads] = useState({ front: '', back: '', selfie: '' });
+  const [uploading, setUploading] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const count = Object.values(uploads).filter(Boolean).length;
   const allDone = count === 3;
+
+  const uploadTypeMap: Record<keyof typeof uploads, 'id-front' | 'id-back' | 'selfie'> = {
+    front: 'id-front',
+    back: 'id-back',
+    selfie: 'selfie',
+  };
 
   const pickImage = async (key: keyof typeof uploads) => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -33,10 +41,27 @@ export function VerifyIDScreen({ navigation }: Props) {
       allowsEditing: true,
     });
 
-    if (!result.canceled && result.assets[0]) {
-      // In production: upload to Supabase Storage and get the key back
-      // For now store the local URI as a placeholder
-      setUploads(prev => ({ ...prev, [key]: result.assets[0].uri }));
+    if (result.canceled || !result.assets[0]) return;
+
+    setUploading(key);
+    try {
+      // Read file as base64
+      const base64 = await FileSystem.readAsStringAsync(result.assets[0].uri, {
+        encoding: 'base64',
+      });
+
+      // Upload to API → Supabase Storage
+      const { storageKey } = await post<{ storageKey: string }>('/identity/upload', {
+        type: uploadTypeMap[key],
+        data: base64,
+        contentType: 'image/jpeg',
+      });
+
+      setUploads(prev => ({ ...prev, [key]: storageKey }));
+    } catch (err: any) {
+      Alert.alert('Upload failed', err.message || 'Could not upload image');
+    } finally {
+      setUploading(null);
     }
   };
 
@@ -63,7 +88,7 @@ export function VerifyIDScreen({ navigation }: Props) {
         <ProgressBar currentStep={2} totalSteps={4} onBack={() => navigation.goBack()} />
 
         <LinearGradient colors={['#141428', '#0c1020']} style={styles.motivationCard}>
-          <LinearGradient colors={[...gradients.cta]} style={styles.badgeIcon} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+          <LinearGradient colors={[gradients.cta[0], gradients.cta[1]]} style={styles.badgeIcon} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
             <Text style={styles.badgeStar}>★</Text>
           </LinearGradient>
           <View style={{ flex: 1 }}>
@@ -80,9 +105,15 @@ export function VerifyIDScreen({ navigation }: Props) {
         <View style={styles.uploadList}>
           {UPLOADS.map(item => {
             const isDone = !!uploads[item.key];
+            const isUploading = uploading === item.key;
             return (
-              <TouchableOpacity key={item.key} style={[styles.uploadZone, isDone ? styles.uploadDone : styles.uploadIdle]}
-                onPress={() => pickImage(item.key)} activeOpacity={0.7}>
+              <TouchableOpacity
+                key={item.key}
+                style={[styles.uploadZone, isDone ? styles.uploadDone : styles.uploadIdle]}
+                onPress={() => pickImage(item.key)}
+                activeOpacity={0.7}
+                disabled={isUploading}
+              >
                 <View style={[styles.uploadIcon, isDone ? styles.uploadIconDone : styles.uploadIconIdle]}>
                   {isDone
                     ? <Text style={{ color: colors.electric, fontSize: 17, fontWeight: '700' }}>✓</Text>
@@ -90,7 +121,9 @@ export function VerifyIDScreen({ navigation }: Props) {
                 </View>
                 <View>
                   <Text style={[styles.uploadLabel, isDone && { color: colors.electric }]}>{item.label}</Text>
-                  <Text style={styles.uploadSub}>{isDone ? 'Uploaded ✓' : item.sub}</Text>
+                  <Text style={styles.uploadSub}>
+                    {isUploading ? 'Uploading...' : isDone ? 'Uploaded ✓' : item.sub}
+                  </Text>
                 </View>
               </TouchableOpacity>
             );
@@ -120,7 +153,7 @@ const styles = StyleSheet.create({
   sectionSub: { fontSize: typography.size.caption, color: colors.white38, lineHeight: 19, marginBottom: 18 },
   uploadList: { gap: 9 },
   uploadZone: { borderRadius: radius.lg, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 14 },
-  uploadIdle: { borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.white10, backgroundColor: colors.white05 },
+  uploadIdle: { borderWidth: 1.5,  borderColor: colors.white10, backgroundColor: colors.white05 },
   uploadDone: { borderWidth: 1.5, borderColor: colors.electric, backgroundColor: colors.electricAlpha['06'] },
   uploadIcon: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   uploadIconIdle: { backgroundColor: colors.white05 },

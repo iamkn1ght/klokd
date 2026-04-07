@@ -19,7 +19,8 @@ export function RootNavigator() {
     </View>;
   }
 
-  const showOnboarding = !isAuthenticated || isNewUser;
+  const demoMode = process.env.EXPO_PUBLIC_DEMO_MODE === 'true';
+  const showOnboarding = demoMode ? false : (!isAuthenticated || isNewUser);
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right', contentStyle: { backgroundColor: colors.mist } }}>

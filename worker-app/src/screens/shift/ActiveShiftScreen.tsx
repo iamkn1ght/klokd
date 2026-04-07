@@ -127,7 +127,6 @@ const styles = StyleSheet.create({
     fontWeight: '200',
     color: '#fff',
     letterSpacing: 2,
-    fontVariant: ['tabular-nums'],
     marginBottom: 4,
   },
   timerLabel: {

@@ -12,7 +12,7 @@ export function LogoMark({ size = 30, showText = true }: Props) {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={[...gradients.logo]}
+        colors={[gradients.logo[0], gradients.logo[1]]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={[styles.mark, { width: size, height: size, borderRadius: size * 0.28 }]}

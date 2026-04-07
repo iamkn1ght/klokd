@@ -1,0 +1,59 @@
+name: Mobile Apps CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'worker-app/**'
+      - 'employer-app/**'
+      - '.github/workflows/mobile.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'worker-app/**'
+      - 'employer-app/**'
+
+jobs:
+  worker-app:
+    name: Worker App TypeScript Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker-app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: worker-app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+
+  employer-app:
+    name: Employer App TypeScript Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: employer-app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: employer-app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: TypeScript check
+        run: npx tsc --noEmit

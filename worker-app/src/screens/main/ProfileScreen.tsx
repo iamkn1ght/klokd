@@ -38,7 +38,7 @@ export function ProfileScreen() {
       {/* Profile header */}
       <View style={styles.headerCard}>
         <LinearGradient
-          colors={[...gradients.cta]}
+          colors={[gradients.cta[0], gradients.cta[1]]}
           style={styles.avatar}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}

@@ -71,7 +71,7 @@ export function ClockInScreen({ navigation, route }: Props) {
           <Animated.View style={[styles.outerRing, { transform: [{ scale: pulseAnim }] }]}>
             <View style={[styles.innerRing, isReady && styles.innerRingReady]}>
               <LinearGradient
-                colors={isReady ? [...gradients.cta] : ['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.05)']}
+                colors={isReady ? [gradients.cta[0], gradients.cta[1]] : ['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.05)']}
                 style={styles.centerCircle}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}

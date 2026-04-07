@@ -32,7 +32,9 @@ export function RootNavigator() {
     );
   }
 
-  const showOnboarding = !isAuthenticated || isNewUser;
+  // Set via env: EXPO_PUBLIC_DEMO_MODE=true skips auth
+  const demoMode = process.env.EXPO_PUBLIC_DEMO_MODE === 'true';
+  const showOnboarding = demoMode ? false : (!isAuthenticated || isNewUser);
 
   return (
     <Stack.Navigator
