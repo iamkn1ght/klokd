@@ -30,7 +30,7 @@ WORKDIR /app
 
 COPY package.json package-lock.json ./
 
-# Install only production deps
+# Install only production deps (prisma is now in dependencies)
 RUN npm ci --legacy-peer-deps --omit=dev
 
 COPY --from=builder /app/dist ./dist
@@ -38,9 +38,12 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
+# Copy entrypoint
+COPY start.sh ./
+RUN chmod +x ./start.sh
+
 ENV NODE_ENV=production
 ENV PORT=3000
 EXPOSE 3000
 
-# Run migrations on start, then start the server
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/server.js"]
+CMD ["./start.sh"]
