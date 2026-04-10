@@ -38,7 +38,7 @@ export function VerifyIDScreen({ navigation }: Props) {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       quality: 0.7,
-      allowsEditing: true,
+      allowsEditing: false,
     });
 
     if (result.canceled || !result.assets[0]) return;
