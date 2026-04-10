@@ -360,4 +360,112 @@ router.get('/stats', authenticate, authorize('ADMIN'), async (req: Request, res:
   });
 });
 
+// ─── Seed Demo Data (one-time, protected by JWT secret) ─
+
+router.post('/seed-demo', async (req: Request, res: Response) => {
+  const { secret } = req.body || {};
+  if (secret !== process.env.JWT_SECRET) {
+    res.status(403).json({ success: false, error: 'Invalid secret' });
+    return;
+  }
+
+  const TENANT = 'klokd-ke-default';
+  const crypto = require('crypto');
+
+  // Check if already seeded
+  const existing = await prisma.employer.count({ where: { tenantId: TENANT } });
+  if (existing > 0) {
+    res.json({ success: true, message: `Already seeded (${existing} employers exist)` });
+    return;
+  }
+
+  const businesses = [
+    'The Brew Bistro', 'Java House', 'Artcaffe', 'Big Square', 'Mama Oliech',
+    'Carnivore Restaurant', 'Talisman', 'Nyama Mama', 'About Thyme', 'Tin Roof Cafe',
+  ];
+  const firstNames = ['Akinyi', 'Wanjiku', 'Kamau', 'Otieno', 'Njeri', 'Mwangi', 'Achieng', 'Odhiambo', 'Wambui', 'Kipchoge'];
+  const skills = ['Waiter', 'Barista', 'Chef', 'Cashier', 'Security', 'Cleaner'];
+  const locations = [
+    { name: 'Westlands', lat: -1.2636, lng: 36.8036 },
+    { name: 'Kilimani', lat: -1.2864, lng: 36.7830 },
+    { name: 'Karen', lat: -1.3197, lng: 36.7112 },
+    { name: 'CBD', lat: -1.2864, lng: 36.8172 },
+    { name: 'Lavington', lat: -1.2783, lng: 36.7700 },
+  ];
+
+  // Seed 10 employers
+  for (let i = 0; i < 10; i++) {
+    const phone = `+2547${String(20000000 + i).padStart(8, '0')}`;
+    const user = await prisma.user.create({ data: { tenantId: TENANT, phone, role: 'EMPLOYER' } });
+    await prisma.employer.create({
+      data: {
+        tenantId: TENANT, userId: user.id, businessName: businesses[i],
+        kraPin: `P0${String(51234567 + i)}A`, contactPerson: firstNames[i],
+        wibaPolicyRef: `POL-2026-${String(i + 1).padStart(3, '0')}`, wibaInsurer: 'Jubilee',
+        wibaPolicyExpiry: new Date('2027-12-31'),
+        mpesaMethod: 'paybill', mpesaAccountEnc: Buffer.from(phone).toString('base64'),
+      },
+    });
+  }
+
+  // Seed 30 workers
+  for (let i = 0; i < 30; i++) {
+    const phone = `+2547${String(10000000 + i).padStart(8, '0')}`;
+    const user = await prisma.user.create({ data: { tenantId: TENANT, phone, role: 'WORKER' } });
+    const workerSkills = [skills[i % skills.length], skills[(i + 1) % skills.length]];
+    await prisma.worker.create({
+      data: {
+        tenantId: TENANT, userId: user.id,
+        firstName: firstNames[i % firstNames.length], lastName: 'K.',
+        idNumberHash: crypto.createHash('sha256').update(`ID-${i}`).digest('hex'),
+        verificationStatus: 'APPROVED', skills: JSON.stringify(workerSkills),
+        consentIdentity: true, consentGps: true, consentedAt: new Date(),
+        mpesaNumberEnc: Buffer.from(phone).toString('base64'),
+        showUpRate: 75 + Math.floor(Math.random() * 25),
+        ratingAggregate: 3.5 + Math.random() * 1.5, ratingCount: 3 + Math.floor(Math.random() * 15),
+        totalShifts: Math.floor(Math.random() * 50),
+      },
+    });
+  }
+
+  // Seed minimum wages
+  for (const sector of skills) {
+    await prisma.minimumWage.create({
+      data: { tenantId: TENANT, sector: sector.toLowerCase(), location: 'nairobi', rateKes: 1000, effectiveFrom: new Date() },
+    });
+  }
+
+  // Seed 15 available shifts
+  const employers = await prisma.employer.findMany({ where: { tenantId: TENANT }, take: 10 });
+  for (let i = 0; i < 15; i++) {
+    const emp = employers[i % employers.length];
+    const loc = locations[i % locations.length];
+    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1 + (i % 3));
+    const start = new Date(tomorrow); start.setHours(8 + (i % 3) * 4, 0, 0, 0);
+    const end = new Date(start); end.setHours(start.getHours() + 5);
+
+    await prisma.shift.create({
+      data: {
+        tenantId: TENANT, employerId: emp.id,
+        role: skills[i % skills.length], description: `${skills[i % skills.length]} needed at ${emp.businessName}`,
+        date: tomorrow, startTime: start, endTime: end,
+        rateKes: 1200 + (i % 5) * 200,
+        locationLat: loc.lat + (Math.random() - 0.5) * 0.01,
+        locationLng: loc.lng + (Math.random() - 0.5) * 0.01,
+        locationName: loc.name, geoHash: `kzf${i}`,
+        status: 'POSTED',
+      },
+    });
+  }
+
+  // Create admin user
+  const adminUser = await prisma.user.create({ data: { tenantId: TENANT, phone: '+254700000001', role: 'ADMIN' } });
+
+  res.json({
+    success: true,
+    message: '10 employers, 30 workers, 15 shifts, 6 min wage rates, 1 admin seeded',
+    adminPhone: '+254700000001',
+  });
+});
+
 export default router;
