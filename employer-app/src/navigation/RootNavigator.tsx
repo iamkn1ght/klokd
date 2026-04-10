@@ -23,16 +23,14 @@ export function RootNavigator() {
   const showOnboarding = demoMode ? false : (!isAuthenticated || isNewUser);
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right', contentStyle: { backgroundColor: colors.mist } }}>
-      {showOnboarding ? (
-        <Stack.Screen name="Onboarding" component={OnboardingNavigator} />
-      ) : (
-        <>
-          <Stack.Screen name="Main" component={MainTabNavigator} />
-          <Stack.Screen name="PostShift" component={PostShiftScreen} />
-          <Stack.Screen name="SelectWorker" component={SelectWorkerScreen} />
-        </>
-      )}
+    <Stack.Navigator
+      initialRouteName={showOnboarding ? 'Onboarding' : 'Main'}
+      screenOptions={{ headerShown: false, animation: 'slide_from_right', contentStyle: { backgroundColor: colors.mist } }}
+    >
+      <Stack.Screen name="Onboarding" component={OnboardingNavigator} />
+      <Stack.Screen name="Main" component={MainTabNavigator} />
+      <Stack.Screen name="PostShift" component={PostShiftScreen} />
+      <Stack.Screen name="SelectWorker" component={SelectWorkerScreen} />
     </Stack.Navigator>
   );
 }

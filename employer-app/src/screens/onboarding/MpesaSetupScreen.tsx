@@ -45,6 +45,7 @@ export function MpesaSetupScreen({ navigation }: Props) {
         </View>
 
         <GradientButton title="Post my first shift →" onPress={() => navigation.getParent()?.navigate('Main')} />
+
       </View>
     );
   }
