@@ -3,6 +3,11 @@ import jwt from 'jsonwebtoken';
 import app from '../src/app';
 import { config } from '../src/config';
 
+// Mock Supabase
+jest.mock('../src/config/supabase', () => ({
+  supabase: { auth: { signInWithOtp: jest.fn(), verifyOtp: jest.fn() } },
+}));
+
 // Mock Prisma
 jest.mock('../src/config/database', () => ({
   __esModule: true,

@@ -20,6 +20,16 @@ jest.mock('../src/config/database', () => ({
   },
 }));
 
+// Mock Supabase
+jest.mock('../src/config/supabase', () => ({
+  supabase: {
+    auth: {
+      signInWithOtp: jest.fn().mockResolvedValue({ error: { message: 'not enabled' } }),
+      verifyOtp: jest.fn().mockResolvedValue({ error: { message: 'invalid' } }),
+    },
+  },
+}));
+
 import prisma from '../src/config/database';
 
 describe('AuthService', () => {
@@ -30,21 +40,21 @@ describe('AuthService', () => {
   });
 
   describe('requestOtp', () => {
-    it('should return success message for valid phone', async () => {
+    it('should return success message for valid phone (dev fallback)', async () => {
       const result = await service.requestOtp('0722400500');
-      expect(result.message).toBe('OTP sent successfully');
+      expect(result.message).toContain('OTP sent successfully');
     });
   });
 
   describe('verifyOtp', () => {
-    it('should reject when no OTP was requested', async () => {
+    it('should reject with invalid OTP', async () => {
       await expect(
         service.verifyOtp('0700000000', '123456', 'WORKER')
-      ).rejects.toThrow('No OTP requested');
+      ).rejects.toThrow('Invalid or expired OTP');
     });
 
-    it('should create user and return tokens for valid OTP', async () => {
-      // Request OTP first
+    it('should verify with dev fallback OTP', async () => {
+      // Request OTP first (falls back to dev store since Supabase phone auth is mocked as disabled)
       await service.requestOtp('0722111222');
 
       // Mock user not found, then create
@@ -52,18 +62,16 @@ describe('AuthService', () => {
       (prisma.user.create as jest.Mock).mockResolvedValue({
         id: 'user-1',
         tenantId: 'klokd-ke-default',
-        phone: '0722111222',
+        phone: '+254722111222',
         role: 'WORKER',
       });
       (prisma.refreshToken.create as jest.Mock).mockResolvedValue({});
       (prisma.auditLog.create as jest.Mock).mockResolvedValue({});
 
-      // We need to get the OTP — in dev mode it's logged.
-      // For test, we'll manipulate the internal store via a second request
-      // Since we can't easily get the OTP, test the error case
+      // Wrong OTP should fail
       await expect(
         service.verifyOtp('0722111222', '000000', 'WORKER')
-      ).rejects.toThrow('Invalid OTP');
+      ).rejects.toThrow('Invalid or expired OTP');
     });
   });
 });

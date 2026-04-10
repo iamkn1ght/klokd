@@ -42,6 +42,16 @@ const mockEscrow = {
   status: 'FUNDED', stkPushRef: 'STK-123', fundedAt: new Date(),
 };
 
+// Mock Supabase
+jest.mock('../src/config/supabase', () => ({
+  supabase: {
+    auth: {
+      signInWithOtp: jest.fn().mockResolvedValue({ error: { message: 'not enabled' } }),
+      verifyOtp: jest.fn().mockResolvedValue({ error: { message: 'invalid' } }),
+    },
+  },
+}));
+
 // Mock Prisma — stateless, all mocks set per-test via mockResolvedValueOnce
 jest.mock('../src/config/database', () => ({
   __esModule: true,

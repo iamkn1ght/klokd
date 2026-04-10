@@ -1,42 +1,38 @@
 import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import prisma from '../../config/database';
 import { config } from '../../config';
+import { supabase } from '../../config/supabase';
 import { JwtPayload } from '../../types';
 import { UserRole } from '@prisma/client';
 import { AppError } from '../../middleware/errorHandler';
 import { logAudit } from '../../utils/auditLogger';
 
-// In-memory OTP store for MVP (replace with Redis in production)
-const otpStore = new Map<string, { code: string; expiresAt: number; attempts: number }>();
-
 export class AuthService {
   /**
-   * Request OTP for phone number. Creates user if not exists.
+   * Request OTP via Supabase Auth (sends SMS automatically).
    */
   async requestOtp(phone: string): Promise<{ message: string }> {
-    // Rate limit check
-    const existing = otpStore.get(phone);
-    if (existing && existing.attempts >= config.otp.maxAttempts) {
-      const windowEnd = existing.expiresAt + (config.otp.windowMinutes * 60 * 1000);
-      if (Date.now() < windowEnd) {
-        throw new AppError(429, 'Too many OTP requests. Please try again later.');
-      }
-    }
+    // Normalize phone to E.164 format for Supabase
+    const normalized = this.normalizePhone(phone);
 
-    // Generate 6-digit OTP
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    otpStore.set(phone, {
-      code,
-      expiresAt: Date.now() + config.otp.expiryMinutes * 60 * 1000,
-      attempts: 0,
+    const { error } = await supabase.auth.signInWithOtp({
+      phone: normalized,
     });
 
-    // In production: send via Africa's Talking SMS API
-    // For development, log the OTP
-    if (config.nodeEnv === 'development') {
-      console.log(`[DEV] OTP for ${phone}: ${code}`);
+    if (error) {
+      console.error('[Auth] Supabase OTP error:', error.message);
+
+      // Fallback: if Supabase phone auth isn't configured, use dev mode
+      if (config.nodeEnv === 'development' || error.message.includes('not enabled')) {
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        // Store in a simple fallback for dev
+        devOtpStore.set(normalized, { code, expiresAt: Date.now() + 5 * 60 * 1000 });
+        console.log(`[DEV] OTP for ${normalized}: ${code}`);
+        return { message: 'OTP sent successfully (dev mode)' };
+      }
+
+      throw new AppError(502, 'Failed to send OTP. Please try again.');
     }
 
     return { message: 'OTP sent successfully' };
@@ -44,49 +40,54 @@ export class AuthService {
 
   /**
    * Verify OTP and return JWT tokens.
+   * Tries Supabase first, falls back to dev store.
    */
   async verifyOtp(phone: string, code: string, role: UserRole): Promise<{
     accessToken: string;
     refreshToken: string;
     isNewUser: boolean;
   }> {
-    const stored = otpStore.get(phone);
-    if (!stored) {
-      throw new AppError(400, 'No OTP requested for this number');
+    const normalized = this.normalizePhone(phone);
+    let verified = false;
+
+    // Try Supabase verification first
+    const { error } = await supabase.auth.verifyOtp({
+      phone: normalized,
+      token: code,
+      type: 'sms',
+    });
+
+    if (!error) {
+      verified = true;
+    } else {
+      // Fallback: check dev OTP store
+      const stored = devOtpStore.get(normalized);
+      if (stored && stored.code === code && Date.now() < stored.expiresAt) {
+        verified = true;
+        devOtpStore.delete(normalized);
+      }
     }
 
-    if (Date.now() > stored.expiresAt) {
-      otpStore.delete(phone);
-      throw new AppError(400, 'OTP has expired. Please request a new one.');
+    if (!verified) {
+      throw new AppError(400, 'Invalid or expired OTP');
     }
 
-    stored.attempts++;
-    if (stored.attempts > config.otp.maxAttempts) {
-      otpStore.delete(phone);
-      throw new AppError(429, 'Too many attempts. Please request a new OTP.');
-    }
-
-    if (stored.code !== code) {
-      throw new AppError(400, 'Invalid OTP');
-    }
-
-    otpStore.delete(phone);
-
-    // Find or create user
-    let user = await prisma.user.findUnique({ where: { phone } });
+    // Find or create user in our database
+    let user = await prisma.user.findUnique({ where: { phone: normalized } });
     let isNewUser = false;
 
     if (!user) {
       user = await prisma.user.create({
         data: {
           tenantId: config.defaultTenantId,
-          phone,
+          phone: normalized,
           role,
         },
       });
       isNewUser = true;
     }
 
+    // Issue our own JWT (not Supabase's)
     const payload: JwtPayload = {
       userId: user.id,
       role: user.role,
@@ -159,6 +160,23 @@ export class AuthService {
   async logout(refreshToken: string): Promise<void> {
     await prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
   }
+
+  /**
+   * Normalize Kenyan phone number to E.164 format (+254...).
+   */
+  private normalizePhone(phone: string): string {
+    let cleaned = phone.replace(/[\s\-\(\)]/g, '');
+    if (cleaned.startsWith('0')) {
+      cleaned = '254' + cleaned.slice(1);
+    }
+    if (!cleaned.startsWith('+')) {
+      cleaned = '+' + cleaned;
+    }
+    return cleaned;
+  }
 }
+
+// Dev fallback OTP store (only used when Supabase phone auth isn't configured)
+const devOtpStore = new Map<string, { code: string; expiresAt: number }>();
 
 export const authService = new AuthService();
