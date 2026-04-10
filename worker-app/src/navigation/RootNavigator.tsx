@@ -45,17 +45,12 @@ export function RootNavigator() {
         contentStyle: { backgroundColor: colors.ink },
       }}
     >
-      {showOnboarding ? (
-        <Stack.Screen name="Onboarding" component={OnboardingNavigator} />
-      ) : (
-        <>
-          <Stack.Screen name="Main" component={MainTabNavigator} />
-          <Stack.Screen name="ShiftDetail" component={ShiftDetailScreen} />
-          <Stack.Screen name="ClockIn" component={ClockInScreen} />
-          <Stack.Screen name="ActiveShift" component={ActiveShiftScreen} />
-          <Stack.Screen name="PaymentConfirmed" component={PaymentConfirmedScreen} />
-        </>
-      )}
+      <Stack.Screen name="Onboarding" component={OnboardingNavigator} />
+      <Stack.Screen name="Main" component={MainTabNavigator} />
+      <Stack.Screen name="ShiftDetail" component={ShiftDetailScreen} />
+      <Stack.Screen name="ClockIn" component={ClockInScreen} />
+      <Stack.Screen name="ActiveShift" component={ActiveShiftScreen} />
+      <Stack.Screen name="PaymentConfirmed" component={PaymentConfirmedScreen} />
     </Stack.Navigator>
   );
 }

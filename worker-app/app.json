@@ -30,7 +30,8 @@
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.CAMERA",
-        "android.permission.READ_EXTERNAL_STORAGE"
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -52,7 +53,7 @@
     ],
     "extra": {
       "eas": {
-        "projectId": ""
+        "projectId": "b0ad4125-58c3-4f80-9fee-b18462e0f3ee"
       }
     }
   }
