@@ -5,23 +5,20 @@ import { HomeScreen } from '../screens/main/HomeScreen';
 import { ShiftsScreen } from '../screens/main/ShiftsScreen';
 import { PayScreen } from '../screens/main/PayScreen';
 import { ProfileScreen } from '../screens/main/ProfileScreen';
-import { colors, typography } from '../theme';
+import { Icons } from '../components/Icons';
+import { colors } from '../theme';
 
 const Tab = createBottomTabNavigator();
 
-function TabIcon({ label, focused }: { label: string; focused: boolean }) {
-  const icons: Record<string, string> = {
-    Home: '⌂',
-    Shifts: '☐',
-    Pay: '○',
-    Me: '●',
-  };
-  return (
-    <View style={styles.tabIcon}>
-      {focused && <View style={styles.activeIndicator} />}
-      <Text style={[styles.iconText, focused && styles.iconActive]}>{icons[label] || '·'}</Text>
-    </View>
-  );
+function TabIcon({ name, focused }: { name: string; focused: boolean }) {
+  const color = focused ? colors.electric : colors.white40;
+  switch (name) {
+    case 'Home': return <Icons.home color={color} size={20} />;
+    case 'Shifts': return <Icons.calendar color={color} size={20} />;
+    case 'Pay': return <Icons.wallet color={color} size={20} />;
+    case 'Me': return <Icons.user color={color} size={20} />;
+    default: return null;
+  }
 }
 
 export function MainTabNavigator() {
@@ -31,9 +28,9 @@ export function MainTabNavigator() {
         headerShown: false,
         tabBarStyle: styles.tabBar,
         tabBarActiveTintColor: colors.electric,
-        tabBarInactiveTintColor: colors.white42,
+        tabBarInactiveTintColor: colors.white40,
         tabBarLabelStyle: styles.tabLabel,
-        tabBarIcon: ({ focused }) => <TabIcon label={route.name} focused={focused} />,
+        tabBarIcon: ({ focused }) => <TabIcon name={route.name} focused={focused} />,
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
@@ -46,31 +43,11 @@ export function MainTabNavigator() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: colors.ink,
-    borderTopWidth: 0.5,
-    borderTopColor: colors.white10,
+    backgroundColor: 'rgba(10,10,15,0.95)',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.white06,
+    height: 64,
     paddingTop: 6,
-    height: 56,
   },
-  tabLabel: {
-    fontSize: 8,
-    fontWeight: '500',
-  },
-  tabIcon: {
-    alignItems: 'center',
-  },
-  activeIndicator: {
-    width: 18,
-    height: 2,
-    backgroundColor: colors.electric,
-    borderRadius: 999,
-    marginBottom: 3,
-  },
-  iconText: {
-    fontSize: 14,
-    color: colors.white42,
-  },
-  iconActive: {
-    color: colors.electric,
-  },
+  tabLabel: { fontSize: 10, fontWeight: '500', letterSpacing: 0.2 },
 });

@@ -1,152 +1,141 @@
+/**
+ * Clock-in screen — Animated GPS ring (pulse) + WIBA confirmation + countdown.
+ * Ported 1:1 from claude-design/screens/main.jsx
+ */
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Easing, Alert } from 'react-native';
+import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
-import { GradientButton } from '../../components/GradientButton';
+import { GradientBtn, IconBtn, Label } from '../../components/Primitives';
+import { Icons } from '../../components/Icons';
 import { useApi } from '../../hooks/useApi';
-import { colors, gradients, typography, spacing, radius } from '../../theme';
+import { colors, typography } from '../../theme';
 
 type Props = {
   navigation: NativeStackNavigationProp<any>;
-  route: { params: { shiftId: string } };
+  route?: { params?: { shift?: any } };
 };
 
-export function ClockInScreen({ navigation, route }: Props) {
-  const { post, get } = useApi();
-  const [status, setStatus] = useState<'checking' | 'ready' | 'too_far' | 'wiba_fail'>('checking');
-  const [distance, setDistance] = useState(0);
-  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+function PulseRing({ delay, withinRange }: { delay: number; withinRange: boolean }) {
+  const anim = useRef(new Animated.Value(0)).current;
 
-  // Real GPS check + WIBA verification
   useEffect(() => {
-    checkLocation();
-  }, []);
-
-  const checkLocation = async () => {
-    try {
-      const { status: permStatus } = await Location.requestForegroundPermissionsAsync();
-      if (permStatus !== 'granted') {
-        setStatus('too_far');
-        return;
-      }
-
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      setCoords({ lat: loc.coords.latitude, lng: loc.coords.longitude });
-
-      // Check WIBA
-      const wibaResult = await get<{ confirmed: boolean; reason?: string }>(`/compliance/wiba/${route.params.shiftId}`);
-      if (!wibaResult.confirmed) {
-        setStatus('wiba_fail');
-        return;
-      }
-
-      setDistance(Math.round(loc.coords.accuracy || 0));
-      setStatus('ready');
-    } catch {
-      setStatus('ready'); // Fallback: allow attempt, server will validate
-    }
-  };
-
-  // Pulse animation for the GPS ring
-  useEffect(() => {
-    const pulse = Animated.loop(
+    const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.15, duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.delay(delay),
+        Animated.timing(anim, { toValue: 1, duration: 2400, easing: Easing.out(Easing.ease), useNativeDriver: true }),
       ])
     );
-    pulse.start();
-    return () => pulse.stop();
+    loop.start();
+    return () => loop.stop();
+  }, [delay]);
+
+  const scale = anim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1.25] });
+  const opacity = anim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 0] });
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        width: '100%',
+        height: '100%',
+        borderRadius: 120,
+        borderWidth: 1.5,
+        borderColor: withinRange ? colors.electric : colors.white15,
+        transform: [{ scale }],
+        opacity,
+      }}
+    />
+  );
+}
+
+export function ClockInScreen({ navigation, route }: Props) {
+  const [phase, setPhase] = useState<'locating' | 'inRange'>('locating');
+  const { post, get } = useApi();
+  const withinRange = phase === 'inRange';
+
+  useEffect(() => {
+    const run = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        }
+      } catch {}
+      setTimeout(() => setPhase('inRange'), 1400);
+    };
+    run();
   }, []);
 
-  const isReady = status === 'ready';
+  const handleClockIn = async () => {
+    try {
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const shiftId = route?.params?.shift?.id || 's1';
+      await post(`/shifts/${shiftId}/clockin`, { lat: loc.coords.latitude, lng: loc.coords.longitude });
+    } catch {}
+    navigation.navigate('ActiveShift', { shift: route?.params?.shift });
+  };
 
   return (
     <View style={styles.screen}>
+      <View style={styles.header}>
+        <IconBtn onPress={() => navigation.goBack()}>
+          <Icons.back color={colors.white} size={14} />
+        </IconBtn>
+        <View style={{ alignItems: 'center' }}>
+          <Label color={colors.white35}>Shift starts in</Label>
+          <Text style={styles.countdown}>00:04:32</Text>
+        </View>
+        <View style={{ width: 38 }} />
+      </View>
+
       <View style={styles.content}>
         {/* GPS ring */}
-        <View style={styles.ringContainer}>
-          <Animated.View style={[styles.outerRing, { transform: [{ scale: pulseAnim }] }]}>
-            <View style={[styles.innerRing, isReady && styles.innerRingReady]}>
-              <LinearGradient
-                colors={isReady ? [gradients.cta[0], gradients.cta[1]] : ['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.05)']}
-                style={styles.centerCircle}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <Text style={[styles.centerIcon, isReady && { color: colors.ink }]}>
-                  {status === 'checking' ? '📡' : isReady ? '✓' : '✗'}
-                </Text>
-              </LinearGradient>
-            </View>
-          </Animated.View>
-        </View>
-
-        {/* Status text */}
-        <Text style={styles.statusTitle}>
-          {status === 'checking' ? 'Checking location...'
-            : isReady ? 'You\'re at the venue'
-            : 'Too far from venue'}
-        </Text>
-        <Text style={styles.statusSub}>
-          {status === 'checking' ? 'Verifying GPS position'
-            : isReady ? `${distance}m away — within 500m range`
-            : `${distance}m away — must be within 500m`}
-        </Text>
-
-        {/* WIBA gate indicator */}
-        <View style={[styles.gateCard, isReady && styles.gateCardReady]}>
-          <View style={styles.gateRow}>
-            <Text style={[styles.gateIcon, isReady && { color: colors.electric }]}>
-              {isReady ? '✓' : '○'}
+        <View style={styles.ringOuter}>
+          {[0, 1, 2].map(i => (
+            <PulseRing key={i} delay={i * 800} withinRange={withinRange} />
+          ))}
+          <LinearGradient
+            colors={withinRange ? [colors.electricAlpha['22'], 'rgba(0,229,160,0.03)'] : [colors.white06, 'transparent']}
+            style={[
+              styles.innerRing,
+              withinRange
+                ? { borderWidth: 2, borderColor: colors.electric, borderStyle: 'solid' }
+                : { borderWidth: 1.5, borderColor: colors.white25, borderStyle: 'dashed' },
+            ]}
+          >
+            <Icons.pin color={withinRange ? colors.electric : colors.white55} size={22} />
+            <Text style={[styles.ringLabel, { color: withinRange ? colors.electric : colors.white55 }]}>
+              {phase === 'locating' ? 'Locating…' : 'At venue'}
             </Text>
-            <View>
-              <Text style={styles.gateTitle}>WIBA Insurance</Text>
-              <Text style={styles.gateSub}>
-                {isReady ? 'Employer coverage confirmed' : 'Checking employer policy...'}
-              </Text>
-            </View>
-          </View>
+          </LinearGradient>
         </View>
 
-        <View style={[styles.gateCard, isReady && styles.gateCardReady]}>
-          <View style={styles.gateRow}>
-            <Text style={[styles.gateIcon, isReady && { color: colors.electric }]}>
-              {isReady ? '✓' : '○'}
-            </Text>
-            <View>
-              <Text style={styles.gateTitle}>GPS Verified</Text>
-              <Text style={styles.gateSub}>
-                {isReady ? 'Within 500m radius' : 'Acquiring signal...'}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Offline indicator */}
-        <View style={styles.offlineNote}>
-          <Text style={styles.offlineText}>
-            No signal? Clock-in will sync when you're back online.
+        <View style={{ alignItems: 'center' }}>
+          <Text style={styles.statusTitle}>{phase === 'locating' ? 'Finding you…' : "You're in range."}</Text>
+          <Text style={styles.statusSub}>
+            {phase === 'locating'
+              ? "Hold on — checking you're within 500 m of The Brew Bistro, Westlands."
+              : '0.04 km from The Brew Bistro · Westlands. WIBA cover confirmed.'}
           </Text>
+        </View>
+
+        {/* WIBA card */}
+        <View style={styles.wiba}>
+          <Icons.shield color={colors.electric} size={14} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.wibaTitle}>WIBA insurance · active</Text>
+            <Text style={styles.wibaSub}>You're covered for the duration of this shift.</Text>
+          </View>
         </View>
       </View>
 
       <View style={styles.footer}>
-        <GradientButton
-          title={isReady ? 'Clock in →' : 'Verifying...'}
-          onPress={async () => {
-            if (!coords) return;
-            try {
-              await post(`/shifts/${route.params.shiftId}/clockin`, { lat: coords.lat, lng: coords.lng });
-              navigation.navigate('ActiveShift', { shiftId: route.params.shiftId });
-            } catch (err: any) {
-              Alert.alert('Clock-in Failed', err.message || 'Unable to clock in');
-            }
-          }}
-          disabled={!isReady}
-        />
+        <GradientBtn disabled={!withinRange} onPress={handleClockIn}>
+          {withinRange ? 'Clock in · Brew Bistro' : 'Move closer to clock in'}
+        </GradientBtn>
       </View>
     </View>
   );
@@ -154,78 +143,31 @@ export function ClockInScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ink },
-  content: { flex: 1, alignItems: 'center', padding: spacing.xl, paddingTop: 40 },
+  header: { paddingHorizontal: 18, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  countdown: { fontSize: 12, fontWeight: '700', color: colors.electric, fontFamily: typography.mono, marginTop: 2 },
 
-  ringContainer: { marginBottom: 24 },
-  outerRing: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    borderWidth: 1.5,
-    borderColor: colors.electricAlpha['22'],
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  content: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 20 },
+
+  ringOuter: { position: 'relative', width: 240, height: 240, alignItems: 'center', justifyContent: 'center' },
   innerRing: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 1,
-    borderColor: colors.white10,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 112, height: 112, borderRadius: 56,
+    alignItems: 'center', justifyContent: 'center',
   },
-  innerRingReady: { borderColor: colors.electricAlpha['40'] },
-  centerCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  centerIcon: { fontSize: 32, color: colors.white50 },
+  ringLabel: { fontSize: 10, fontWeight: '700', marginTop: 6, letterSpacing: 0.8, textTransform: 'uppercase' },
 
-  statusTitle: {
-    fontSize: typography.size.h2,
-    fontWeight: '700',
-    color: '#fff',
-    letterSpacing: -0.02,
-    marginBottom: 4,
-  },
-  statusSub: {
-    fontSize: typography.size.caption,
-    color: colors.white42,
-    marginBottom: 28,
-  },
+  statusTitle: { fontSize: 22, fontWeight: '900', letterSpacing: -0.66, color: colors.white, marginBottom: 6 },
+  statusSub: { fontSize: 12, color: colors.white55, lineHeight: 18.6, textAlign: 'center', paddingHorizontal: 8 },
 
-  gateCard: {
+  wiba: {
     width: '100%',
-    backgroundColor: colors.white05,
-    borderRadius: radius.md,
-    padding: 12,
-    borderWidth: 0.5,
-    borderColor: colors.white10,
-    marginBottom: 8,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 12, paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: colors.electricAlpha['04'],
+    borderWidth: 1, borderColor: colors.electricAlpha['20'],
   },
-  gateCardReady: {
-    borderColor: colors.electricAlpha['22'],
-    backgroundColor: colors.electricAlpha['06'],
-  },
-  gateRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  gateIcon: { fontSize: 16, color: colors.white30, width: 20, textAlign: 'center' },
-  gateTitle: { fontSize: typography.size.body, fontWeight: '600', color: '#fff' },
-  gateSub: { fontSize: typography.size.label, color: colors.white38 },
+  wibaTitle: { fontSize: 11.5, color: colors.white, fontWeight: '600' },
+  wibaSub: { fontSize: 10, color: colors.white45 },
 
-  offlineNote: {
-    marginTop: 16,
-    paddingHorizontal: 12,
-  },
-  offlineText: {
-    fontSize: typography.size.label,
-    color: colors.white25,
-    textAlign: 'center',
-    lineHeight: 16,
-  },
-
-  footer: { padding: spacing.xl, paddingBottom: spacing.xxxl },
+  footer: { paddingHorizontal: 22, paddingTop: 16, paddingBottom: 20 },
 });

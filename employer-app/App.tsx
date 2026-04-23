@@ -8,7 +8,7 @@ export default function App() {
   return (
     <AuthProvider>
       <NavigationContainer>
-        <StatusBar style="dark" />
+        <StatusBar style="light" />
         <RootNavigator />
       </NavigationContainer>
     </AuthProvider>

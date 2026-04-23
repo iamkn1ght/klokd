@@ -13,13 +13,13 @@ import { colors } from '../theme';
 export type RootStackParamList = {
   Onboarding: undefined;
   Main: undefined;
-  ShiftDetail: { shiftId: string };
-  ClockIn: { shiftId: string };
-  ActiveShift: { shiftId: string };
-  PaymentConfirmed: { shiftId: string };
+  ShiftDetail: undefined;
+  ClockIn: undefined;
+  ActiveShift: undefined;
+  PaymentConfirmed: undefined;
 };
 
-const Stack = createNativeStackNavigator<RootStackParamList>();
+const Stack = createNativeStackNavigator<any>();
 
 export function RootNavigator() {
   const { isLoading, isAuthenticated, isNewUser } = useAuth();

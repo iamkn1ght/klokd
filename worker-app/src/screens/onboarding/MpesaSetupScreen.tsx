@@ -1,20 +1,17 @@
+/**
+ * M-Pesa setup screen — Large number display + 30-min guarantee + numpad.
+ * Ported 1:1 from claude-design/screens/onboarding.jsx
+ */
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { LinearGradient } from 'expo-linear-gradient';
-import { ProgressBar } from '../../components/ProgressBar';
-import { GradientButton } from '../../components/GradientButton';
+import { GradientBtn, Eyebrow, Label, StepProgress } from '../../components/Primitives';
+import { Icons } from '../../components/Icons';
 import { useApi } from '../../hooks/useApi';
-import { colors, gradients, typography, spacing, radius } from '../../theme';
+import { colors, typography } from '../../theme';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
 
-/**
- * Kenyan M-Pesa phone number formats (Safaricom):
- * - 07XX: 0700-0729, 0740-0749, 0790-0799 (legacy)
- * - 01XX: 0110-0115 (new Safaricom numbers since 2021)
- * All are 10 digits starting with 0.
- */
 function formatPhone(p: string): string {
   if (p.length <= 4) return p;
   if (p.length <= 7) return p.slice(0, 4) + ' ' + p.slice(4);
@@ -23,109 +20,105 @@ function formatPhone(p: string): string {
 
 function isValidKenyanPhone(p: string): boolean {
   if (p.length !== 10 || !p.startsWith('0')) return false;
-  // Safaricom prefixes: 070x-072x, 074x, 079x, 011x
   const prefix = p.slice(0, 4);
-  const safaricomPrefixes = [
-    '0700', '0701', '0702', '0703', '0704', '0705', '0706', '0707', '0708', '0709',
-    '0710', '0711', '0712', '0713', '0714', '0715', '0716', '0717', '0718', '0719',
-    '0720', '0721', '0722', '0723', '0724', '0725', '0726', '0727', '0728', '0729',
-    '0740', '0741', '0742', '0743', '0744', '0745', '0746', '0747', '0748', '0749',
-    '0790', '0791', '0792', '0793', '0794', '0795', '0796', '0797', '0798', '0799',
-    '0110', '0111', '0112', '0113', '0114', '0115',
+  const safPrefixes = [
+    '0700','0701','0702','0703','0704','0705','0706','0707','0708','0709',
+    '0710','0711','0712','0713','0714','0715','0716','0717','0718','0719',
+    '0720','0721','0722','0723','0724','0725','0726','0727','0728','0729',
+    '0740','0741','0742','0743','0744','0745','0746','0747','0748','0749',
+    '0790','0791','0792','0793','0794','0795','0796','0797','0798','0799',
+    '0110','0111','0112','0113','0114','0115',
   ];
-  return safaricomPrefixes.includes(prefix);
+  return safPrefixes.includes(prefix);
 }
 
-const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'];
+const KEYS = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
+
+function OnbHeader({ step, onBack }: { step: number; onBack?: () => void }) {
+  return (
+    <View style={styles.header}>
+      {onBack ? (
+        <TouchableOpacity onPress={onBack} style={styles.backBtn}>
+          <Icons.back color={colors.white} size={14} />
+        </TouchableOpacity>
+      ) : <View style={{ width: 34 }} />}
+      <View style={{ flex: 1 }}>
+        <StepProgress step={step} total={5} />
+      </View>
+      <View style={{ width: 34 }} />
+    </View>
+  );
+}
 
 export function MpesaSetupScreen({ navigation }: Props) {
   const { put } = useApi();
-  const [phone, setPhone] = useState('');
-  const [confirmed, setConfirmed] = useState(false);
+  const [num, setNum] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const ready = isValidKenyanPhone(phone);
+  const ready = isValidKenyanPhone(num);
+  const formatted = num.length ? formatPhone(num) : '';
 
-  const onKeyPress = (key: string) => {
-    if (key === '⌫') {
-      setPhone(prev => prev.slice(0, -1));
-    } else if (key && phone.length < 10) {
-      setPhone(prev => prev + key);
-    }
+  const onKey = (k: string) => {
+    if (k === '⌫') setNum(n => n.slice(0, -1));
+    else if (k && num.length < 10) setNum(n => n + k);
   };
 
-  if (confirmed) {
-    return (
-      <View style={[styles.screen, styles.successScreen]}>
-        <LinearGradient
-          colors={[gradients.cta[0], gradients.cta[1]]}
-          style={styles.successGlow}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Text style={styles.successCheck}>✓</Text>
-        </LinearGradient>
-
-        <Text style={styles.successTitle}>You're in.</Text>
-        <Text style={styles.successSub}>
-          Your Klokd account is active. Open shifts are waiting near you right now.
-        </Text>
-
-        <View style={styles.paymentCard}>
-          <Text style={styles.paymentLabel}>PAYMENT READY</Text>
-          <Text style={styles.paymentNumber}>M-Pesa · {formatPhone(phone)}</Text>
-          <Text style={styles.paymentSub}>Paid within 30 min of every clock-out</Text>
-        </View>
-
-        <GradientButton
-          title="See open shifts →"
-          onPress={() => navigation.getParent()?.navigate('Main')}
-        />
-      </View>
-    );
-  }
+  const handleDone = async () => {
+    setLoading(true);
+    try {
+      await put('/identity/workers/mpesa', { mpesaNumber: num });
+    } catch {}
+    setLoading(false);
+    navigation.getParent()?.navigate('Main');
+  };
 
   return (
     <View style={styles.screen}>
+      <OnbHeader step={4} onBack={() => navigation.goBack()} />
+
+      <View style={styles.titleBlock}>
+        <Eyebrow color={colors.white40} style={{ marginBottom: 8 }}>Step 5 of 5 · Get paid</Eyebrow>
+        <Text style={styles.h2}>Where should we send your money?</Text>
+        <Text style={styles.sub}>Your M-Pesa number. Money lands within 30 minutes of every clock-out.</Text>
+      </View>
+
       <View style={styles.content}>
-        <ProgressBar currentStep={4} totalSteps={4} onBack={() => navigation.goBack()} />
-
-        <Text style={styles.sectionH}>Where do we send your money?</Text>
-        <Text style={styles.sectionSub}>Enter your M-Pesa number. Paid after every shift.</Text>
-
-        {/* Phone display */}
-        <View style={[styles.phoneDisplay, ready && styles.phoneDisplayReady]}>
-          <Text style={styles.phoneLabel}>M-PESA NUMBER</Text>
-          <Text style={[styles.phoneNumber, ready && { color: colors.electric }]}>
-            {phone.length > 0 ? formatPhone(phone) : '0___ ___ ___'}
+        {/* Number display */}
+        <View style={styles.numDisplay}>
+          <Label color={colors.electric} style={{ marginBottom: 6, letterSpacing: 1.54 }}>Safaricom M-Pesa</Label>
+          <Text style={styles.bigNumber}>
+            {formatted || <Text style={{ color: 'rgba(255,255,255,0.2)' }}>0722 000 000</Text>}
           </Text>
+          <Text style={styles.numCounter}>{num.length}/10 digits</Text>
         </View>
 
-        {/* 30-min guarantee strip */}
-        <View style={styles.guaranteeStrip}>
-          <Text style={styles.guaranteeText}>
-            <Text style={styles.guaranteeHighlight}>30-minute guarantee</Text>
-            {' — KES lands in '}
-            <Text style={{ fontWeight: '700', color: '#fff' }}>
-              {ready ? formatPhone(phone) : 'your M-Pesa'}
-            </Text>
-            {' after every clock-out.'}
-          </Text>
+        {/* Guarantee strip */}
+        <View style={styles.guarantee}>
+          <Icons.mpesa color={colors.electric} size={14} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.guaranteeTitle}>30-minute guarantee</Text>
+            <Text style={styles.guaranteeSub}>KES lands here after every clock-out.</Text>
+          </View>
         </View>
 
-        {/* Custom numpad */}
+        {/* Numpad */}
         <View style={styles.numpad}>
-          {KEYS.map((key, i) => {
-            if (key === '') return <View key={i} style={styles.numKeyEmpty} />;
-            const isDel = key === '⌫';
+          {KEYS.map((k, i) => {
+            if (k === '') return <View key={i} style={styles.numKeyEmpty} />;
+            const isDel = k === '⌫';
             return (
               <TouchableOpacity
                 key={i}
-                style={[styles.numKey, isDel ? styles.numKeyDel : styles.numKeyNum]}
-                onPress={() => onKeyPress(key)}
-                activeOpacity={0.7}
+                onPress={() => onKey(k)}
+                activeOpacity={0.6}
+                style={[
+                  styles.numKey,
+                  isDel
+                    ? { borderColor: 'rgba(255,107,107,0.2)', backgroundColor: 'rgba(255,107,107,0.06)' }
+                    : { borderColor: 'rgba(255,255,255,0.07)', backgroundColor: colors.white04 },
+                ]}
               >
-                <Text style={[styles.numKeyText, isDel && styles.numKeyDelText]}>{key}</Text>
+                <Text style={[styles.numKeyText, { color: isDel ? colors.error : colors.white }]}>{k}</Text>
               </TouchableOpacity>
             );
           })}
@@ -133,21 +126,9 @@ export function MpesaSetupScreen({ navigation }: Props) {
       </View>
 
       <View style={styles.footer}>
-        <GradientButton
-          title={loading ? 'Saving...' : ready ? "I'm ready to work →" : 'Enter your M-Pesa number'}
-          onPress={async () => {
-            setLoading(true);
-            try {
-              await put('/identity/workers/mpesa', { mpesaNumber: phone });
-            } catch {
-              // API may fail without auth — continue anyway
-            } finally {
-              setLoading(false);
-              setConfirmed(true);
-            }
-          }}
-          disabled={!ready || loading}
-        />
+        <GradientBtn disabled={!ready || loading} onPress={handleDone}>
+          {ready ? (loading ? 'Saving…' : "I'm ready to work") : 'Enter 10 digits to finish'}
+        </GradientBtn>
       </View>
     </View>
   );
@@ -155,112 +136,54 @@ export function MpesaSetupScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ink },
-  content: { flex: 1, padding: spacing.xl },
-  successScreen: { alignItems: 'center', justifyContent: 'center', padding: spacing.xxl },
-  sectionH: { fontSize: typography.size.h3, fontWeight: '700', color: '#fff', letterSpacing: -0.02, marginBottom: 4 },
-  sectionSub: { fontSize: typography.size.caption, color: colors.white38, lineHeight: 19, marginBottom: 18 },
-  phoneDisplay: {
-    backgroundColor: colors.white05,
-    borderWidth: 1.5,
-    borderColor: colors.white10,
-    borderRadius: radius.lg,
-    paddingHorizontal: 18,
-    paddingVertical: 13,
+  header: { paddingHorizontal: 18, paddingTop: 12, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  backBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: 0.5, borderColor: colors.white12, backgroundColor: colors.white04, alignItems: 'center', justifyContent: 'center' },
+  titleBlock: { paddingHorizontal: 22, paddingTop: 20 },
+  h2: { fontSize: 22, fontWeight: '900', letterSpacing: -0.66, lineHeight: 24, color: colors.white, marginBottom: 8 },
+  sub: { fontSize: 12, color: colors.white50, lineHeight: 18.6 },
+
+  content: { flex: 1, paddingHorizontal: 22, paddingTop: 20 },
+
+  numDisplay: {
+    paddingHorizontal: 16, paddingVertical: 18,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,229,160,0.04)',
+    borderWidth: 1, borderColor: 'rgba(0,229,160,0.18)',
     marginBottom: 12,
+    alignItems: 'center',
   },
-  phoneDisplayReady: { borderColor: colors.electric },
-  phoneLabel: {
-    fontSize: typography.size.micro,
-    color: colors.white30,
-    letterSpacing: 0.7,
-    textTransform: 'uppercase',
-    marginBottom: 4,
+  bigNumber: {
+    fontSize: 26,
+    fontWeight: '700',
+    fontFamily: typography.mono,
+    letterSpacing: 0.52,
+    color: colors.white,
+    minHeight: 34,
+    textAlign: 'center',
   },
-  phoneNumber: {
-    fontSize: 23,
-    fontWeight: '800',
-    color: '#fff',
-    letterSpacing: 0.4,
-  },
-  guaranteeStrip: {
-    backgroundColor: colors.electricAlpha['08'],
-    borderLeftWidth: 2,
-    borderLeftColor: colors.electric,
-    borderTopRightRadius: 10,
-    borderBottomRightRadius: 10,
-    padding: 10,
+  numCounter: { fontSize: 10, color: colors.white40, marginTop: 4 },
+
+  guarantee: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 12, paddingVertical: 9,
+    borderRadius: 11,
+    backgroundColor: colors.white03,
+    borderWidth: 1, borderColor: colors.white06,
     marginBottom: 14,
   },
-  guaranteeText: { fontSize: 11, color: colors.white42, lineHeight: 17 },
-  guaranteeHighlight: { color: colors.electric, fontWeight: '600' },
-  numpad: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  numKey: {
-    width: '31%',
-    paddingVertical: 13,
-    borderRadius: radius.md,
-    alignItems: 'center',
-  },
-  numKeyNum: {
-    borderWidth: 0.5,
-    borderColor: colors.white08,
-    backgroundColor: colors.white05,
-  },
-  numKeyDel: {
-    borderWidth: 0.5,
-    borderColor: 'rgba(255,80,80,0.18)',
-    backgroundColor: 'rgba(255,80,80,0.07)',
-  },
-  numKeyEmpty: { width: '31%' },
-  numKeyText: { fontSize: 17, fontWeight: '600', color: '#fff' },
-  numKeyDelText: { color: colors.error },
-  footer: { padding: spacing.xl, paddingBottom: spacing.xxxl },
+  guaranteeTitle: { fontSize: 11, color: colors.white, fontWeight: '600' },
+  guaranteeSub: { fontSize: 9.5, color: colors.white45 },
 
-  // Success state
-  successGlow: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+  numpad: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  numKey: {
+    width: '31.7%',
+    paddingVertical: 13,
+    borderRadius: 12,
+    borderWidth: 0.5,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
   },
-  successCheck: { color: colors.ink, fontSize: 32, fontWeight: '700' },
-  successTitle: {
-    fontSize: typography.size.display,
-    fontWeight: '900',
-    color: '#fff',
-    letterSpacing: -0.04,
-    marginBottom: 6,
-  },
-  successSub: {
-    fontSize: typography.size.caption,
-    color: colors.white42,
-    textAlign: 'center',
-    lineHeight: 19,
-    maxWidth: 210,
-    marginBottom: 30,
-  },
-  paymentCard: {
-    backgroundColor: colors.electricAlpha['08'],
-    borderWidth: 1,
-    borderColor: colors.electricAlpha['22'],
-    borderRadius: radius.xl,
-    padding: 14,
-    width: '100%',
-    marginBottom: 24,
-  },
-  paymentLabel: {
-    fontSize: typography.size.micro,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    color: colors.electric,
-    marginBottom: 7,
-  },
-  paymentNumber: { fontSize: typography.size.body, fontWeight: '700', color: '#fff', marginBottom: 3 },
-  paymentSub: { fontSize: typography.size.label, color: colors.white30 },
+  numKeyEmpty: { width: '31.7%' },
+  numKeyText: { fontSize: 17, fontWeight: '600' },
+
+  footer: { paddingHorizontal: 22, paddingTop: 14, paddingBottom: 20, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.white06 },
 });

@@ -1,80 +1,138 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+/**
+ * Employer Business Verify — KRA PIN + industry + cert upload + verified badge promise.
+ * Ported 1:1 from claude-design/screens/employer-onboarding.jsx (EmpVerify)
+ */
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ProgressBar } from '../../components/ProgressBar';
-import { GradientButton } from '../../components/GradientButton';
-import { colors, typography, spacing, radius } from '../../theme';
+import { GradientBtn, Chip, Eyebrow, StepProgress } from '../../components/Primitives';
+import { EmpInput } from '../../components/EmployerPrimitives';
+import { Icons } from '../../components/Icons';
+import { IE } from '../../components/IconsEmployer';
+import { colors } from '../../theme';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
 
-const FIELDS = [
-  { label: 'Business name', value: 'The Brew Bistro', hint: '' },
-  { label: 'KRA PIN', value: 'P051234567A', hint: 'Required to activate your escrow account' },
-  { label: 'Contact person', value: 'David Kamau', hint: '' },
-];
+const INDUSTRIES = ['Hospitality', 'Retail', 'Events', 'Cleaning', 'Logistics', 'Other'];
 
-const ESCROW_STEPS = [
-  'You pre-fund the shift before it begins',
-  'Klokd holds funds securely — untouchable until completion',
-  'Auto-released to the worker 30 min after clock-out',
-];
+function EmpOnbHeader({ step, onBack }: { step: number; onBack?: () => void }) {
+  return (
+    <View style={styles.header}>
+      {onBack ? (
+        <TouchableOpacity onPress={onBack} style={styles.backBtn}>
+          <Icons.back color={colors.white} size={14} />
+        </TouchableOpacity>
+      ) : <View style={{ width: 34 }} />}
+      <View style={{ flex: 1 }}>
+        <StepProgress step={step} total={3} />
+      </View>
+      <View style={{ width: 34 }} />
+    </View>
+  );
+}
 
 export function BusinessVerifyScreen({ navigation }: Props) {
+  const [bizName, setBizName] = useState('The Brew Bistro');
+  const [kra, setKra] = useState('A0045-2398X');
+  const [industry, setIndustry] = useState('Hospitality');
+  const [docUploaded, setDoc] = useState(false);
+
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.scrollContent}>
-      <ProgressBar currentStep={2} totalSteps={3} onBack={() => navigation.goBack()} />
+    <View style={styles.screen}>
+      <EmpOnbHeader step={0} onBack={() => navigation.goBack()} />
 
-      <Text style={styles.h}>Tell us about your business</Text>
-      <Text style={styles.sub}>This activates your escrow account and verifies you as an employer on Klokd.</Text>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 22, paddingBottom: 120 }}>
+        <Eyebrow color={colors.volt} style={{ marginBottom: 10 }}>STEP 01 · BUSINESS</Eyebrow>
+        <Text style={styles.h1}>Verify your business</Text>
+        <Text style={styles.sub}>We check KRA PIN against the Business Registration Service. Takes ~30 seconds.</Text>
 
-      {FIELDS.map(f => (
-        <View key={f.label} style={styles.field}>
-          <Text style={styles.fieldLabel}>{f.label}</Text>
-          <View style={styles.fieldVal}><Text style={styles.fieldText}>{f.value}</Text></View>
-          {f.hint ? <Text style={styles.fieldHint}>{f.hint}</Text> : null}
-        </View>
-      ))}
+        <EmpInput label="Business name" value={bizName} onChangeText={setBizName} />
+        <EmpInput label="KRA PIN" value={kra} onChangeText={setKra} prefix="KE" hint="Encrypted & only used for verification. We never share it." />
 
-      {/* Escrow explainer */}
-      <View style={styles.escrowCard}>
-        <Text style={styles.escrowLabel}>WHAT IS ESCROW?</Text>
-        {ESCROW_STEPS.map((step, i) => (
-          <View key={i} style={styles.escrowStep}>
-            <View style={styles.escrowNum}>
-              <Text style={styles.escrowNumText}>{i + 1}</Text>
-            </View>
-            <Text style={styles.escrowText}>{step}</Text>
+        <View style={{ marginBottom: 16 }}>
+          <Text style={styles.industryLabel}>Industry</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+            {INDUSTRIES.map(ind => (
+              <Chip key={ind} active={industry === ind} onPress={() => setIndustry(ind)}>{ind}</Chip>
+            ))}
           </View>
-        ))}
-      </View>
+        </View>
 
-      <GradientButton title="Continue →" onPress={() => navigation.navigate('WibaDeclaration')} />
-    </ScrollView>
+        {/* Upload cert */}
+        <TouchableOpacity
+          onPress={() => setDoc(true)}
+          activeOpacity={0.7}
+          style={[
+            styles.uploadBox,
+            docUploaded
+              ? { borderWidth: 1, borderColor: 'rgba(0,229,160,0.33)', backgroundColor: 'rgba(0,229,160,0.03)' }
+              : { borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.white15, backgroundColor: colors.white02 },
+          ]}
+        >
+          {!docUploaded ? (
+            <>
+              <View style={styles.uploadIcon}>
+                <Icons.upload color={colors.white55} size={16} />
+              </View>
+              <Text style={styles.uploadTitle}>Upload business cert</Text>
+              <Text style={styles.uploadSub}>PDF, JPG or PNG · up to 10 MB</Text>
+            </>
+          ) : (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
+              <View style={styles.uploadCheckIcon}>
+                <Icons.check color={colors.electric} size={14} />
+              </View>
+              <View>
+                <Text style={styles.uploadTitle}>BRS-cert-2024.pdf</Text>
+                <Text style={styles.uploadMatch}>Uploaded · matching KRA…</Text>
+              </View>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        {/* Badge promise */}
+        <View style={styles.badgePromise}>
+          <Icons.shield color={colors.volt} size={14} />
+          <Text style={styles.badgeText}>
+            Once verified, your venue gets a <Text style={{ color: colors.volt, fontWeight: '700' }}>green badge</Text> — workers see this before accepting any shift.
+          </Text>
+        </View>
+      </ScrollView>
+
+      <View style={styles.footer}>
+        <GradientBtn disabled={!docUploaded} onPress={() => navigation.navigate('EscrowSetup')}>
+          {docUploaded ? 'Continue' : 'Upload your cert to continue'}
+        </GradientBtn>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.mist },
-  scrollContent: { padding: spacing.xl, paddingBottom: 40 },
-  h: { fontSize: typography.size.h3, fontWeight: '700', color: colors.ink, letterSpacing: -0.02, marginBottom: 4 },
-  sub: { fontSize: typography.size.caption, color: colors.mid, lineHeight: 19, marginBottom: 18 },
-  field: { marginBottom: 12 },
-  fieldLabel: { fontSize: 11, fontWeight: '600', color: colors.mid, marginBottom: 5, letterSpacing: 0.4 },
-  fieldVal: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.inkAlpha['10'], borderRadius: radius.md, padding: 12 },
-  fieldText: { fontSize: 13.5, fontWeight: '600', color: colors.ink },
-  fieldHint: { fontSize: 10, color: colors.mid, marginTop: 4, lineHeight: 15 },
-  escrowCard: {
-    backgroundColor: colors.white, borderWidth: 1, borderColor: colors.soft,
-    borderLeftWidth: 3, borderLeftColor: colors.electric,
-    borderRadius: radius.lg, borderTopLeftRadius: 0, borderBottomLeftRadius: 0,
-    padding: 14, marginBottom: 20,
+  screen: { flex: 1, backgroundColor: colors.ink },
+  header: { paddingHorizontal: 18, paddingTop: 12, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  backBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: 0.5, borderColor: colors.white12, backgroundColor: colors.white04, alignItems: 'center', justifyContent: 'center' },
+
+  h1: { fontSize: 26, fontWeight: '900', letterSpacing: -1.04, lineHeight: 28.6, color: colors.white, marginBottom: 8 },
+  sub: { fontSize: 13, color: colors.white55, lineHeight: 19.5, marginBottom: 22 },
+
+  industryLabel: { fontSize: 10, color: colors.white55, letterSpacing: 1.2, textTransform: 'uppercase', fontWeight: '700', marginBottom: 8 },
+
+  uploadBox: { marginTop: 18, padding: 14, borderRadius: 14, alignItems: 'center' },
+  uploadIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.white04, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  uploadTitle: { fontSize: 12.5, fontWeight: '700', color: colors.white, marginBottom: 3 },
+  uploadSub: { fontSize: 11, color: colors.white45 },
+  uploadCheckIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,229,160,0.13)', alignItems: 'center', justifyContent: 'center' },
+  uploadMatch: { fontSize: 10.5, color: colors.electric, fontWeight: '600' },
+
+  badgePromise: {
+    marginTop: 18, paddingHorizontal: 13, paddingVertical: 11,
+    borderRadius: 12,
+    backgroundColor: 'rgba(188,255,78,0.05)',
+    borderWidth: 1, borderColor: colors.voltAlpha['22'],
+    flexDirection: 'row', gap: 9, alignItems: 'flex-start',
   },
-  escrowLabel: { fontSize: typography.size.micro, fontWeight: '700', letterSpacing: 1.2, color: colors.electric, marginBottom: 10 },
-  escrowStep: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 9 },
-  escrowNum: {
-    width: 19, height: 19, borderRadius: 10, backgroundColor: colors.electricAlpha['13'],
-    borderWidth: 1, borderColor: colors.electricAlpha['28'], alignItems: 'center', justifyContent: 'center',
-  },
-  escrowNumText: { fontSize: 10, fontWeight: '700', color: colors.electric },
-  escrowText: { flex: 1, fontSize: typography.size.caption, color: colors.mid, lineHeight: 17 },
+  badgeText: { flex: 1, fontSize: 11, color: colors.white70, lineHeight: 15.95 },
+
+  footer: { paddingHorizontal: 22, paddingTop: 16, paddingBottom: 24 },
 });

@@ -1,81 +1,134 @@
-import React from 'react';
+/**
+ * Employer Welcome — Live filling tracker + For Employers badge.
+ * Ported 1:1 from claude-design/screens/employer-onboarding.jsx (EmpWelcome)
+ */
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { LogoMark } from '../../components/LogoMark';
-import { GradientButton } from '../../components/GradientButton';
-import { colors, typography, spacing, radius } from '../../theme';
+import { Logo, GradientBtn, Eyebrow, Label } from '../../components/Primitives';
+import { colors } from '../../theme';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
 
-const VALUE_PROPS = [
-  { icon: '📋', title: 'Post in 2 minutes', sub: 'Role, time, rate. Verified workers see it immediately.' },
-  { icon: '✓', title: 'Verified workers near you', sub: 'ID-checked, rated, sorted by proximity and reliability.' },
-  { icon: '💰', title: 'Pay only on completion', sub: 'Funds held securely. Auto-released when the shift is done.' },
+const SLIDES = [
+  { kicker: '01 · VERIFIED POOL', head: 'The shift fills\nbefore you sleep.', sub: 'Average 11 minutes from post to confirmed. Every worker is National ID-verified.' },
+  { kicker: '02 · SAFE ESCROW', head: 'Fund once.\nRelease on clock-out.', sub: 'Your M-Pesa holds the KES. It only releases when the shift is done — and you can approve.' },
+  { kicker: '03 · YOUR TEAM', head: 'Build a trusted\npool of regulars.', sub: 'Workers who show up earn a spot. Invite back with one tap.' },
+];
+
+const METRICS = [
+  { k: '11 min', l: 'avg fill time', c: colors.electric },
+  { k: '284', l: 'shifts open now', c: colors.volt },
+  { k: '2,847', l: 'verified workers', c: colors.white },
+  { k: '96.1%', l: 'show-up rate', c: colors.electric },
 ];
 
 export function WelcomeScreen({ navigation }: Props) {
+  const [slide, setSlide] = useState(0);
+
+  useEffect(() => {
+    const t = setTimeout(() => setSlide(s => (s + 1) % 3), 3800);
+    return () => clearTimeout(t);
+  }, [slide]);
+
+  const s = SLIDES[slide];
+
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.scrollContent}>
-      {/* Header */}
-      <View style={styles.header}>
-        <LogoMark size={30} />
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>For Business</Text>
-        </View>
-      </View>
-
-      {/* Hero card */}
-      <View style={styles.heroCard}>
-        <Text style={styles.heroTitle}>Your staff,{'\n'}sorted.</Text>
-        <Text style={styles.heroSub}>
-          Verified casual workers. Ready when you need them. M-Pesa payments on shift completion.
-        </Text>
-      </View>
-
-      {/* Value props */}
-      {VALUE_PROPS.map((vp, i) => (
-        <View key={i} style={styles.vpCard}>
-          <Text style={styles.vpIcon}>{vp.icon}</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.vpTitle}>{vp.title}</Text>
-            <Text style={styles.vpSub}>{vp.sub}</Text>
+    <View style={styles.screen}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }} bounces={false}>
+        <View style={styles.topRow}>
+          <Logo size={30} />
+          <View style={styles.forEmpBadge}>
+            <Text style={styles.forEmpText}>FOR EMPLOYERS</Text>
           </View>
         </View>
-      ))}
 
-      <View style={{ marginTop: 20 }}>
-        <GradientButton title="Set up your account" onPress={() => navigation.navigate('BusinessVerify')} />
-      </View>
+        <View style={styles.content}>
+          {/* Live tracker card */}
+          <View style={styles.tracker}>
+            <View style={styles.trackerHead}>
+              <Label color={colors.white40}>Live · Nairobi · tonight</Label>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <View style={styles.liveDot} />
+                <Text style={styles.liveText}>LIVE</Text>
+              </View>
+            </View>
+            <View style={styles.metricGrid}>
+              {METRICS.map((m, i) => (
+                <View key={i} style={styles.metricCard}>
+                  <Text style={[styles.metricK, { color: m.c }]}>{m.k}</Text>
+                  <Text style={styles.metricL}>{m.l}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+          <Label color={colors.white30} style={{ marginTop: 10 }}>2,431 businesses fill shifts with Klokd</Label>
 
-      <TouchableOpacity style={styles.signInRow}>
-        <Text style={styles.signInText}>
-          Already set up? <Text style={styles.signInLink}>Sign in</Text>
-        </Text>
-      </TouchableOpacity>
-    </ScrollView>
+          <View style={{ marginTop: 36, marginBottom: 20 }}>
+            <Eyebrow color={colors.volt} style={{ marginBottom: 10 }}>{s.kicker}</Eyebrow>
+            <Text style={styles.headline}>{s.head}</Text>
+            <Text style={styles.sub}>{s.sub}</Text>
+          </View>
+
+          <View style={styles.dots}>
+            {SLIDES.map((_, i) => (
+              <TouchableOpacity
+                key={i}
+                onPress={() => setSlide(i)}
+                style={{
+                  flex: i === slide ? 2 : 1,
+                  height: 3,
+                  borderRadius: 999,
+                  backgroundColor: i === slide ? colors.electric : colors.white12,
+                }}
+              />
+            ))}
+          </View>
+
+          <GradientBtn onPress={() => navigation.navigate('BusinessVerify')}>Set up my business</GradientBtn>
+          <View style={{ marginTop: 12, alignItems: 'center' }}>
+            <Text style={styles.signIn}>
+              Already have an account? <Text style={{ color: colors.electric, fontWeight: '700' }}>Sign in</Text>
+            </Text>
+          </View>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.mist },
-  scrollContent: { padding: spacing.xl, paddingTop: spacing.xl },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
-  badge: { backgroundColor: colors.ink, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999 },
-  badgeText: { fontSize: typography.size.label, fontWeight: '700', color: colors.electric, letterSpacing: 0.2 },
-  heroCard: {
-    backgroundColor: colors.white, borderRadius: 20, padding: 20, alignItems: 'center',
-    borderWidth: 1, borderColor: colors.soft, marginBottom: 16,
+  screen: { flex: 1, backgroundColor: colors.ink },
+  topRow: { padding: 28, paddingBottom: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  forEmpBadge: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, backgroundColor: 'rgba(188,255,78,0.1)' },
+  forEmpText: { color: colors.volt, fontSize: 9.5, fontWeight: '800', letterSpacing: 1.14 },
+
+  content: { flex: 1, paddingHorizontal: 24, paddingTop: 36, paddingBottom: 32, justifyContent: 'flex-end' },
+
+  tracker: {
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: colors.white03,
+    borderWidth: 1, borderColor: colors.white06,
   },
-  heroTitle: { fontSize: 20, fontWeight: '800', color: colors.ink, letterSpacing: -0.03, textAlign: 'center', lineHeight: 24, marginBottom: 8 },
-  heroSub: { fontSize: typography.size.caption, color: colors.mid, textAlign: 'center', lineHeight: 19, maxWidth: 200 },
-  vpCard: {
-    backgroundColor: colors.white, borderWidth: 1, borderColor: colors.soft, borderRadius: radius.lg,
-    padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8,
+  trackerHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  liveDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.electric },
+  liveText: { fontSize: 9.5, color: colors.electric, fontWeight: '700', letterSpacing: 0.95 },
+
+  metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  metricCard: {
+    width: '48%',
+    paddingHorizontal: 12, paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: colors.white02,
+    borderWidth: 1, borderColor: colors.white05,
   },
-  vpIcon: { fontSize: 24 },
-  vpTitle: { fontSize: typography.size.body, fontWeight: '700', color: colors.ink, marginBottom: 2 },
-  vpSub: { fontSize: typography.size.label, color: colors.mid, lineHeight: 15 },
-  signInRow: { alignItems: 'center', marginTop: spacing.md },
-  signInText: { fontSize: 11, color: colors.mid },
-  signInLink: { color: colors.ink, fontWeight: '700' },
+  metricK: { fontSize: 14, fontWeight: '900', letterSpacing: -0.28 },
+  metricL: { fontSize: 9.5, color: colors.white45, letterSpacing: 0.38, textTransform: 'uppercase', marginTop: 2 },
+
+  headline: { fontSize: 28, fontWeight: '900', letterSpacing: -1.12, lineHeight: 29, color: colors.white, marginBottom: 10 },
+  sub: { fontSize: 13, color: colors.white55, lineHeight: 20.15 },
+
+  dots: { flexDirection: 'row', gap: 4, marginBottom: 14 },
+  signIn: { fontSize: 11.5, color: colors.white50 },
 });

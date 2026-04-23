@@ -1,99 +1,108 @@
+/**
+ * Skills screen — 12 roles + optional certificate upload + KES 300 more nudge.
+ * Ported 1:1 from claude-design/screens/onboarding.jsx
+ */
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ProgressBar } from '../../components/ProgressBar';
-import { GradientButton } from '../../components/GradientButton';
+import { Chip, GradientBtn, Eyebrow, Label, StepProgress } from '../../components/Primitives';
+import { Icons } from '../../components/Icons';
 import { useApi } from '../../hooks/useApi';
-import { colors, typography, spacing, radius } from '../../theme';
+import { colors } from '../../theme';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
 
-const ROLES = ['Waiter', 'Barista', 'Chef', 'Cashier', 'Security', 'Cleaner', 'Receptionist', 'Bartender'];
+const ROLES = [
+  'Waiter', 'Barista', 'Chef', 'Cashier', 'Security', 'Cleaner',
+  'Receptionist', 'Bartender', 'Dishwasher', 'Kitchen Porter', 'Host/Hostess', 'Housekeeper',
+];
+
+function OnbHeader({ step, onBack }: { step: number; onBack?: () => void }) {
+  return (
+    <View style={styles.header}>
+      {onBack ? (
+        <TouchableOpacity onPress={onBack} style={styles.backBtn}>
+          <Icons.back color={colors.white} size={14} />
+        </TouchableOpacity>
+      ) : <View style={{ width: 34 }} />}
+      <View style={{ flex: 1 }}>
+        <StepProgress step={step} total={5} />
+      </View>
+      <View style={{ width: 34 }} />
+    </View>
+  );
+}
 
 export function SkillsScreen({ navigation }: Props) {
   const { put } = useApi();
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [showCert, setShowCert] = useState(false);
-  const [certDone, setCertDone] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set(['Waiter']));
   const [loading, setLoading] = useState(false);
 
-  const toggleSkill = (role: string) => {
-    setSelected(prev => {
-      const next = new Set(prev);
-      next.has(role) ? next.delete(role) : next.add(role);
-      return next;
+  const toggle = (r: string) => {
+    setPicked(p => {
+      const n = new Set(p);
+      n.has(r) ? n.delete(r) : n.add(r);
+      return n;
     });
   };
+
+  const ready = picked.size > 0;
 
   const handleContinue = async () => {
     setLoading(true);
     try {
       await put('/identity/workers/profile', {
-        firstName: 'User',
-        lastName: 'Name',
-        skills: Array.from(selected),
+        firstName: 'User', lastName: 'Name',
+        skills: Array.from(picked),
       });
-    } catch {
-      // API may fail without auth — continue anyway
-    } finally {
-      setLoading(false);
-      navigation.navigate('Consent');
-    }
+    } catch {}
+    setLoading(false);
+    navigation.navigate('MpesaSetup');
   };
-
-  const hasSelection = selected.size > 0;
 
   return (
     <View style={styles.screen}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <ProgressBar currentStep={3} totalSteps={4} onBack={() => navigation.goBack()} />
+      <OnbHeader step={3} onBack={() => navigation.goBack()} />
 
-        <Text style={styles.sectionH}>What do you do?</Text>
-        <Text style={styles.sectionSub}>Select all roles that apply. You'll only see matching shifts.</Text>
+      <View style={styles.titleBlock}>
+        <Eyebrow color={colors.white40} style={{ marginBottom: 8 }}>Step 4 of 5 · Your skills</Eyebrow>
+        <Text style={styles.h2}>What work do you do?</Text>
+        <Text style={styles.sub}>Pick everything you can do. You'll only see shifts that match.</Text>
+      </View>
 
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
+        <Label style={{ marginBottom: 10 }}>Hospitality roles · pick any</Label>
         <View style={styles.chipWrap}>
-          {ROLES.map(role => {
-            const isOn = selected.has(role);
-            return (
-              <TouchableOpacity key={role} style={[styles.chip, isOn ? styles.chipOn : styles.chipOff]}
-                onPress={() => toggleSkill(role)} activeOpacity={0.7}>
-                <Text style={[styles.chipText, isOn ? styles.chipTextOn : styles.chipTextOff]}>
-                  {isOn ? '✓ ' : ''}{role}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-          <TouchableOpacity style={[styles.chip, styles.chipMore]}>
-            <Text style={styles.chipMoreText}>+ More</Text>
+          {ROLES.map(r => (
+            <Chip key={r} active={picked.has(r)} onPress={() => toggle(r)}>{r}</Chip>
+          ))}
+          <Chip onPress={() => {}}>+ Other</Chip>
+        </View>
+
+        <View style={styles.certBox}>
+          <View style={styles.certHeader}>
+            <Label color={colors.white55}>Certificates · optional</Label>
+            <Text style={styles.certHeaderSub}>PDF or photo · 5MB max</Text>
+          </View>
+          <Text style={styles.certDesc}>Food handlers cert, bartending course, first aid — employers pay more for certified workers.</Text>
+          <TouchableOpacity style={styles.uploadBtn} activeOpacity={0.7}>
+            <Icons.upload color={colors.white55} size={14} />
+            <Text style={styles.uploadBtnText}>Upload a certificate</Text>
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.certToggle} onPress={() => setShowCert(!showCert)} activeOpacity={0.7}>
-          <View>
-            <Text style={styles.certTitle}>Got a certificate?</Text>
-            <Text style={styles.certSub}>Food handler · First aid · Health & safety</Text>
+        <View style={styles.nudge}>
+          <View style={styles.nudgeIcon}>
+            <Icons.star color={colors.volt} size={12} />
           </View>
-          <View style={styles.certPlusBtn}><Text style={styles.certPlusText}>{showCert ? '−' : '+'}</Text></View>
-        </TouchableOpacity>
-
-        {showCert && (
-          <TouchableOpacity style={[styles.certUpload, certDone && styles.certUploadDone]}
-            onPress={() => setCertDone(!certDone)} activeOpacity={0.7}>
-            <View style={[styles.certIcon, certDone && styles.certIconDone]}>
-              <Text style={{ color: certDone ? colors.electric : colors.white25, fontSize: 16 }}>{certDone ? '✓' : '📄'}</Text>
-            </View>
-            <View>
-              <Text style={[styles.certLabel, certDone && { color: colors.electric }]}>{certDone ? 'Certificate added ✓' : 'Upload certificate'}</Text>
-              <Text style={styles.certFileSub}>PDF or photo · Max 5MB</Text>
-            </View>
-          </TouchableOpacity>
-        )}
+          <Text style={styles.nudgeText}>Certified workers earn ~KES 300 more per shift, on average.</Text>
+        </View>
       </ScrollView>
 
       <View style={styles.footer}>
-        <GradientButton
-          title={loading ? 'Saving...' : hasSelection ? `Continue with ${selected.size} skill${selected.size > 1 ? 's' : ''} →` : 'Select at least one role'}
-          onPress={handleContinue} disabled={!hasSelection || loading} />
+        <GradientBtn disabled={!ready || loading} onPress={handleContinue}>
+          {ready ? (loading ? 'Saving…' : `Continue · ${picked.size} skill${picked.size > 1 ? 's' : ''}`) : 'Pick at least one'}
+        </GradientBtn>
       </View>
     </View>
   );
@@ -101,29 +110,48 @@ export function SkillsScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ink },
-  scroll: { flex: 1 },
-  scrollContent: { padding: spacing.xl, paddingBottom: 100 },
-  sectionH: { fontSize: typography.size.h3, fontWeight: '700', color: '#fff', letterSpacing: -0.02, marginBottom: 4 },
-  sectionSub: { fontSize: typography.size.caption, color: colors.white38, lineHeight: 19, marginBottom: 20 },
-  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
-  chip: { paddingHorizontal: 15, paddingVertical: 8, borderRadius: 999 },
-  chipOff: { borderWidth: 1.5, borderColor: colors.white10, backgroundColor: colors.white05 },
-  chipOn: { borderWidth: 1.5, borderColor: colors.electric, backgroundColor: colors.electricAlpha['13'] },
-  chipText: { fontSize: 12.5 },
-  chipTextOff: { color: colors.white42, fontWeight: '400' },
-  chipTextOn: { color: colors.electric, fontWeight: '700' },
-  chipMore: { borderWidth: 1.5,  borderColor: colors.white10, backgroundColor: 'transparent' },
-  chipMoreText: { color: colors.white25, fontSize: 12.5 },
-  certToggle: { backgroundColor: colors.white05, borderWidth: 0.5, borderColor: colors.white10, borderRadius: radius.lg, padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  certTitle: { fontSize: typography.size.body, fontWeight: '600', color: '#fff', marginBottom: 2 },
-  certSub: { fontSize: typography.size.label, color: colors.white30 },
-  certPlusBtn: { width: 22, height: 22, borderRadius: 11, borderWidth: 0.5, borderColor: colors.white12, alignItems: 'center', justifyContent: 'center' },
-  certPlusText: { color: colors.white38, fontSize: 13 },
-  certUpload: { borderWidth: 1.5,  borderColor: colors.white10, borderRadius: radius.lg, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
-  certUploadDone: { borderColor: colors.electric, backgroundColor: colors.electricAlpha['06'] },
-  certIcon: { width: 36, height: 36, borderRadius: 8, backgroundColor: colors.white05, alignItems: 'center', justifyContent: 'center' },
-  certIconDone: { backgroundColor: colors.electricAlpha['15'] },
-  certLabel: { fontSize: typography.size.body, fontWeight: '600', color: '#fff', marginBottom: 2 },
-  certFileSub: { fontSize: typography.size.label, color: colors.white30 },
-  footer: { padding: spacing.xl, paddingBottom: spacing.xxxl },
+  header: { paddingHorizontal: 18, paddingTop: 12, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  backBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: 0.5, borderColor: colors.white12, backgroundColor: colors.white04, alignItems: 'center', justifyContent: 'center' },
+  titleBlock: { paddingHorizontal: 22, paddingTop: 20 },
+  h2: { fontSize: 22, fontWeight: '900', letterSpacing: -0.66, lineHeight: 24, color: colors.white, marginBottom: 8 },
+  sub: { fontSize: 12, color: colors.white50, lineHeight: 18.6 },
+
+  scrollContent: { paddingHorizontal: 22, paddingTop: 18, paddingBottom: 20 },
+
+  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+
+  certBox: {
+    marginTop: 22,
+    padding: 13,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.025)',
+    borderWidth: 1, borderColor: colors.white06,
+  },
+  certHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  certHeaderSub: { fontSize: 10, color: colors.white35 },
+  certDesc: { fontSize: 11.5, color: colors.white50, lineHeight: 17.25, marginBottom: 10 },
+  uploadBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    paddingVertical: 11, borderRadius: 11,
+    borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.white12,
+    backgroundColor: colors.white02,
+  },
+  uploadBtnText: { fontSize: 12, color: colors.white55, fontWeight: '600' },
+
+  nudge: {
+    marginTop: 14,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 12, paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(188,255,78,0.04)',
+    borderWidth: 1, borderColor: colors.voltAlpha['18'],
+  },
+  nudgeIcon: {
+    width: 22, height: 22, borderRadius: 11,
+    backgroundColor: 'rgba(188,255,78,0.15)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  nudgeText: { flex: 1, fontSize: 10.5, color: colors.volt, fontWeight: '600', lineHeight: 15.2 },
+
+  footer: { paddingHorizontal: 22, paddingTop: 14, paddingBottom: 20, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.white06 },
 });

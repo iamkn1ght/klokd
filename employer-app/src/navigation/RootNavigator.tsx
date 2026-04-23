@@ -14,7 +14,7 @@ export function RootNavigator() {
   const { isLoading, isAuthenticated, isNewUser } = useAuth();
 
   if (isLoading) {
-    return <View style={{ flex: 1, backgroundColor: colors.mist, alignItems: 'center', justifyContent: 'center' }}>
+    return <View style={{ flex: 1, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' }}>
       <ActivityIndicator size="large" color={colors.electric} />
     </View>;
   }
@@ -25,7 +25,7 @@ export function RootNavigator() {
   return (
     <Stack.Navigator
       initialRouteName={showOnboarding ? 'Onboarding' : 'Main'}
-      screenOptions={{ headerShown: false, animation: 'slide_from_right', contentStyle: { backgroundColor: colors.mist } }}
+      screenOptions={{ headerShown: false, animation: 'slide_from_right', contentStyle: { backgroundColor: colors.ink } }}
     >
       <Stack.Screen name="Onboarding" component={OnboardingNavigator} />
       <Stack.Screen name="Main" component={MainTabNavigator} />

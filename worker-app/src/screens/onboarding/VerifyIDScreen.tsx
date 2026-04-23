@@ -1,68 +1,107 @@
+/**
+ * Verify ID screen — Badge preview + upload zones + Cape Town storage note.
+ * Ported 1:1 from claude-design/screens/onboarding.jsx
+ */
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
-import { ProgressBar } from '../../components/ProgressBar';
-import { GradientButton } from '../../components/GradientButton';
+import { GradientBtn, Eyebrow, StepProgress } from '../../components/Primitives';
+import { Icons } from '../../components/Icons';
 import { useApi } from '../../hooks/useApi';
-import { colors, gradients, typography, spacing, radius } from '../../theme';
+import { colors } from '../../theme';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
 
-interface UploadItem { key: 'front' | 'back' | 'selfie'; label: string; sub: string }
+type ZoneKey = 'front' | 'back' | 'selfie';
 
-const UPLOADS: UploadItem[] = [
-  { key: 'front', label: 'National ID — Front', sub: 'Tap to upload' },
-  { key: 'back', label: 'National ID — Back', sub: 'Tap to upload' },
-  { key: 'selfie', label: 'Quick selfie', sub: 'To match your ID' },
+const ZONES: { key: ZoneKey; label: string; meta: string; iconKey: 'id' | 'camera' }[] = [
+  { key: 'front', label: 'National ID · front', meta: 'Serial, DOB, photo visible', iconKey: 'id' },
+  { key: 'back', label: 'National ID · back', meta: 'All text legible', iconKey: 'id' },
+  { key: 'selfie', label: 'Selfie · liveness', meta: 'Look at camera, no filter', iconKey: 'camera' },
 ];
+
+function OnbHeader({ step, onBack }: { step: number; onBack?: () => void }) {
+  return (
+    <View style={styles.header}>
+      {onBack ? (
+        <TouchableOpacity onPress={onBack} style={styles.backBtn}>
+          <Icons.back color={colors.white} size={14} />
+        </TouchableOpacity>
+      ) : <View style={{ width: 34 }} />}
+      <View style={{ flex: 1 }}>
+        <StepProgress step={step} total={5} />
+      </View>
+      <View style={{ width: 34 }} />
+    </View>
+  );
+}
+
+function UploadZone({ label, meta, iconKey, done, onPress, uploading }: {
+  label: string; meta: string; iconKey: 'id' | 'camera'; done: boolean; onPress: () => void; uploading: boolean;
+}) {
+  const Ico = Icons[iconKey];
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.7}
+      disabled={uploading}
+      style={[
+        styles.zone,
+        done
+          ? { borderColor: colors.electric, borderWidth: 1.5, backgroundColor: colors.electricAlpha['06'], borderStyle: 'solid' }
+          : { borderColor: colors.white12, borderWidth: 1.5, borderStyle: 'dashed', backgroundColor: colors.white02 },
+      ]}
+    >
+      <View style={[styles.zoneIcon, { backgroundColor: done ? 'rgba(0,229,160,0.18)' : colors.white04 }]}>
+        {done ? <Icons.check color={colors.electric} size={18} /> : <Ico color={colors.white75} size={18} />}
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.zoneLabel, { color: done ? colors.electric : colors.white }]}>{label}</Text>
+        <Text style={styles.zoneMeta}>
+          {uploading ? 'Uploading…' : done ? 'Tap to re-upload' : meta}
+        </Text>
+      </View>
+      {!done && !uploading && <Text style={styles.zoneTap}>TAP</Text>}
+    </TouchableOpacity>
+  );
+}
 
 export function VerifyIDScreen({ navigation }: Props) {
   const { post } = useApi();
-  const [uploads, setUploads] = useState({ front: '', back: '', selfie: '' });
-  const [uploading, setUploading] = useState<string | null>(null);
+  const [state, setState] = useState<Record<ZoneKey, string>>({ front: '', back: '', selfie: '' });
+  const [uploading, setUploading] = useState<ZoneKey | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const count = Object.values(uploads).filter(Boolean).length;
-  const allDone = count === 3;
+  const count = Object.values(state).filter(Boolean).length;
+  const ready = count === 3;
 
-  const uploadTypeMap: Record<keyof typeof uploads, 'id-front' | 'id-back' | 'selfie'> = {
-    front: 'id-front',
-    back: 'id-back',
-    selfie: 'selfie',
+  const uploadTypeMap: Record<ZoneKey, 'id-front' | 'id-back' | 'selfie'> = {
+    front: 'id-front', back: 'id-back', selfie: 'selfie',
   };
 
-  const pickImage = async (key: keyof typeof uploads) => {
+  const pickImage = async (key: ZoneKey) => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         quality: 0.7,
         allowsEditing: false,
       });
-
       if (result.canceled || !result.assets[0]) return;
 
       setUploading(key);
-
-      // Read file as base64
-      const base64 = await FileSystem.readAsStringAsync(result.assets[0].uri, {
-        encoding: 'base64',
-      });
-
-      // Upload to API → Supabase Storage
+      const base64 = await FileSystem.readAsStringAsync(result.assets[0].uri, { encoding: 'base64' });
       const { storageKey } = await post<{ storageKey: string }>('/identity/upload', {
         type: uploadTypeMap[key],
         data: base64,
         contentType: 'image/jpeg',
       });
-
-      setUploads(prev => ({ ...prev, [key]: storageKey }));
+      setState(s => ({ ...s, [key]: storageKey }));
       setUploading(null);
     } catch {
-      // On web or if picker fails, toggle the state for preview/demo
-      setUploads(prev => ({ ...prev, [key]: prev[key] ? '' : 'demo-upload' }));
+      setState(s => ({ ...s, [key]: s[key] ? '' : 'demo-upload' }));
       setUploading(null);
     }
   };
@@ -72,71 +111,72 @@ export function VerifyIDScreen({ navigation }: Props) {
     try {
       await post('/identity/workers/verify-id', {
         idNumber: 'PLACEHOLDER',
-        idFrontKey: uploads.front,
-        idBackKey: uploads.back,
-        selfieKey: uploads.selfie,
+        idFrontKey: state.front,
+        idBackKey: state.back,
+        selfieKey: state.selfie,
       });
-    } catch {
-      // API may fail without auth — continue anyway during onboarding
-    } finally {
-      setLoading(false);
-      navigation.navigate('Skills');
-    }
+    } catch {}
+    setLoading(false);
+    navigation.navigate('Skills');
   };
 
   return (
     <View style={styles.screen}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <ProgressBar currentStep={2} totalSteps={4} onBack={() => navigation.goBack()} />
+      <OnbHeader step={2} onBack={() => navigation.goBack()} />
 
-        <LinearGradient colors={['#141428', '#0c1020']} style={styles.motivationCard}>
-          <LinearGradient colors={[gradients.cta[0], gradients.cta[1]]} style={styles.badgeIcon} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-            <Text style={styles.badgeStar}>★</Text>
+      <View style={styles.titleBlock}>
+        <Eyebrow color={colors.white40} style={{ marginBottom: 8 }}>Step 3 of 5 · ID verification</Eyebrow>
+        <Text style={styles.h2}>Get your Verified badge.</Text>
+        <Text style={styles.sub}>Every worker on Klokd is verified. That's why employers trust you — and why you always work somewhere safe.</Text>
+      </View>
+
+      {/* Badge preview */}
+      <View style={styles.badgeRow}>
+        <LinearGradient
+          colors={[colors.electricAlpha['15'], colors.voltAlpha['10']]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.badge}
+        >
+          <LinearGradient
+            colors={[colors.electric, colors.volt]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.badgeIcon}
+          >
+            <Icons.shield color={colors.ink} size={12} />
           </LinearGradient>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.badgeTitle}>
-              Earn your <Text style={{ color: colors.electric }}>Verified ✦</Text> badge
-            </Text>
-            <Text style={styles.badgeSub}>Employers see it on every application. Verified workers get hired first.</Text>
-          </View>
+          <Text style={styles.badgeText}>VERIFIED WORKER · unlocks all shifts</Text>
         </LinearGradient>
+      </View>
 
-        <Text style={styles.sectionH}>Verify your identity</Text>
-        <Text style={styles.sectionSub}>We verify everyone so you're always working somewhere safe.</Text>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
+        <View style={{ gap: 10 }}>
+          {ZONES.map(z => (
+            <UploadZone
+              key={z.key}
+              label={z.label}
+              meta={z.meta}
+              iconKey={z.iconKey}
+              done={!!state[z.key]}
+              uploading={uploading === z.key}
+              onPress={() => pickImage(z.key)}
+            />
+          ))}
+        </View>
 
-        <View style={styles.uploadList}>
-          {UPLOADS.map(item => {
-            const isDone = !!uploads[item.key];
-            const isUploading = uploading === item.key;
-            return (
-              <TouchableOpacity
-                key={item.key}
-                style={[styles.uploadZone, isDone ? styles.uploadDone : styles.uploadIdle]}
-                onPress={() => pickImage(item.key)}
-                activeOpacity={0.7}
-                disabled={isUploading}
-              >
-                <View style={[styles.uploadIcon, isDone ? styles.uploadIconDone : styles.uploadIconIdle]}>
-                  {isDone
-                    ? <Text style={{ color: colors.electric, fontSize: 17, fontWeight: '700' }}>✓</Text>
-                    : <Text style={{ color: colors.white30, fontSize: 14 }}>📄</Text>}
-                </View>
-                <View>
-                  <Text style={[styles.uploadLabel, isDone && { color: colors.electric }]}>{item.label}</Text>
-                  <Text style={styles.uploadSub}>
-                    {isUploading ? 'Uploading...' : isDone ? 'Uploaded ✓' : item.sub}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
+        <View style={styles.privacyNote}>
+          <Icons.lock color={colors.white45} size={12} />
+          <Text style={styles.privacyText}>
+            Encrypted in transit. Stored in Kenya (AWS Cape Town). Your ID number is hashed, never visible to employers.
+          </Text>
         </View>
       </ScrollView>
 
       <View style={styles.footer}>
-        {!allDone && <Text style={styles.footerHint}>Tap each item to upload ({count}/3)</Text>}
-        <GradientButton title={loading ? 'Submitting...' : allDone ? 'Continue →' : `${count} of 3 uploaded`}
-          onPress={handleContinue} disabled={!allDone || loading} />
+        <GradientBtn disabled={!ready || loading} onPress={handleContinue}>
+          {ready ? (loading ? 'Submitting…' : 'Submit for verification') : `${count} of 3 uploaded`}
+        </GradientBtn>
       </View>
     </View>
   );
@@ -144,24 +184,43 @@ export function VerifyIDScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ink },
-  scroll: { flex: 1 },
-  scrollContent: { padding: spacing.xl, paddingBottom: 100 },
-  motivationCard: { flexDirection: 'row', alignItems: 'center', gap: 13, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.electricAlpha['22'], padding: 13, marginBottom: 18 },
-  badgeIcon: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  badgeStar: { color: colors.ink, fontSize: 20 },
-  badgeTitle: { fontSize: typography.size.body, fontWeight: '700', color: '#fff', marginBottom: 3 },
-  badgeSub: { fontSize: typography.size.label, color: colors.white38, lineHeight: 17 },
-  sectionH: { fontSize: typography.size.h3, fontWeight: '700', color: '#fff', letterSpacing: -0.02, marginBottom: 4 },
-  sectionSub: { fontSize: typography.size.caption, color: colors.white38, lineHeight: 19, marginBottom: 18 },
-  uploadList: { gap: 9 },
-  uploadZone: { borderRadius: radius.lg, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 14 },
-  uploadIdle: { borderWidth: 1.5,  borderColor: colors.white10, backgroundColor: colors.white05 },
-  uploadDone: { borderWidth: 1.5, borderColor: colors.electric, backgroundColor: colors.electricAlpha['06'] },
-  uploadIcon: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  uploadIconIdle: { backgroundColor: colors.white05 },
-  uploadIconDone: { backgroundColor: colors.electricAlpha['15'] },
-  uploadLabel: { fontSize: typography.size.body, fontWeight: '600', color: '#fff', marginBottom: 2 },
-  uploadSub: { fontSize: typography.size.label, color: colors.white30 },
-  footer: { padding: spacing.xl, paddingBottom: spacing.xxxl },
-  footerHint: { fontSize: 10, color: colors.white25, textAlign: 'center', marginBottom: 10 },
+  header: { paddingHorizontal: 18, paddingTop: 12, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  backBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: 0.5, borderColor: colors.white12, backgroundColor: colors.white04, alignItems: 'center', justifyContent: 'center' },
+  titleBlock: { paddingHorizontal: 22, paddingTop: 20 },
+  h2: { fontSize: 22, fontWeight: '900', letterSpacing: -0.66, lineHeight: 24, color: colors.white, marginBottom: 8 },
+  sub: { fontSize: 12, color: colors.white50, lineHeight: 18.6 },
+
+  badgeRow: { paddingHorizontal: 22, paddingVertical: 16, alignItems: 'center' },
+  badge: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 14, paddingVertical: 8, paddingLeft: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.electricAlpha['35'],
+  },
+  badgeIcon: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  badgeText: { fontSize: 11.5, fontWeight: '700', color: colors.electric, letterSpacing: 0.22 },
+
+  scrollContent: { paddingHorizontal: 22, paddingBottom: 20 },
+
+  zone: {
+    padding: 13, paddingHorizontal: 14,
+    borderRadius: 14,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+  },
+  zoneIcon: { width: 40, height: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  zoneLabel: { fontSize: 13, fontWeight: '700', marginBottom: 2 },
+  zoneMeta: { fontSize: 10.5, color: colors.white40 },
+  zoneTap: { fontSize: 10.5, color: colors.white40, fontWeight: '600', letterSpacing: 0.84 },
+
+  privacyNote: {
+    flexDirection: 'row', gap: 8,
+    marginTop: 14, padding: 12,
+    borderRadius: 12,
+    backgroundColor: colors.white02,
+    borderWidth: 1, borderColor: colors.white05,
+  },
+  privacyText: { flex: 1, fontSize: 10.5, color: colors.white45, lineHeight: 16.3 },
+
+  footer: { paddingHorizontal: 22, paddingTop: 14, paddingBottom: 20, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.white06 },
 });

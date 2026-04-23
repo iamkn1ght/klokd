@@ -1,161 +1,213 @@
+/**
+ * Employer Escrow Setup (was "MpesaSetup") — Large fund amount display + presets + M-Pesa source + 3-step explainer.
+ * Ported 1:1 from claude-design/screens/employer-onboarding.jsx (EmpEscrow)
+ */
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ProgressBar } from '../../components/ProgressBar';
-import { GradientButton } from '../../components/GradientButton';
-import { colors, gradients, typography, spacing, radius } from '../../theme';
+import { GradientBtn, Eyebrow, Label, StepProgress } from '../../components/Primitives';
+import { Icons } from '../../components/Icons';
+import { colors, typography } from '../../theme';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
 
-const METHODS = [
-  { id: 'paybill', label: 'M-Pesa Paybill', sub: 'For businesses with a Safaricom paybill number', icon: '🏢', num: '247247' },
-  { id: 'till', label: 'Till Number', sub: 'For businesses with an M-Pesa till', icon: '📟', num: '5223890' },
-  { id: 'personal', label: 'Personal M-Pesa', sub: 'Your own M-Pesa number', icon: '📱', num: '0722 400 500' },
-];
+const PRESETS = [20000, 50000, 100000, 200000];
 
-const ESCROW_STEPS = ['You fund', 'Klokd holds', 'Worker paid'];
-const ESCROW_SUBS = ['On shift confirm', 'Held securely', '30 min post clock-out'];
+function EmpOnbHeader({ step, onBack }: { step: number; onBack?: () => void }) {
+  return (
+    <View style={styles.header}>
+      {onBack ? (
+        <TouchableOpacity onPress={onBack} style={styles.backBtn}>
+          <Icons.back color={colors.white} size={14} />
+        </TouchableOpacity>
+      ) : <View style={{ width: 34 }} />}
+      <View style={{ flex: 1 }}>
+        <StepProgress step={step} total={3} />
+      </View>
+      <View style={{ width: 34 }} />
+    </View>
+  );
+}
 
 export function MpesaSetupScreen({ navigation }: Props) {
-  const [method, setMethod] = useState('paybill');
-  const [activated, setActivated] = useState(false);
-  const current = METHODS.find(m => m.id === method)!;
+  const [amount, setAmount] = useState(50000);
+  const [loading, setLoading] = useState(false);
+  const [funded, setFunded] = useState(false);
 
-  if (activated) {
+  const handleFund = () => {
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      setFunded(true);
+      setTimeout(() => navigation.getParent()?.navigate('Main'), 1400);
+    }, 1600);
+  };
+
+  if (funded) {
     return (
-      <View style={[styles.screen, styles.successCenter]}>
-        <LinearGradient colors={[...gradients.cta]} style={styles.successGlow} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-          <Text style={styles.successCheck}>✓</Text>
+      <View style={[styles.screen, { alignItems: 'center', justifyContent: 'center', padding: 24 }]}>
+        <LinearGradient
+          colors={[colors.electric, colors.volt]}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={styles.fundedCircle}
+        >
+          <Icons.check color={colors.ink} size={34} />
         </LinearGradient>
-        <Text style={styles.successTitle}>You're live.</Text>
-        <Text style={styles.successSub}>Your employer account is active. Post your first shift in under 2 minutes.</Text>
-
-        <View style={styles.escrowActiveCard}>
-          <Text style={styles.escrowActiveLabel}>ESCROW ACTIVE</Text>
-          <Text style={styles.escrowActiveMethod}>{current.label}</Text>
-          <Text style={styles.escrowActiveNum}>{current.num}</Text>
-          <Text style={styles.escrowActiveSub}>Workers paid within 30 min of clock-out</Text>
-        </View>
-
-        <View style={styles.feeCard}>
-          <Text style={styles.feeText}>
-            <Text style={{ color: colors.ink, fontWeight: '700' }}>4% platform fee</Text> charged per completed shift. No fee on no-shows. No monthly minimum.
-          </Text>
-        </View>
-
-        <GradientButton title="Post my first shift →" onPress={() => navigation.getParent()?.navigate('Main')} />
-
+        <Text style={styles.fundedTitle}>Escrow funded</Text>
+        <Text style={styles.fundedAmount}>KES {amount.toLocaleString()}</Text>
+        <Text style={styles.fundedDesc}>Your M-Pesa is holding this. It releases worker-by-worker only on clock-out.</Text>
+        <Text style={styles.fundedLoading}>Opening your dashboard…</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.scrollContent}>
-      <ProgressBar currentStep={3} totalSteps={3} onBack={() => navigation.goBack()} />
+    <View style={styles.screen}>
+      <EmpOnbHeader step={1} onBack={() => navigation.goBack()} />
 
-      <Text style={styles.h}>How will you pay workers?</Text>
-      <Text style={styles.sub}>Choose how funds are drawn from your M-Pesa to pay workers.</Text>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 22, paddingBottom: 120 }}>
+        <Eyebrow color={colors.volt} style={{ marginBottom: 10 }}>STEP 02 · ESCROW</Eyebrow>
+        <Text style={styles.h1}>Fund your M-Pesa escrow</Text>
+        <Text style={styles.sub}>Pre-fund an amount. Workers see you're ready to pay, which means faster fills.</Text>
 
-      {/* Method cards */}
-      {METHODS.map(m => {
-        const isOn = method === m.id;
-        return (
-          <TouchableOpacity
-            key={m.id}
-            style={[styles.methodCard, isOn ? styles.methodOn : styles.methodOff]}
-            onPress={() => setMethod(m.id)}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.methodIcon, { backgroundColor: isOn ? colors.ink : colors.soft }]}>
-              <Text style={{ fontSize: 16 }}>{m.icon}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.methodLabel}>{m.label}</Text>
-              <Text style={styles.methodSub}>{m.sub}</Text>
-            </View>
-            <View style={[styles.radio, isOn ? styles.radioOn : styles.radioOff]}>
-              {isOn && <View style={styles.radioDot} />}
-            </View>
-          </TouchableOpacity>
-        );
-      })}
+        {/* Big amount display */}
+        <LinearGradient
+          colors={[colors.electricAlpha['10'], colors.electricAlpha['03']]}
+          start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
+          style={styles.amountCard}
+        >
+          <Label color={colors.white50}>Fund amount</Label>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: 6, marginTop: 10 }}>
+            <Text style={styles.amountKES}>KES</Text>
+            <Text style={styles.amountBig}>{amount.toLocaleString()}</Text>
+          </View>
+          <Text style={styles.amountShifts}>≈ {Math.round(amount / 1800)} shifts</Text>
+        </LinearGradient>
 
-      {/* Account number display */}
-      <View style={styles.accountCard}>
-        <Text style={styles.accountLabel}>{current.label} Number</Text>
-        <Text style={styles.accountNum}>{current.num}</Text>
-      </View>
+        {/* Presets */}
+        <View style={styles.presets}>
+          {PRESETS.map(p => (
+            <TouchableOpacity
+              key={p}
+              onPress={() => setAmount(p)}
+              activeOpacity={0.7}
+              style={[
+                styles.preset,
+                amount === p
+                  ? { borderWidth: 1.5, borderColor: colors.electric, backgroundColor: 'rgba(0,229,160,0.08)' }
+                  : { borderWidth: 1, borderColor: colors.white08, backgroundColor: colors.white03 },
+              ]}
+            >
+              <Text style={{ color: amount === p ? colors.electric : colors.white70, fontSize: 11.5, fontWeight: '700' }}>
+                {p / 1000}k
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
-      {/* Escrow visual */}
-      <View style={styles.escrowCard}>
-        <Text style={styles.escrowTitle}>HOW ESCROW WORKS</Text>
-        <View style={styles.escrowRow}>
-          {ESCROW_STEPS.map((step, i) => (
-            <View key={i} style={styles.escrowItem}>
-              <LinearGradient colors={[...gradients.cta]} style={styles.escrowCircle} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-                <Text style={styles.escrowCircleText}>{i + 1}</Text>
-              </LinearGradient>
-              <Text style={styles.escrowStepText}>{step}</Text>
-              <Text style={styles.escrowStepSub}>{ESCROW_SUBS[i]}</Text>
+        {/* M-Pesa source */}
+        <View style={styles.mpesaSource}>
+          <View style={styles.mpesaIcon}>
+            <Icons.mpesa color={colors.electric} size={18} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.mpesaTitle}>M-Pesa Business</Text>
+            <Text style={styles.mpesaSub}>Till 504-221 · Brew Bistro</Text>
+          </View>
+          <View style={styles.defaultPill}>
+            <Text style={styles.defaultText}>DEFAULT</Text>
+          </View>
+        </View>
+
+        {/* How escrow works */}
+        <View style={styles.howBox}>
+          <Label color={colors.white50} style={{ marginBottom: 10 }}>How escrow works</Label>
+          {[
+            { n: '1', t: 'You fund', s: 'M-Pesa holds the amount. Worker sees funded badge.' },
+            { n: '2', t: 'Worker clocks out', s: 'Amount earmarks for that worker.' },
+            { n: '3', t: 'Auto-release in 5 min', s: 'Unless you flag an issue. Average: 3 min.' },
+          ].map(s => (
+            <View key={s.n} style={{ flexDirection: 'row', gap: 10, marginBottom: 10, alignItems: 'flex-start' }}>
+              <View style={styles.stepCircle}>
+                <Text style={styles.stepCircleText}>{s.n}</Text>
+              </View>
+              <View>
+                <Text style={styles.stepTitle}>{s.t}</Text>
+                <Text style={styles.stepSub}>{s.s}</Text>
+              </View>
             </View>
           ))}
         </View>
-      </View>
+      </ScrollView>
 
-      <GradientButton title="Activate my account →" onPress={() => setActivated(true)} />
-      <Text style={styles.feeNote}>4% per completed shift · No monthly fees · No lock-in</Text>
-    </ScrollView>
+      <View style={styles.footer}>
+        <GradientBtn onPress={handleFund} disabled={loading}>
+          {loading ? 'Waiting for M-Pesa prompt…' : `Fund KES ${amount.toLocaleString()} via STK push`}
+        </GradientBtn>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'center', marginTop: 10 }}>
+          <Icons.lock color={colors.white40} size={10} />
+          <Text style={styles.footerText}>Fully refundable anytime · M-Pesa trust score unaffected</Text>
+        </View>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.mist },
-  scrollContent: { padding: spacing.xl, paddingBottom: 40 },
-  successCenter: { alignItems: 'center', justifyContent: 'center', padding: spacing.xxl },
-  h: { fontSize: typography.size.h3, fontWeight: '700', color: colors.ink, letterSpacing: -0.02, marginBottom: 4 },
-  sub: { fontSize: typography.size.caption, color: colors.mid, lineHeight: 19, marginBottom: 16 },
+  screen: { flex: 1, backgroundColor: colors.ink },
+  header: { paddingHorizontal: 18, paddingTop: 12, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  backBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: 0.5, borderColor: colors.white12, backgroundColor: colors.white04, alignItems: 'center', justifyContent: 'center' },
 
-  methodCard: { borderRadius: radius.lg, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 13, marginBottom: 8 },
-  methodOn: { backgroundColor: colors.white, borderWidth: 1.5, borderColor: colors.ink },
-  methodOff: { backgroundColor: colors.white, borderWidth: 1.5, borderColor: colors.soft },
-  methodIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  methodLabel: { fontSize: typography.size.body, fontWeight: '700', color: colors.ink, marginBottom: 2 },
-  methodSub: { fontSize: typography.size.label, color: colors.mid, lineHeight: 14 },
-  radio: { width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  radioOn: { borderWidth: 2.5, borderColor: colors.ink },
-  radioOff: { borderWidth: 2, borderColor: colors.soft },
-  radioDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.electric },
+  h1: { fontSize: 26, fontWeight: '900', letterSpacing: -1.04, lineHeight: 28.6, color: colors.white, marginBottom: 8 },
+  sub: { fontSize: 13, color: colors.white55, lineHeight: 19.5, marginBottom: 20 },
 
-  accountCard: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.inkAlpha['10'], borderRadius: radius.lg, padding: 12, marginTop: 6, marginBottom: 14 },
-  accountLabel: { fontSize: typography.size.micro, fontWeight: '600', color: colors.mid, letterSpacing: 0.5, marginBottom: 5 },
-  accountNum: { fontSize: 20, fontWeight: '800', color: colors.ink, letterSpacing: 0.3 },
-
-  escrowCard: { backgroundColor: colors.electricAlpha['08'], borderWidth: 1, borderColor: colors.electricAlpha['18'], borderRadius: radius.lg, padding: 13, marginBottom: 16 },
-  escrowTitle: { fontSize: typography.size.micro, fontWeight: '700', letterSpacing: 1.2, color: colors.electric, marginBottom: 12 },
-  escrowRow: { flexDirection: 'row' },
-  escrowItem: { flex: 1, alignItems: 'center' },
-  escrowCircle: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  escrowCircleText: { fontSize: 10.5, fontWeight: '800', color: colors.ink },
-  escrowStepText: { fontSize: typography.size.label, fontWeight: '700', color: colors.ink, marginBottom: 2 },
-  escrowStepSub: { fontSize: typography.size.micro, color: colors.mid, textAlign: 'center', lineHeight: 14 },
-
-  feeNote: { textAlign: 'center', fontSize: typography.size.label, color: colors.mid, marginTop: 10 },
-
-  // Success
-  successGlow: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
-  successCheck: { fontSize: 32, fontWeight: '700', color: colors.ink },
-  successTitle: { fontSize: 22, fontWeight: '900', color: colors.ink, letterSpacing: -0.04, marginBottom: 6 },
-  successSub: { fontSize: 12, color: colors.mid, textAlign: 'center', lineHeight: 20, maxWidth: 210, marginBottom: 28 },
-  escrowActiveCard: {
-    backgroundColor: colors.white, borderWidth: 1, borderColor: colors.soft,
-    borderLeftWidth: 3, borderLeftColor: colors.electric, borderRadius: radius.lg,
-    borderTopLeftRadius: 0, borderBottomLeftRadius: 0, padding: 14, width: '100%', marginBottom: 10,
+  amountCard: {
+    paddingHorizontal: 20, paddingVertical: 22,
+    borderRadius: 18,
+    borderWidth: 1, borderColor: colors.electricAlpha['40'],
+    alignItems: 'center',
+    marginBottom: 16,
   },
-  escrowActiveLabel: { fontSize: typography.size.micro, fontWeight: '700', letterSpacing: 1.2, color: colors.electric, marginBottom: 7 },
-  escrowActiveMethod: { fontSize: 13.5, fontWeight: '700', color: colors.ink, marginBottom: 3 },
-  escrowActiveNum: { fontSize: typography.size.label, color: colors.mid, marginBottom: 3 },
-  escrowActiveSub: { fontSize: typography.size.label, color: colors.mid },
-  feeCard: { backgroundColor: colors.electricAlpha['08'], borderWidth: 1, borderColor: colors.electricAlpha['18'], borderRadius: radius.lg, padding: 12, width: '100%', marginBottom: 24 },
-  feeText: { fontSize: typography.size.label, color: colors.mid, lineHeight: 17 },
+  amountKES: { fontSize: 16, color: colors.white50, fontWeight: '700' },
+  amountBig: { fontSize: 44, fontWeight: '900', color: colors.white, letterSpacing: -2.2, fontFamily: typography.mono },
+  amountShifts: { fontSize: 11, color: colors.electric, fontWeight: '700', marginTop: 4 },
+
+  presets: { flexDirection: 'row', gap: 6, marginBottom: 18 },
+  preset: { flex: 1, paddingHorizontal: 4, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
+
+  mpesaSource: {
+    paddingHorizontal: 14, paddingVertical: 13,
+    borderRadius: 14,
+    backgroundColor: colors.white03,
+    borderWidth: 1, borderColor: colors.white06,
+    flexDirection: 'row', alignItems: 'center', gap: 11,
+    marginBottom: 14,
+  },
+  mpesaIcon: { width: 38, height: 38, borderRadius: 10, backgroundColor: 'rgba(0,229,160,0.13)', alignItems: 'center', justifyContent: 'center' },
+  mpesaTitle: { fontSize: 12, fontWeight: '800', color: colors.white },
+  mpesaSub: { fontSize: 10.5, color: colors.white50, fontFamily: typography.mono },
+  defaultPill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(0,229,160,0.13)' },
+  defaultText: { fontSize: 9.5, fontWeight: '800', color: colors.electric, letterSpacing: 0.76 },
+
+  howBox: {
+    paddingHorizontal: 14, paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: colors.white02,
+    borderWidth: 0.5, borderColor: colors.white06,
+  },
+  stepCircle: { width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(0,229,160,0.13)', alignItems: 'center', justifyContent: 'center' },
+  stepCircleText: { fontSize: 11, fontWeight: '800', color: colors.electric, fontFamily: typography.mono },
+  stepTitle: { fontSize: 12, fontWeight: '700', color: colors.white },
+  stepSub: { fontSize: 10.5, color: colors.white50, lineHeight: 14.7, marginTop: 1 },
+
+  footer: { paddingHorizontal: 22, paddingTop: 16, paddingBottom: 24 },
+  footerText: { fontSize: 10.5, color: colors.white40 },
+
+  // Funded state
+  fundedCircle: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  fundedTitle: { fontSize: 28, fontWeight: '900', letterSpacing: -0.84, color: colors.white, marginBottom: 8 },
+  fundedAmount: { fontSize: 32, fontWeight: '900', color: colors.electric, letterSpacing: -1.28, fontFamily: typography.mono, marginBottom: 12 },
+  fundedDesc: { fontSize: 13, color: colors.white60, lineHeight: 19.5, maxWidth: 260, marginBottom: 24, textAlign: 'center' },
+  fundedLoading: { fontSize: 10.5, color: colors.white40, letterSpacing: 1.05, textTransform: 'uppercase' },
 });

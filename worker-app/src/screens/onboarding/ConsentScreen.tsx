@@ -1,120 +1,110 @@
+/**
+ * Consent screen — Per-data-type tiles with DPA 2019 trust signals.
+ * Ported 1:1 from claude-design/screens/onboarding.jsx
+ */
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ProgressBar } from '../../components/ProgressBar';
-import { GradientButton } from '../../components/GradientButton';
-import { useApi } from '../../hooks/useApi';
-import { colors, typography, spacing, radius } from '../../theme';
+import { GradientBtn, Eyebrow, StepProgress } from '../../components/Primitives';
+import { Icons } from '../../components/Icons';
+import { colors } from '../../theme';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
 
-interface ConsentItem {
-  key: 'identity' | 'gps';
-  title: string;
-  description: string;
-  detail: string;
-}
-
-const CONSENTS: ConsentItem[] = [
-  {
-    key: 'identity',
-    title: 'Identity verification',
-    description: 'We process your National ID and selfie to verify your identity with employers.',
-    detail: 'Your ID number is hashed (never stored in plain text). Images are encrypted at rest. You can request deletion at any time.',
-  },
-  {
-    key: 'gps',
-    title: 'Location for clock-in',
-    description: 'We use GPS to verify you are within 500m of the work venue when you clock in.',
-    detail: 'Raw coordinates are converted to an approximate area code and discarded. We never track you outside of clock-in.',
-  },
+const ITEMS = [
+  { name: 'National ID', meta: 'Front, back, selfie', use: "Verify it's you. Stored encrypted for 3 years.", who: 'Employers see: verified badge only.', icon: 'id' as const },
+  { name: 'Location (GPS)', meta: 'Clock-in only', use: "Proves you're at the venue. Never tracked off-shift.", who: 'Employers see: clock-in confirmed only.', icon: 'pin' as const },
+  { name: 'M-Pesa number', meta: 'For payment', use: 'Receive earnings after every shift.', who: 'Employers see: never.', icon: 'mpesa' as const },
+  { name: 'Shift history', meta: 'Your reputation', use: 'Builds your rating, show-up rate, portable record.', who: 'Employers see: rating & show-up rate.', icon: 'clock' as const },
 ];
 
-export function ConsentScreen({ navigation }: Props) {
-  const { post } = useApi();
-  const [consented, setConsented] = useState({ identity: false, gps: false });
-  const [loading, setLoading] = useState(false);
-  const allConsented = consented.identity && consented.gps;
+function ConsentToggle({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.7}
+      style={[styles.toggleRow, on ? styles.toggleOn : styles.toggleOff]}
+    >
+      <Text style={[styles.toggleLabel, { color: on ? colors.white : colors.white65 }]}>{label}</Text>
+      <View style={[styles.toggleTrack, { backgroundColor: on ? colors.electric : colors.white10 }]}>
+        <View style={[styles.toggleThumb, { transform: [{ translateX: on ? 16 : 0 }] }]} />
+      </View>
+    </TouchableOpacity>
+  );
+}
 
-  const toggle = (key: keyof typeof consented) => {
-    setConsented(prev => ({ ...prev, [key]: !prev[key] }));
-  };
+function OnbHeader({ step, onBack }: { step: number; onBack?: () => void }) {
+  return (
+    <View style={styles.header}>
+      {onBack ? (
+        <TouchableOpacity onPress={onBack} style={styles.backBtn}>
+          <Icons.back color={colors.white} size={14} />
+        </TouchableOpacity>
+      ) : <View style={{ width: 34 }} />}
+      <View style={{ flex: 1 }}>
+        <StepProgress step={step} total={5} />
+      </View>
+      <View style={{ width: 34 }} />
+    </View>
+  );
+}
+
+export function ConsentScreen({ navigation }: Props) {
+  const [idOK, setIdOK] = useState(false);
+  const [gpsOK, setGpsOK] = useState(false);
+  const ready = idOK && gpsOK;
 
   return (
     <View style={styles.screen}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <ProgressBar currentStep={3} totalSteps={4} onBack={() => navigation.goBack()} />
+      <OnbHeader step={1} onBack={() => navigation.goBack()} />
+      <View style={styles.titleBlock}>
+        <Eyebrow color={colors.white40} style={{ marginBottom: 8 }}>Step 2 of 5 · Your data</Eyebrow>
+        <Text style={styles.h2}>Before we start — here's exactly what we collect.</Text>
+        <Text style={styles.sub}>No surprises. No selling your data. DPA 2019 compliant.</Text>
+      </View>
 
-        {/* DPA header */}
-        <View style={styles.dpaHeader}>
-          <Text style={styles.dpaBadge}>DPA 2019</Text>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
+        <View style={{ gap: 8 }}>
+          {ITEMS.map((it, i) => {
+            const Ico = Icons[it.icon];
+            return (
+              <View key={i} style={styles.itemCard}>
+                <View style={{ flexDirection: 'row', gap: 11, alignItems: 'flex-start' }}>
+                  <View style={styles.itemIcon}>
+                    <Ico color={colors.electric} size={it.icon === 'clock' || it.icon === 'pin' || it.icon === 'mpesa' ? 18 : 18} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.itemTop}>
+                      <Text style={styles.itemName}>{it.name}</Text>
+                      <Text style={styles.itemMeta}>{it.meta}</Text>
+                    </View>
+                    <Text style={styles.itemUse}>{it.use}</Text>
+                    <Text style={styles.itemWho}>{it.who}</Text>
+                  </View>
+                </View>
+              </View>
+            );
+          })}
         </View>
 
-        <Text style={styles.sectionH}>Privacy & consent</Text>
-        <Text style={styles.sectionSub}>
-          Klokd complies with the Kenya Data Protection Act, 2019. We need your explicit consent
-          to process the following data.
+        <View style={styles.agreeBox}>
+          <Eyebrow style={{ marginBottom: 10 }}>I agree to share</Eyebrow>
+          <ConsentToggle label="My identity documents" on={idOK} onPress={() => setIdOK(!idOK)} />
+          <View style={{ height: 8 }} />
+          <ConsentToggle label="My GPS at clock-in" on={gpsOK} onPress={() => setGpsOK(!gpsOK)} />
+        </View>
+
+        <Text style={styles.legal}>
+          By continuing, you agree to our{' '}
+          <Text style={styles.link}>Privacy Policy</Text> and{' '}
+          <Text style={styles.link}>Terms</Text>. You can change your consent any time in Me → Privacy.
         </Text>
-
-        {CONSENTS.map(item => {
-          const isOn = consented[item.key];
-          return (
-            <View key={item.key} style={styles.consentCard}>
-              <View style={styles.consentHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.consentTitle}>{item.title}</Text>
-                  <Text style={styles.consentDesc}>{item.description}</Text>
-                </View>
-              </View>
-
-              <View style={styles.consentDetail}>
-                <Text style={styles.detailLabel}>How we protect this data</Text>
-                <Text style={styles.detailText}>{item.detail}</Text>
-              </View>
-
-              <TouchableOpacity
-                style={[styles.consentToggle, isOn && styles.consentToggleOn]}
-                onPress={() => toggle(item.key)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.checkBox, isOn && styles.checkBoxOn]}>
-                  {isOn && <Text style={styles.checkMark}>✓</Text>}
-                </View>
-                <Text style={[styles.consentAction, isOn && { color: colors.electric }]}>
-                  {isOn ? 'Consent given' : 'I consent to this processing'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          );
-        })}
-
-        <View style={styles.legalNote}>
-          <Text style={styles.legalText}>
-            You can withdraw consent at any time from Settings → Privacy. Withdrawal does not
-            affect the lawfulness of processing before withdrawal.
-          </Text>
-        </View>
       </ScrollView>
 
       <View style={styles.footer}>
-        {!allConsented && (
-          <Text style={styles.footerHint}>Both consents are required to proceed</Text>
-        )}
-        <GradientButton
-          title={loading ? 'Saving...' : allConsented ? 'Continue →' : 'Give consent to continue'}
-          onPress={async () => {
-            setLoading(true);
-            try {
-              await post('/identity/workers/consent', { consentIdentity: true, consentGps: true });
-            } catch {
-              // API may fail without auth — continue anyway
-            } finally {
-              setLoading(false);
-              navigation.navigate('MpesaSetup');
-            }
-          }}
-          disabled={!allConsented || loading}
-        />
+        <GradientBtn disabled={!ready} onPress={() => navigation.navigate('VerifyID')}>
+          {ready ? 'Continue' : 'Agree to both to continue'}
+        </GradientBtn>
       </View>
     </View>
   );
@@ -122,71 +112,58 @@ export function ConsentScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ink },
-  scroll: { flex: 1 },
-  scrollContent: { padding: spacing.xl, paddingBottom: 100 },
-  dpaHeader: { marginBottom: 12 },
-  dpaBadge: {
-    alignSelf: 'flex-start',
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    color: colors.electric,
+  header: { paddingHorizontal: 18, paddingTop: 12, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  backBtn: {
+    width: 34, height: 34, borderRadius: 17,
+    borderWidth: 0.5, borderColor: colors.white12,
+    backgroundColor: colors.white04,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  titleBlock: { paddingHorizontal: 22, paddingTop: 20 },
+  h2: { fontSize: 22, fontWeight: '900', letterSpacing: -0.66, lineHeight: 24, color: colors.white, marginBottom: 8 },
+  sub: { fontSize: 12, color: colors.white50, lineHeight: 18.6 },
+
+  scrollContent: { paddingHorizontal: 22, paddingTop: 18, paddingBottom: 20 },
+
+  itemCard: {
+    padding: 13,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.025)',
+    borderWidth: 1,
+    borderColor: colors.white06,
+  },
+  itemIcon: {
+    width: 34, height: 34, borderRadius: 10,
     backgroundColor: colors.electricAlpha['10'],
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    overflow: 'hidden',
+    alignItems: 'center', justifyContent: 'center',
   },
-  sectionH: { fontSize: typography.size.h3, fontWeight: '700', color: '#fff', letterSpacing: -0.02, marginBottom: 4 },
-  sectionSub: { fontSize: typography.size.caption, color: colors.white38, lineHeight: 19, marginBottom: 20 },
-  consentCard: {
-    backgroundColor: colors.white05,
-    borderRadius: radius.xl,
-    borderWidth: 0.5,
-    borderColor: colors.white10,
+  itemTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 2 },
+  itemName: { fontSize: 13, fontWeight: '700', color: colors.white },
+  itemMeta: { fontSize: 9.5, color: colors.white40, letterSpacing: 0.38, textTransform: 'uppercase' },
+  itemUse: { fontSize: 11, color: colors.white55, lineHeight: 16.5, marginBottom: 4 },
+  itemWho: { fontSize: 10, color: colors.electric, fontWeight: '600' },
+
+  agreeBox: {
+    marginTop: 14,
     padding: 14,
-    marginBottom: 12,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0,229,160,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,229,160,0.2)',
   },
-  consentHeader: { flexDirection: 'row', marginBottom: 10 },
-  consentTitle: { fontSize: typography.size.body, fontWeight: '700', color: '#fff', marginBottom: 4 },
-  consentDesc: { fontSize: typography.size.label, color: colors.white42, lineHeight: 16 },
-  consentDetail: {
-    backgroundColor: colors.white05,
-    borderRadius: radius.md,
-    padding: 10,
-    marginBottom: 10,
+  toggleRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10,
+    borderWidth: 1,
   },
-  detailLabel: { fontSize: typography.size.micro, fontWeight: '600', color: colors.white50, marginBottom: 4 },
-  detailText: { fontSize: typography.size.label, color: colors.white38, lineHeight: 16 },
-  consentToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    padding: 10,
-    borderRadius: radius.md,
-    backgroundColor: colors.white05,
-  },
-  consentToggleOn: { backgroundColor: colors.electricAlpha['06'] },
-  checkBox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    borderWidth: 1.5,
-    borderColor: colors.white25,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkBoxOn: { borderColor: colors.electric, backgroundColor: colors.electricAlpha['15'] },
-  checkMark: { color: colors.electric, fontSize: 12, fontWeight: '700' },
-  consentAction: { fontSize: typography.size.body, fontWeight: '600', color: colors.white50 },
-  legalNote: {
-    borderLeftWidth: 2,
-    borderLeftColor: colors.white10,
-    paddingLeft: 12,
-    marginTop: 8,
-  },
-  legalText: { fontSize: typography.size.label, color: colors.white30, lineHeight: 16 },
-  footer: { padding: spacing.xl, paddingBottom: spacing.xxxl },
-  footerHint: { fontSize: 10, color: colors.white25, textAlign: 'center', marginBottom: 10 },
+  toggleOn: { backgroundColor: 'rgba(0,229,160,0.08)', borderColor: colors.electricAlpha['30'] },
+  toggleOff: { backgroundColor: colors.white02, borderColor: colors.white06 },
+  toggleLabel: { fontSize: 12.5, fontWeight: '600' },
+  toggleTrack: { width: 36, height: 20, borderRadius: 999, padding: 2 },
+  toggleThumb: { width: 16, height: 16, borderRadius: 8, backgroundColor: colors.white },
+
+  legal: { fontSize: 10.5, color: colors.white35, lineHeight: 16.3, marginTop: 10, marginBottom: 4 },
+  link: { color: colors.electric, textDecorationLine: 'underline' },
+
+  footer: { paddingHorizontal: 22, paddingTop: 14, paddingBottom: 20, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.white06 },
 });

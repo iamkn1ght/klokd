@@ -1,0 +1,465 @@
+
+<style>
+  .mk-root { font-family: 'Inter', sans-serif; padding: 1.5rem 1rem; }
+  .mk-section-label { font-size: 11px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-text-secondary); margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 0.5px solid var(--color-border-tertiary); }
+  .mk-persona-row { display: flex; align-items: center; gap: 10px; margin-bottom: 1.5rem; }
+  .mk-persona-badge { display: flex; align-items: center; gap: 8px; background: var(--color-background-secondary); border: 0.5px solid var(--color-border-tertiary); border-radius: 999px; padding: 6px 14px 6px 8px; }
+  .mk-persona-avatar { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; flex-shrink: 0; }
+  .mk-persona-name { font-size: 13px; font-weight: 500; color: var(--color-text-primary); }
+  .mk-persona-role { font-size: 11px; color: var(--color-text-secondary); }
+  .mk-screens { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; margin-bottom: 2rem; }
+  .mk-phone { width: 200px; flex-shrink: 0; border-radius: 28px; border: 6px solid #1a1a1a; background: #1a1a1a; box-shadow: 0 2px 24px rgba(0,0,0,0.18); overflow: hidden; position: relative; }
+  .mk-phone-inner { border-radius: 22px; overflow: hidden; background: #0A0A0F; min-height: 400px; display: flex; flex-direction: column; }
+  .mk-notch { height: 28px; background: #1a1a1a; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .mk-notch-pill { width: 60px; height: 10px; background: #0A0A0F; border-radius: 999px; }
+  .mk-status { display: flex; justify-content: space-between; align-items: center; padding: 4px 14px; flex-shrink: 0; }
+  .mk-status-time { font-size: 10px; font-weight: 700; color: #fff; }
+  .mk-status-icons { display: flex; gap: 3px; align-items: center; }
+  .mk-dot { width: 5px; height: 5px; border-radius: 50%; }
+  .mk-screen-label { font-size: 10px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-tertiary); text-align: center; margin-top: 8px; }
+  .mk-rationale { background: var(--color-background-secondary); border-radius: 12px; padding: 1.2rem; border: 0.5px solid var(--color-border-tertiary); margin-bottom: 1.5rem; }
+  .mk-rationale-title { font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 0.6rem; }
+  .mk-rationale-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+  .mk-rationale-item { }
+  .mk-rationale-key { font-size: 11px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 3px; }
+  .mk-rationale-val { font-size: 11px; color: var(--color-text-secondary); line-height: 1.5; }
+  .mk-divider { height: 0.5px; background: var(--color-border-tertiary); margin: 2rem 0; }
+  .mk-flow-arrow { font-size: 18px; color: var(--color-text-tertiary); display: flex; align-items: center; padding-top: 160px; }
+  @media (max-width: 520px) { .mk-flow-arrow { display: none; } .mk-screens { gap: 12px; } .mk-phone { width: 160px; } }
+</style>
+
+<div class="mk-root">
+
+  <div class="mk-section-label">Persona 01 — The Worker</div>
+  <div class="mk-persona-row">
+    <div class="mk-persona-badge">
+      <div class="mk-persona-avatar" style="background:#00E5A020; color:#00A870;">AK</div>
+      <div>
+        <div class="mk-persona-name">Akinyi, 24</div>
+        <div class="mk-persona-role">Casual waiter · Gikomba trader</div>
+      </div>
+    </div>
+    <div style="font-size:12px; color:var(--color-text-secondary); max-width:320px;">Needs to find verified shifts fast, know exactly what she'll earn, and get paid the moment she clocks out.</div>
+  </div>
+
+  <div class="mk-screens">
+
+    <div>
+      <div class="mk-phone">
+        <div class="mk-phone-inner">
+          <div class="mk-notch"><div class="mk-notch-pill"></div></div>
+          <div class="mk-status"><span class="mk-status-time">9:07</span><div class="mk-status-icons"><div class="mk-dot" style="background:#00E5A0;"></div><div class="mk-dot" style="background:#ffffff60;"></div><div class="mk-dot" style="background:#ffffff60;"></div></div></div>
+          <div style="padding:10px 12px 0; flex:1; display:flex; flex-direction:column;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+              <div>
+                <div style="font-size:10px; color:#ffffff50; margin-bottom:2px;">Good morning</div>
+                <div style="font-size:16px; font-weight:700; color:#fff; letter-spacing:-0.03em;">Akinyi</div>
+              </div>
+              <div style="width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,#00E5A0,#BCFF4E); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#0A0A0F;">AK</div>
+            </div>
+            <div style="background:#ffffff08; border-radius:12px; padding:10px; margin-bottom:10px; border:0.5px solid #ffffff10;">
+              <div style="font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:#00E5A0; margin-bottom:6px;">Your stats</div>
+              <div style="display:flex; gap:8px;">
+                <div style="flex:1; text-align:center;">
+                  <div style="font-size:16px; font-weight:700; color:#00E5A0;">94%</div>
+                  <div style="font-size:9px; color:#ffffff40;">Show-up</div>
+                </div>
+                <div style="width:0.5px; background:#ffffff10;"></div>
+                <div style="flex:1; text-align:center;">
+                  <div style="font-size:16px; font-weight:700; color:#BCFF4E;">4.8</div>
+                  <div style="font-size:9px; color:#ffffff40;">Rating</div>
+                </div>
+                <div style="width:0.5px; background:#ffffff10;"></div>
+                <div style="flex:1; text-align:center;">
+                  <div style="font-size:16px; font-weight:700; color:#fff;">47</div>
+                  <div style="font-size:9px; color:#ffffff40;">Shifts</div>
+                </div>
+              </div>
+            </div>
+            <div style="font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:#ffffff40; margin-bottom:8px;">Available shifts near you</div>
+            <div style="background:#ffffff0a; border-radius:12px; padding:10px; margin-bottom:6px; border:1.5px solid #00E5A040;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
+                <div style="font-size:11px; font-weight:700; color:#fff;">Waiter</div>
+                <div style="font-size:10px; font-weight:700; color:#00E5A0;">KES 1,800</div>
+              </div>
+              <div style="font-size:10px; color:#ffffff60; margin-bottom:6px;">The Brew Bistro · Westlands</div>
+              <div style="display:flex; gap:6px;">
+                <div style="font-size:9px; background:#00E5A015; color:#00A870; padding:2px 7px; border-radius:999px;">Today 5pm–10pm</div>
+                <div style="font-size:9px; background:#ffffff0a; color:#ffffff50; padding:2px 7px; border-radius:999px;">1.2 km</div>
+              </div>
+            </div>
+            <div style="background:#ffffff0a; border-radius:12px; padding:10px; margin-bottom:6px; border:0.5px solid #ffffff0a;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
+                <div style="font-size:11px; font-weight:700; color:#fff;">Barista</div>
+                <div style="font-size:10px; font-weight:700; color:#ffffff80;">KES 1,500</div>
+              </div>
+              <div style="font-size:10px; color:#ffffff60; margin-bottom:6px;">Java House · Kilimani</div>
+              <div style="display:flex; gap:6px;">
+                <div style="font-size:9px; background:#ffffff08; color:#ffffff40; padding:2px 7px; border-radius:999px;">Sat 8am–3pm</div>
+                <div style="font-size:9px; background:#ffffff0a; color:#ffffff50; padding:2px 7px; border-radius:999px;">3.4 km</div>
+              </div>
+            </div>
+            <div style="margin-top:auto; padding:10px 0 6px;">
+              <div style="display:flex; justify-content:space-around;">
+                <div style="text-align:center;"><div style="width:18px; height:2px; background:#00E5A0; border-radius:999px; margin:0 auto 3px;"></div><div style="font-size:8px; color:#00E5A0;">Home</div></div>
+                <div style="text-align:center;"><div style="width:14px; height:14px; border-radius:3px; border:1px solid #ffffff30; margin:0 auto 3px;"></div><div style="font-size:8px; color:#ffffff40;">Shifts</div></div>
+                <div style="text-align:center;"><div style="width:14px; height:14px; border-radius:50%; border:1px solid #ffffff30; margin:0 auto 3px;"></div><div style="font-size:8px; color:#ffffff40;">Pay</div></div>
+                <div style="text-align:center;"><div style="width:14px; height:14px; border-radius:50%; background:#ffffff20; margin:0 auto 3px;"></div><div style="font-size:8px; color:#ffffff40;">Me</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mk-screen-label">Screen 1 · Home</div>
+    </div>
+
+    <div class="mk-flow-arrow">→</div>
+
+    <div>
+      <div class="mk-phone">
+        <div class="mk-phone-inner">
+          <div class="mk-notch"><div class="mk-notch-pill"></div></div>
+          <div class="mk-status"><span class="mk-status-time">9:08</span><div class="mk-status-icons"><div class="mk-dot" style="background:#00E5A0;"></div><div class="mk-dot" style="background:#ffffff60;"></div><div class="mk-dot" style="background:#ffffff60;"></div></div></div>
+          <div style="padding:10px 12px; flex:1; display:flex; flex-direction:column;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px;">
+              <div style="width:20px; height:20px; border-radius:50%; border:0.5px solid #ffffff30; display:flex; align-items:center; justify-content:center;">
+                <div style="width:8px; height:1px; background:#fff;"></div>
+              </div>
+              <div style="font-size:13px; font-weight:700; color:#fff; letter-spacing:-0.02em;">Shift details</div>
+            </div>
+            <div style="background:#ffffff0a; border-radius:14px; padding:12px; margin-bottom:10px; border:0.5px solid #ffffff10;">
+              <div style="font-size:18px; font-weight:700; color:#fff; margin-bottom:2px; letter-spacing:-0.02em;">Waiter</div>
+              <div style="font-size:11px; color:#ffffff60; margin-bottom:10px;">The Brew Bistro · Westlands</div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                <div style="background:#ffffff08; border-radius:8px; padding:8px;">
+                  <div style="font-size:9px; color:#ffffff40; margin-bottom:2px;">Date</div>
+                  <div style="font-size:11px; font-weight:600; color:#fff;">Today</div>
+                </div>
+                <div style="background:#ffffff08; border-radius:8px; padding:8px;">
+                  <div style="font-size:9px; color:#ffffff40; margin-bottom:2px;">Time</div>
+                  <div style="font-size:11px; font-weight:600; color:#fff;">5pm – 10pm</div>
+                </div>
+                <div style="background:#ffffff08; border-radius:8px; padding:8px;">
+                  <div style="font-size:9px; color:#ffffff40; margin-bottom:2px;">Distance</div>
+                  <div style="font-size:11px; font-weight:600; color:#fff;">1.2 km</div>
+                </div>
+                <div style="background:#00E5A015; border-radius:8px; padding:8px; border:0.5px solid #00E5A030;">
+                  <div style="font-size:9px; color:#00A870; margin-bottom:2px;">You earn</div>
+                  <div style="font-size:13px; font-weight:700; color:#00E5A0;">KES 1,800</div>
+                </div>
+              </div>
+            </div>
+            <div style="background:#ffffff0a; border-radius:12px; padding:10px; margin-bottom:10px; border:0.5px solid #ffffff0a;">
+              <div style="font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:#ffffff40; margin-bottom:6px;">Employer</div>
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                  <div style="font-size:11px; font-weight:600; color:#fff;">The Brew Bistro</div>
+                  <div style="font-size:10px; color:#ffffff50;">28 shifts posted · Westlands</div>
+                </div>
+                <div style="display:flex; gap:2px;">
+                  <div style="width:6px; height:6px; border-radius:50%; background:#BCFF4E;"></div>
+                  <div style="font-size:11px; font-weight:700; color:#BCFF4E;">4.7</div>
+                </div>
+              </div>
+            </div>
+            <div style="background:#ffffff08; border-radius:10px; padding:8px 10px; margin-bottom:12px; border-left:2px solid #00E5A0;">
+              <div style="font-size:9px; color:#00A870; font-weight:600; margin-bottom:2px;">Payment guarantee</div>
+              <div style="font-size:9px; color:#ffffff60;">M-Pesa to 0722 ••• ••• within 30 min of shift end</div>
+            </div>
+            <div style="margin-top:auto;">
+              <div style="background:linear-gradient(135deg,#00E5A0,#BCFF4E); border-radius:12px; padding:12px; text-align:center; margin-bottom:8px;">
+                <div style="font-size:13px; font-weight:700; color:#0A0A0F;">Accept shift</div>
+              </div>
+              <div style="background:#ffffff08; border-radius:12px; padding:10px; text-align:center;">
+                <div style="font-size:11px; color:#ffffff50;">Decline</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mk-screen-label">Screen 2 · Shift detail</div>
+    </div>
+
+    <div class="mk-flow-arrow">→</div>
+
+    <div>
+      <div class="mk-phone">
+        <div class="mk-phone-inner">
+          <div class="mk-notch"><div class="mk-notch-pill"></div></div>
+          <div class="mk-status"><span class="mk-status-time">10:03 PM</span><div class="mk-status-icons"><div class="mk-dot" style="background:#00E5A0;"></div><div class="mk-dot" style="background:#00E5A0;"></div><div class="mk-dot" style="background:#ffffff60;"></div></div></div>
+          <div style="padding:10px 12px; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;">
+            <div style="width:64px; height:64px; border-radius:50%; background:linear-gradient(135deg,#00E5A0,#BCFF4E); display:flex; align-items:center; justify-content:center; margin-bottom:14px;">
+              <div style="width:24px; height:24px; border-radius:50%; background:#0A0A0F; display:flex; align-items:center; justify-content:center;">
+                <div style="width:10px; height:7px; border-bottom:2px solid #00E5A0; border-left:2px solid #00E5A0; transform:rotate(-45deg) translateY(-2px);"></div>
+              </div>
+            </div>
+            <div style="font-size:18px; font-weight:700; color:#fff; margin-bottom:4px; letter-spacing:-0.02em;">Paid!</div>
+            <div style="font-size:24px; font-weight:700; color:#00E5A0; margin-bottom:4px; letter-spacing:-0.03em;">KES 1,800</div>
+            <div style="font-size:10px; color:#ffffff50; margin-bottom:18px;">Sent to M-Pesa · 0722 ••• •••</div>
+            <div style="background:#ffffff08; border-radius:12px; padding:10px 14px; width:100%; margin-bottom:12px; border:0.5px solid #ffffff10;">
+              <div style="font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:#ffffff40; margin-bottom:8px;">Shift summary</div>
+              <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span style="font-size:10px; color:#ffffff60;">Role</span><span style="font-size:10px; color:#fff; font-weight:600;">Waiter</span></div>
+              <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span style="font-size:10px; color:#ffffff60;">Hours</span><span style="font-size:10px; color:#fff; font-weight:600;">5 hrs</span></div>
+              <div style="display:flex; justify-content:space-between;"><span style="font-size:10px; color:#ffffff60;">Employer</span><span style="font-size:10px; color:#fff; font-weight:600;">The Brew Bistro</span></div>
+            </div>
+            <div style="font-size:10px; color:#ffffff50; margin-bottom:10px;">Rate your employer</div>
+            <div style="display:flex; gap:6px; margin-bottom:16px;">
+              {[1,2,3,4,5].map(i => `<div style="width:28px;height:28px;border-radius:50%;background:${i<=4?'#BCFF4E20':'#ffffff08'};border:0.5px solid ${i<=4?'#BCFF4E40':'#ffffff10'};display:flex;align-items:center;justify-content:center;"><div style="width:10px;height:10px;background:${i<=4?'#BCFF4E':'#ffffff20'};clip-path:polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)"></div></div>`).join('')}
+            </div>
+            <div style="background:linear-gradient(135deg,#00E5A0,#BCFF4E); border-radius:12px; padding:10px 24px; width:100%;">
+              <div style="font-size:12px; font-weight:700; color:#0A0A0F;">Submit rating</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mk-screen-label">Screen 3 · Paid + rate</div>
+    </div>
+
+  </div>
+
+  <div class="mk-rationale">
+    <div class="mk-rationale-title">Worker UI — design rationale</div>
+    <div class="mk-rationale-grid">
+      <div class="mk-rationale-item"><div class="mk-rationale-key">Dark shell</div><div class="mk-rationale-val">Reduces battery drain on low-end Android devices. Familiar to Kenyan app users — M-Pesa, Bolt, and banking apps all use dark or ink UIs.</div></div>
+      <div class="mk-rationale-item"><div class="mk-rationale-key">Earnings first</div><div class="mk-rationale-val">The KES amount is the largest, most prominent element on the shift detail screen. Workers need to see what they earn before anything else — every other detail is secondary.</div></div>
+      <div class="mk-rationale-item"><div class="mk-rationale-key">Payment guarantee strip</div><div class="mk-rationale-val">The green left-border strip on shift detail is a deliberate trust signal. It addresses the single biggest worker anxiety — will I actually get paid? — before they have to ask.</div></div>
+      <div class="mk-rationale-item"><div class="mk-rationale-key">One action per screen</div><div class="mk-rationale-val">Every screen has one primary action — Accept, Clock in, Submit. The secondary action (Decline) is visually subordinate. Cognitive load is minimised for a user making a fast decision.</div></div>
+      <div class="mk-rationale-item"><div class="mk-rationale-key">Reputation always visible</div><div class="mk-rationale-val">Show-up rate, rating, and shift count sit on the home screen dashboard. Workers need to feel the value of their reputation data — it is their portable career asset on Klokd.</div></div>
+      <div class="mk-rationale-item"><div class="mk-rationale-key">Celebration on payment</div><div class="mk-rationale-val">The paid screen is a moment of positive reinforcement. The large green checkmark and KES amount in electric mint create an emotional reward loop that drives repeat usage and word of mouth.</div></div>
+    </div>
+  </div>
+
+  <div class="mk-divider"></div>
+
+  <div class="mk-section-label">Persona 02 — The Employer</div>
+  <div class="mk-persona-row">
+    <div class="mk-persona-badge">
+      <div class="mk-persona-avatar" style="background:#BCFF4E20; color:#4A7A00;">WN</div>
+      <div>
+        <div class="mk-persona-name">Wanjiku, 38</div>
+        <div class="mk-persona-role">Restaurant manager · Karen</div>
+      </div>
+    </div>
+    <div style="font-size:12px; color:var(--color-text-secondary); max-width:320px;">Needs to fill a shift in minutes, see who is reliable and nearby, and know her staff is covered before doors open.</div>
+  </div>
+
+  <div class="mk-screens">
+
+    <div>
+      <div class="mk-phone">
+        <div class="mk-phone-inner" style="background:#F4F6F3;">
+          <div class="mk-notch" style="background:#E8EDE8;"><div class="mk-notch-pill" style="background:#F4F6F3;"></div></div>
+          <div class="mk-status" style="background:#F4F6F3;"><span class="mk-status-time" style="color:#0A0A0F;">9:07</span><div class="mk-status-icons"><div class="mk-dot" style="background:#0A0A0F;"></div><div class="mk-dot" style="background:#0A0A0F60;"></div><div class="mk-dot" style="background:#0A0A0F30;"></div></div></div>
+          <div style="padding:10px 12px 0; flex:1; display:flex; flex-direction:column;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+              <div>
+                <div style="font-size:10px; color:#6B7280; margin-bottom:2px;">Good morning</div>
+                <div style="font-size:16px; font-weight:700; color:#0A0A0F; letter-spacing:-0.03em;">Wanjiku</div>
+              </div>
+              <div style="width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,#BCFF4E,#00E5A0); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#0A0A0F;">WN</div>
+            </div>
+            <div style="background:#0A0A0F; border-radius:14px; padding:12px; margin-bottom:10px;">
+              <div style="font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:#00E5A0; margin-bottom:8px;">Active shifts today</div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+                <div style="background:#ffffff0a; border-radius:8px; padding:8px; text-align:center;">
+                  <div style="font-size:18px; font-weight:700; color:#00E5A0;">3</div>
+                  <div style="font-size:9px; color:#ffffff40;">Confirmed</div>
+                </div>
+                <div style="background:#ffffff0a; border-radius:8px; padding:8px; text-align:center;">
+                  <div style="font-size:18px; font-weight:700; color:#FF6B6B;">1</div>
+                  <div style="font-size:9px; color:#ffffff40;">Pending</div>
+                </div>
+              </div>
+            </div>
+            <div style="background:linear-gradient(135deg,#00E5A0,#BCFF4E); border-radius:14px; padding:12px; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between;">
+              <div>
+                <div style="font-size:11px; font-weight:700; color:#0A0A0F;">Post a shift</div>
+                <div style="font-size:9px; color:#0A0A0F80;">Under 2 minutes</div>
+              </div>
+              <div style="width:28px; height:28px; border-radius:50%; background:#0A0A0F20; display:flex; align-items:center; justify-content:center;">
+                <div style="width:10px; height:10px; border-right:2px solid #0A0A0F; border-top:2px solid #0A0A0F; transform:rotate(45deg) translateX(-2px);"></div>
+              </div>
+            </div>
+            <div style="font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:#6B7280; margin-bottom:8px;">Upcoming shifts</div>
+            <div style="background:#fff; border-radius:12px; padding:10px; margin-bottom:6px; border:0.5px solid #E8EDE8;">
+              <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                <div style="font-size:11px; font-weight:600; color:#0A0A0F;">Waiter · Tonight 5–10pm</div>
+                <div style="width:8px; height:8px; border-radius:50%; background:#00E5A0; margin-top:2px;"></div>
+              </div>
+              <div style="font-size:10px; color:#6B7280;">Akinyi K. · 4.8 ★ · Confirmed</div>
+            </div>
+            <div style="background:#fff; border-radius:12px; padding:10px; border:0.5px solid #E8EDE8;">
+              <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                <div style="font-size:11px; font-weight:600; color:#0A0A0F;">Chef · Sat 12–8pm</div>
+                <div style="width:8px; height:8px; border-radius:50%; background:#FFB347; margin-top:2px;"></div>
+              </div>
+              <div style="font-size:10px; color:#6B7280;">Awaiting confirmation</div>
+            </div>
+            <div style="margin-top:auto; padding:10px 0 6px;">
+              <div style="display:flex; justify-content:space-around;">
+                <div style="text-align:center;"><div style="width:18px; height:2px; background:#0A0A0F; border-radius:999px; margin:0 auto 3px;"></div><div style="font-size:8px; color:#0A0A0F;">Home</div></div>
+                <div style="text-align:center;"><div style="width:14px; height:14px; border-radius:3px; border:1px solid #0A0A0F30; margin:0 auto 3px;"></div><div style="font-size:8px; color:#6B7280;">Shifts</div></div>
+                <div style="text-align:center;"><div style="width:14px; height:14px; border-radius:50%; border:1px solid #0A0A0F30; margin:0 auto 3px;"></div><div style="font-size:8px; color:#6B7280;">Pay</div></div>
+                <div style="text-align:center;"><div style="width:14px; height:14px; border-radius:50%; background:#0A0A0F20; margin:0 auto 3px;"></div><div style="font-size:8px; color:#6B7280;">Team</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mk-screen-label">Screen 1 · Dashboard</div>
+    </div>
+
+    <div class="mk-flow-arrow">→</div>
+
+    <div>
+      <div class="mk-phone">
+        <div class="mk-phone-inner" style="background:#F4F6F3;">
+          <div class="mk-notch" style="background:#E8EDE8;"><div class="mk-notch-pill" style="background:#F4F6F3;"></div></div>
+          <div class="mk-status" style="background:#F4F6F3;"><span class="mk-status-time" style="color:#0A0A0F;">9:08</span><div class="mk-status-icons"><div class="mk-dot" style="background:#0A0A0F;"></div><div class="mk-dot" style="background:#0A0A0F60;"></div><div class="mk-dot" style="background:#0A0A0F30;"></div></div></div>
+          <div style="padding:10px 12px; flex:1; display:flex; flex-direction:column;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px;">
+              <div style="width:20px; height:20px; border-radius:50%; border:0.5px solid #0A0A0F30; display:flex; align-items:center; justify-content:center;">
+                <div style="width:8px; height:1px; background:#0A0A0F;"></div>
+              </div>
+              <div style="font-size:13px; font-weight:700; color:#0A0A0F; letter-spacing:-0.02em;">Post a shift</div>
+            </div>
+            <div style="background:#fff; border-radius:12px; padding:10px; margin-bottom:8px; border:0.5px solid #E8EDE8;">
+              <div style="font-size:9px; color:#6B7280; margin-bottom:4px;">Role</div>
+              <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                <div style="background:#0A0A0F; color:#00E5A0; font-size:10px; font-weight:600; padding:4px 10px; border-radius:999px;">Waiter</div>
+                <div style="background:#F4F6F3; color:#6B7280; font-size:10px; padding:4px 10px; border-radius:999px; border:0.5px solid #E8EDE8;">Barista</div>
+                <div style="background:#F4F6F3; color:#6B7280; font-size:10px; padding:4px 10px; border-radius:999px; border:0.5px solid #E8EDE8;">Chef</div>
+                <div style="background:#F4F6F3; color:#6B7280; font-size:10px; padding:4px 10px; border-radius:999px; border:0.5px solid #E8EDE8;">+ More</div>
+              </div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
+              <div style="background:#fff; border-radius:12px; padding:10px; border:0.5px solid #E8EDE8;">
+                <div style="font-size:9px; color:#6B7280; margin-bottom:4px;">Date</div>
+                <div style="font-size:12px; font-weight:600; color:#0A0A0F;">Today</div>
+              </div>
+              <div style="background:#fff; border-radius:12px; padding:10px; border:0.5px solid #E8EDE8;">
+                <div style="font-size:9px; color:#6B7280; margin-bottom:4px;">Time</div>
+                <div style="font-size:12px; font-weight:600; color:#0A0A0F;">5pm – 10pm</div>
+              </div>
+            </div>
+            <div style="background:#fff; border-radius:12px; padding:10px; margin-bottom:8px; border:0.5px solid #E8EDE8; display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <div style="font-size:9px; color:#6B7280; margin-bottom:2px;">Rate</div>
+                <div style="font-size:14px; font-weight:700; color:#0A0A0F;">KES 1,800</div>
+              </div>
+              <div style="display:flex; gap:4px;">
+                <div style="width:24px; height:24px; border-radius:50%; border:0.5px solid #E8EDE8; display:flex; align-items:center; justify-content:center; font-size:14px; color:#6B7280; font-weight:300;">−</div>
+                <div style="width:24px; height:24px; border-radius:50%; background:#0A0A0F; display:flex; align-items:center; justify-content:center; font-size:14px; color:#00E5A0; font-weight:300;">+</div>
+              </div>
+            </div>
+            <div style="background:#00E5A010; border-radius:10px; padding:8px 10px; margin-bottom:12px; border-left:2px solid #00E5A0;">
+              <div style="font-size:9px; color:#00A870; font-weight:600; margin-bottom:1px;">Suggested rate</div>
+              <div style="font-size:9px; color:#6B7280;">KES 1,500–1,900 for waiters in Westlands</div>
+            </div>
+            <div style="margin-top:auto;">
+              <div style="background:linear-gradient(135deg,#00E5A0,#BCFF4E); border-radius:12px; padding:12px; text-align:center;">
+                <div style="font-size:13px; font-weight:700; color:#0A0A0F;">Find workers</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mk-screen-label">Screen 2 · Post shift</div>
+    </div>
+
+    <div class="mk-flow-arrow">→</div>
+
+    <div>
+      <div class="mk-phone">
+        <div class="mk-phone-inner" style="background:#F4F6F3;">
+          <div class="mk-notch" style="background:#E8EDE8;"><div class="mk-notch-pill" style="background:#F4F6F3;"></div></div>
+          <div class="mk-status" style="background:#F4F6F3;"><span class="mk-status-time" style="color:#0A0A0F;">9:09</span><div class="mk-status-icons"><div class="mk-dot" style="background:#0A0A0F;"></div><div class="mk-dot" style="background:#0A0A0F60;"></div><div class="mk-dot" style="background:#0A0A0F30;"></div></div></div>
+          <div style="padding:10px 12px; flex:1; display:flex; flex-direction:column;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+              <div style="font-size:13px; font-weight:700; color:#0A0A0F; letter-spacing:-0.02em;">Matched workers</div>
+              <div style="font-size:10px; color:#6B7280;">3 available</div>
+            </div>
+            <div style="font-size:9px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#6B7280; margin-bottom:8px;">Sorted by proximity + rating</div>
+
+            <div style="background:#fff; border-radius:14px; padding:11px; margin-bottom:7px; border:1.5px solid #00E5A050;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <div style="width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,#00E5A0,#BCFF4E); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; color:#0A0A0F;">AK</div>
+                  <div>
+                    <div style="font-size:11px; font-weight:700; color:#0A0A0F;">Akinyi K.</div>
+                    <div style="font-size:9px; color:#6B7280;">47 shifts · 94% show-up</div>
+                  </div>
+                </div>
+                <div style="text-align:right;">
+                  <div style="font-size:12px; font-weight:700; color:#00A870;">4.8 ★</div>
+                  <div style="font-size:9px; color:#6B7280;">1.2 km</div>
+                </div>
+              </div>
+              <div style="display:flex; gap:4px; margin-bottom:8px;">
+                <div style="font-size:8px; background:#00E5A015; color:#00A870; padding:2px 7px; border-radius:999px; font-weight:600;">Waiter</div>
+                <div style="font-size:8px; background:#F4F6F3; color:#6B7280; padding:2px 7px; border-radius:999px;">Food handler cert</div>
+              </div>
+              <div style="background:linear-gradient(135deg,#00E5A0,#BCFF4E); border-radius:8px; padding:7px; text-align:center;">
+                <div style="font-size:11px; font-weight:700; color:#0A0A0F;">Select Akinyi</div>
+              </div>
+            </div>
+
+            <div style="background:#fff; border-radius:14px; padding:11px; margin-bottom:7px; border:0.5px solid #E8EDE8; opacity:0.85;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <div style="width:32px; height:32px; border-radius:50%; background:#E8EDE8; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; color:#6B7280;">JM</div>
+                  <div>
+                    <div style="font-size:11px; font-weight:600; color:#0A0A0F;">James M.</div>
+                    <div style="font-size:9px; color:#6B7280;">23 shifts · 88% show-up</div>
+                  </div>
+                </div>
+                <div style="text-align:right;">
+                  <div style="font-size:12px; font-weight:600; color:#6B7280;">4.5 ★</div>
+                  <div style="font-size:9px; color:#6B7280;">2.8 km</div>
+                </div>
+              </div>
+              <div style="background:#F4F6F3; border-radius:8px; padding:7px; text-align:center; border:0.5px solid #E8EDE8;">
+                <div style="font-size:11px; color:#6B7280;">Select James</div>
+              </div>
+            </div>
+
+            <div style="background:#fff; border-radius:14px; padding:11px; border:0.5px solid #E8EDE8; opacity:0.65;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <div style="width:32px; height:32px; border-radius:50%; background:#E8EDE8; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; color:#6B7280;">BN</div>
+                  <div>
+                    <div style="font-size:11px; font-weight:600; color:#0A0A0F;">Beatrice N.</div>
+                    <div style="font-size:9px; color:#6B7280;">12 shifts · 83% show-up</div>
+                  </div>
+                </div>
+                <div style="text-align:right;">
+                  <div style="font-size:12px; font-weight:600; color:#6B7280;">4.3 ★</div>
+                  <div style="font-size:9px; color:#6B7280;">4.1 km</div>
+                </div>
+              </div>
+              <div style="background:#F4F6F3; border-radius:8px; padding:7px; text-align:center; border:0.5px solid #E8EDE8;">
+                <div style="font-size:11px; color:#6B7280;">Select Beatrice</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+      <div class="mk-screen-label">Screen 3 · Select worker</div>
+    </div>
+
+  </div>
+
+  <div class="mk-rationale">
+    <div class="mk-rationale-title">Employer UI — design rationale</div>
+    <div class="mk-rationale-grid">
+      <div class="mk-rationale-item"><div class="mk-rationale-key">Light shell, dark card</div><div class="mk-rationale-val">The employer app uses a light mist background — a deliberate contrast to the worker app. Two distinct identities on the same brand system signal that Klokd understands both sides of the relationship.</div></div>
+      <div class="mk-rationale-item"><div class="mk-rationale-key">Dashboard status at a glance</div><div class="mk-rationale-val">Confirmed vs pending shifts surfaced immediately on open. A restaurant manager checking their phone at 7am needs the staffing situation in one second — not after navigation.</div></div>
+      <div class="mk-rationale-item"><div class="mk-rationale-key">Rate intelligence strip</div><div class="mk-rationale-val">The suggested rate banner on shift posting — grounded in real platform data — positions Klokd as an advisor, not just a tool. This builds trust and improves worker acceptance rates, which is good for the employer.</div></div>
+      <div class="mk-rationale-item"><div class="mk-rationale-key">Ranked worker cards</div><div class="mk-rationale-val">Workers sorted by proximity and rating with progressive opacity — the best match is visually dominant, alternatives recede. The employer's eye goes straight to the right choice without cognitive work.</div></div>
+      <div class="mk-rationale-item"><div class="mk-rationale-key">Show-up rate is prominent</div><div class="mk-rationale-val">Reliability percentage sits directly under the worker name on every card. This is the employer's primary anxiety — not rating, not distance — will this person show up? The data answers it before the question is asked.</div></div>
+      <div class="mk-rationale-item"><div class="mk-rationale-key">CTA consistency</div><div class="mk-rationale-val">Every primary action uses the same electric-mint-to-volt gradient CTA. The employer learns quickly — if it is green, it is the right move. Consistency reduces hesitation and increases conversion through the core loop.</div></div>
+    </div>
+  </div>
+
+</div>

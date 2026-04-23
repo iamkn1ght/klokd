@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=1400"/>
+  <title>Klokd · Employer variations</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+  <style>
+    html,body{margin:0;padding:0;background:#0F0F14;font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;color:#fff;}
+    *,*::before,*::after{box-sizing:border-box;}
+    ::-webkit-scrollbar{width:8px;height:8px;}
+    ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:4px;}
+    ::-webkit-scrollbar-track{background:transparent;}
+    button{font-family:inherit;}
+  </style>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script src="lib/klokd-tokens.js"></script>
+  <script type="text/babel" src="lib/klokd-phone.jsx"></script>
+  <script type="text/babel" src="lib/klokd-ui.jsx"></script>
+  <script type="text/babel" src="lib/klokd-employer.jsx"></script>
+  <script type="text/babel" src="screens/employer-onboarding.jsx"></script>
+  <script type="text/babel" src="screens/employer-main.jsx"></script>
+  <script type="text/babel" src="screens/employer-tabs.jsx"></script>
+  <script type="text/babel" src="design-canvas.jsx"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { K, Phone, Logo, Label, Eyebrow, Chip, StatusPill, I, IE, GradientBtn,
+      EmpHeader, StatTile, WorkerCard, MoneyLine, EscrowMeter, Stepper,
+      EmpWelcome, EmpDashboard, EmpPostShift, EmpMatched, EMP_WORKERS } = window;
+
+    // Wrapper to render a screen inside a phone frame
+    const InPhone = ({children}) => (
+      <div style={{display:'flex',justifyContent:'center',padding:'20px'}}>
+        <Phone variant="dark" bg={K.ink}>
+          <div style={{width:'100%',height:'100%',display:'flex',flexDirection:'column',background:K.ink,color:'#fff'}}>
+            {children}
+          </div>
+        </Phone>
+      </div>
+    );
+
+    // ═══ DASHBOARD VARIATIONS ═══
+
+    // A: Escrow-first (current main) — big escrow card, stats, open shifts, matches
+    function DashA() {
+      return <EmpDashboard greeting="Habari, Wanjiku" onPost={()=>{}}/>;
+    }
+
+    // B: Ops-board — heavy on the "command center" feel, tile grid, less narrative
+    function DashB() {
+      return (
+        <div style={{flex:1,overflowY:'auto',color:'#fff',background:K.ink}}>
+          <div style={{padding:'16px 20px 0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div>
+              <div style={{fontSize:10.5,color:K.electric,letterSpacing:'0.14em',fontWeight:700,textTransform:'uppercase'}}>3 APR · THU</div>
+              <div style={{fontSize:22,fontWeight:900,letterSpacing:'-0.03em'}}>Command</div>
+            </div>
+            <div style={{padding:'5px 9px',borderRadius:999,background:`${K.electric}1a`,color:K.electric,fontSize:10,fontWeight:800,letterSpacing:'0.12em'}}>2 LIVE</div>
+          </div>
+
+          {/* 2x2 KPI grid */}
+          <div style={{padding:'14px 20px 0',display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            <StatTile label="Escrow held" value="42,300" sub="KES · 85% avail" tone="mint"/>
+            <StatTile label="Today · fill rate" value="94%" sub="+3pp vs avg" tone="volt"/>
+            <StatTile label="Time to fill" value="9 min" sub="last shift" tone="neutral"/>
+            <StatTile label="Paid · 7d" value="58.2k" sub="14 workers" tone="neutral"/>
+          </div>
+
+          {/* Ops board list */}
+          <div style={{padding:'18px 20px 0'}}>
+            <Label style={{marginBottom:10}}>Ops · now</Label>
+            <div style={{padding:'12px 14px',borderRadius:14,background:'rgba(255,255,255,0.02)',border:'0.5px solid rgba(255,255,255,0.06)',marginBottom:8}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:8}}>
+                <span style={{fontSize:12,fontWeight:800,color:'#fff'}}>Waiter · 5–10 PM</span>
+                <span style={{fontSize:10,color:K.electric,fontWeight:800,letterSpacing:'0.06em'}}>3/3</span>
+              </div>
+              <div style={{display:'flex',gap:4,marginBottom:8}}>
+                {[0,1,2].map(i=><div key={i} style={{flex:1,height:4,borderRadius:2,background:K.electric}}/>)}
+              </div>
+              <div style={{fontSize:10.5,color:'rgba(255,255,255,0.55)'}}>Akinyi on-shift · Kevin clocked-out · Njeri on-shift</div>
+            </div>
+            <div style={{padding:'12px 14px',borderRadius:14,background:'rgba(255,255,255,0.02)',border:'0.5px solid rgba(255,255,255,0.06)'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:8}}>
+                <span style={{fontSize:12,fontWeight:800,color:'#fff'}}>Dishwasher · 6–11 PM</span>
+                <span style={{fontSize:10,color:K.electric,fontWeight:800,letterSpacing:'0.06em'}}>2/2</span>
+              </div>
+              <div style={{display:'flex',gap:4}}>
+                {[0,1].map(i=><div key={i} style={{flex:1,height:4,borderRadius:2,background:K.electric}}/>)}
+              </div>
+            </div>
+          </div>
+
+          {/* Sparkline */}
+          <div style={{padding:'18px 20px 0'}}>
+            <div style={{padding:'14px',borderRadius:14,background:'rgba(255,255,255,0.02)',border:'0.5px solid rgba(255,255,255,0.06)'}}>
+              <div style={{display:'flex',justifyContent:'space-between',marginBottom:10}}>
+                <Label>Fills / day · 14d</Label>
+                <span style={{fontSize:10.5,color:K.electric,fontWeight:700}}>+18%</span>
+              </div>
+              <div style={{display:'flex',gap:3,alignItems:'flex-end',height:48}}>
+                {[22,31,28,42,35,51,48,62,55,68,72,59,78,84].map((h,i,a)=>(
+                  <div key={i} style={{flex:1,height:`${(h/Math.max(...a))*100}%`,background:i===a.length-1?K.brandGrad:`${K.electric}55`,borderRadius:'2px 2px 0 0'}}/>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div style={{padding:'18px 20px 28px'}}>
+            <button style={{width:'100%',padding:'14px',borderRadius:12,background:K.brandGrad,color:K.ink,fontSize:13,fontWeight:800,border:'none',cursor:'pointer',fontFamily:K.fontFamily,display:'inline-flex',alignItems:'center',justifyContent:'center',gap:6}}>
+              {IE.plus(K.ink,14)} Post shift
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // C: Needs-attention — focuses on what requires manager's eyes NOW
+    function DashC() {
+      return (
+        <div style={{flex:1,overflowY:'auto',color:'#fff',background:K.ink}}>
+          <div style={{padding:'16px 20px 0'}}>
+            <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',marginBottom:2}}>Habari, Wanjiku · 8:47 PM</div>
+            <div style={{fontSize:22,fontWeight:900,letterSpacing:'-0.03em'}}>2 things need you</div>
+          </div>
+
+          {/* Priority card 1: release */}
+          <div style={{padding:'14px 20px 0'}}>
+            <div style={{padding:'14px',borderRadius:16,background:`linear-gradient(180deg,${K.electric}12,${K.electric}02)`,border:`1px solid ${K.electric}55`}}>
+              <div style={{display:'flex',gap:10,alignItems:'flex-start',marginBottom:12}}>
+                <div style={{width:36,height:36,borderRadius:10,background:`${K.electric}22`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{I.check(K.electric,16)}</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:800,color:'#fff'}}>Release Akinyi's pay</div>
+                  <div style={{fontSize:11,color:'rgba(255,255,255,0.6)',marginTop:2}}>Clocked out 2m ago · 5h 02m worked</div>
+                </div>
+                <div style={{fontSize:14,fontWeight:900,color:K.electric,fontFamily:K.mono}}>KES 1,800</div>
+              </div>
+              <div style={{display:'flex',gap:6}}>
+                <button style={{flex:1,padding:'9px',borderRadius:10,background:K.brandGrad,color:K.ink,fontSize:11.5,fontWeight:800,border:'none',cursor:'pointer',fontFamily:K.fontFamily}}>Release</button>
+                <button style={{padding:'9px 12px',borderRadius:10,background:'rgba(255,179,71,0.1)',color:'#FFB347',fontSize:11.5,fontWeight:700,border:'1px solid rgba(255,179,71,0.25)',cursor:'pointer'}}>Flag</button>
+              </div>
+              <div style={{fontSize:10,color:'rgba(255,255,255,0.45)',marginTop:8,fontFamily:K.mono}}>Auto-release in 2:34</div>
+            </div>
+          </div>
+
+          {/* Priority 2: low fill */}
+          <div style={{padding:'10px 20px 0'}}>
+            <div style={{padding:'14px',borderRadius:16,background:`linear-gradient(180deg,${K.volt}10,${K.volt}02)`,border:`1px solid ${K.volt}44`}}>
+              <div style={{display:'flex',gap:10,alignItems:'flex-start',marginBottom:10}}>
+                <div style={{width:36,height:36,borderRadius:10,background:`${K.volt}22`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{IE.flash(K.volt,16)}</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:800,color:'#fff'}}>Friday Waiter · 1/4 filled</div>
+                  <div style={{fontSize:11,color:'rgba(255,255,255,0.6)',marginTop:2}}>Pay is KES 100 below market · bump to fill faster</div>
+                </div>
+              </div>
+              <button style={{width:'100%',padding:'9px',borderRadius:10,background:K.volt,color:K.ink,fontSize:11.5,fontWeight:800,border:'none',cursor:'pointer'}}>Bump to KES 2,200 · est. 14 min fill</button>
+            </div>
+          </div>
+
+          {/* Quiet stats */}
+          <div style={{padding:'18px 20px 0'}}>
+            <Label style={{marginBottom:10}}>Quiet today</Label>
+            <div style={{padding:'12px 14px',borderRadius:14,background:'rgba(255,255,255,0.02)',border:'0.5px solid rgba(255,255,255,0.05)'}}>
+              <div style={{display:'flex',justifyContent:'space-between',padding:'5px 0',fontSize:12}}>
+                <span style={{color:'rgba(255,255,255,0.6)'}}>On shift</span>
+                <span style={{color:'#fff',fontWeight:700,fontFamily:K.mono}}>1 worker</span>
+              </div>
+              <div style={{display:'flex',justifyContent:'space-between',padding:'5px 0',fontSize:12}}>
+                <span style={{color:'rgba(255,255,255,0.6)'}}>Escrow available</span>
+                <span style={{color:K.electric,fontWeight:700,fontFamily:K.mono}}>KES 29,700</span>
+              </div>
+              <div style={{display:'flex',justifyContent:'space-between',padding:'5px 0',fontSize:12}}>
+                <span style={{color:'rgba(255,255,255,0.6)'}}>Next fill needed</span>
+                <span style={{color:'#fff',fontWeight:700}}>Fri · Kitchen</span>
+              </div>
+            </div>
+          </div>
+
+          <div style={{padding:'18px 20px 28px'}}>
+            <button style={{width:'100%',padding:'13px',borderRadius:12,background:'rgba(255,255,255,0.04)',color:'rgba(255,255,255,0.8)',fontSize:12.5,fontWeight:600,border:'0.5px solid rgba(255,255,255,0.1)',cursor:'pointer',fontFamily:K.fontFamily}}>Open dashboard →</button>
+          </div>
+        </div>
+      );
+    }
+
+    // ═══ POST SHIFT VARIATIONS ═══
+    function PostA() { return <EmpPostShift onBack={()=>{}} onPosted={()=>{}}/>; }
+
+    // Post B: Single-screen conversational — less form, more "like drafting a message"
+    function PostB() {
+      return (
+        <div style={{flex:1,overflowY:'auto',color:'#fff',background:K.ink,padding:'22px 22px 100px'}}>
+          <div style={{fontSize:10.5,color:K.volt,letterSpacing:'0.14em',fontWeight:700,textTransform:'uppercase',marginBottom:8}}>NEW SHIFT</div>
+          <h1 style={{fontSize:22,fontWeight:900,letterSpacing:'-0.03em',lineHeight:1.2,margin:'0 0 20px',whiteSpace:'pre-line'}}>I need{'\n'}<span style={{color:K.electric}}>3 Waiters</span>{'\n'}on <span style={{color:K.electric}}>Tonight</span>{'\n'}from <span style={{color:K.electric}}>5 PM – 10 PM</span>{'\n'}at <span style={{color:K.electric}}>KES 1,800</span> each.</h1>
+
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            <RowEdit label="Role" value="Waiter"/>
+            <RowEdit label="When" value="Tonight · 5 – 10 PM"/>
+            <RowEdit label="Workers" value="3"/>
+            <RowEdit label="Pay" value="KES 1,800" hint="Market · KES 1,500 – 2,200"/>
+          </div>
+
+          <div style={{marginTop:18,padding:'12px 14px',borderRadius:12,background:'rgba(0,229,160,0.05)',border:'1px solid rgba(0,229,160,0.2)',fontSize:11.5,color:'rgba(255,255,255,0.7)',lineHeight:1.5}}>
+            {I.shield(K.electric,12)} <span>At this rate, your shift fills in <span style={{color:K.electric,fontWeight:700}}>~11 minutes</span>. KES <span style={{fontFamily:K.mono,fontWeight:700}}>5,616</span> will be held in escrow.</span>
+          </div>
+
+          <div style={{marginTop:22}}>
+            <GradientBtn>Post · hold KES 5,616</GradientBtn>
+          </div>
+        </div>
+      );
+    }
+    function RowEdit({label,value,hint}) {
+      return (
+        <div style={{padding:'11px 14px',borderRadius:12,background:'rgba(255,255,255,0.02)',border:'0.5px solid rgba(255,255,255,0.08)',display:'flex',alignItems:'center',gap:10}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:9.5,color:'rgba(255,255,255,0.45)',letterSpacing:'0.12em',textTransform:'uppercase',fontWeight:700}}>{label}</div>
+            <div style={{fontSize:13,color:'#fff',fontWeight:700,marginTop:2}}>{value}</div>
+            {hint && <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginTop:2}}>{hint}</div>}
+          </div>
+          <span style={{fontSize:10.5,color:K.electric,fontWeight:700}}>Edit</span>
+        </div>
+      );
+    }
+
+    // ═══ MATCHED WORKERS VARIATIONS ═══
+    function MatchedA() { return <EmpMatched onBack={()=>{}} onConfirm={()=>{}}/>; }
+
+    // Matched B: Card-deck "swipe-to-accept" — one at a time, bigger worker profile
+    function MatchedB() {
+      const w = EMP_WORKERS[0];
+      return (
+        <div style={{flex:1,color:'#fff',background:K.ink,display:'flex',flexDirection:'column'}}>
+          <div style={{padding:'14px 20px 0',display:'flex',alignItems:'center',gap:10}}>
+            <button style={{width:34,height:34,borderRadius:'50%',border:'0.5px solid rgba(255,255,255,0.12)',background:'rgba(255,255,255,0.04)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}>{I.back('#fff',14)}</button>
+            <div style={{flex:1}}>
+              <div style={{fontSize:10.5,color:'rgba(255,255,255,0.4)',letterSpacing:'0.12em',textTransform:'uppercase',fontWeight:700}}>1 of 12 matches</div>
+              <div style={{fontSize:14,fontWeight:900}}>Waiter · tonight</div>
+            </div>
+          </div>
+
+          {/* Big card */}
+          <div style={{flex:1,padding:'18px 22px',display:'flex',flexDirection:'column'}}>
+            <div style={{flex:1,borderRadius:20,background:`linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))`,border:'1px solid rgba(255,255,255,0.08)',padding:'22px',display:'flex',flexDirection:'column'}}>
+              <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:16}}>
+                <div style={{width:64,height:64,borderRadius:'50%',background:w.avatarBg,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontWeight:900,fontSize:22,position:'relative'}}>
+                  {w.initials}
+                  <div style={{position:'absolute',bottom:-2,right:-2,width:20,height:20,borderRadius:'50%',background:K.electric,border:`2px solid ${K.ink}`,display:'flex',alignItems:'center',justifyContent:'center'}}>{I.check(K.ink,11)}</div>
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:18,fontWeight:900,letterSpacing:'-0.02em'}}>{w.name}</div>
+                  <div style={{display:'inline-flex',alignItems:'center',gap:4,padding:'2px 8px',borderRadius:999,background:`${K.volt}22`,color:K.volt,fontSize:10.5,fontWeight:800,marginTop:4}}>{w.match}% MATCH</div>
+                </div>
+              </div>
+
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:18}}>
+                <StatTile label="Rating" value={'★ '+w.rating} tone="volt" compact/>
+                <StatTile label="Shifts" value={w.shifts} tone="neutral" compact/>
+                <StatTile label="Show-up" value={w.showUp+'%'} tone="mint" compact/>
+              </div>
+
+              <Label style={{marginBottom:8}}>Why matched</Label>
+              <div style={{display:'flex',flexDirection:'column',gap:7}}>
+                {['Worked this venue 3× · last Friday','Lives 0.8 km away','Top 10% in Westlands · Waiter','Available tonight 5 PM'].map((r,i)=>(
+                  <div key={i} style={{display:'flex',gap:7,alignItems:'center',fontSize:11.5,color:'rgba(255,255,255,0.75)'}}>
+                    <span style={{width:4,height:4,borderRadius:999,background:K.electric,flexShrink:0}}/> {r}
+                  </div>
+                ))}
+              </div>
+
+              <div style={{marginTop:'auto'}}/>
+
+              <div style={{padding:'12px',borderRadius:12,background:'rgba(188,255,78,0.05)',border:'1px solid rgba(188,255,78,0.18)',fontSize:11,color:'rgba(255,255,255,0.7)',lineHeight:1.45}}>
+                {I.shield(K.volt,12)} No-show insurance: auto-replace within 20 min if Akinyi doesn't arrive.
+              </div>
+            </div>
+
+            <div style={{display:'flex',gap:10,marginTop:14}}>
+              <button style={{flex:1,padding:'14px',borderRadius:14,background:'rgba(255,255,255,0.04)',color:'rgba(255,255,255,0.7)',fontSize:13,fontWeight:700,border:'0.5px solid rgba(255,255,255,0.1)',cursor:'pointer',fontFamily:K.fontFamily}}>Skip</button>
+              <button style={{flex:2,padding:'14px',borderRadius:14,background:K.brandGrad,color:K.ink,fontSize:13,fontWeight:800,border:'none',cursor:'pointer',fontFamily:K.fontFamily}}>Accept Akinyi</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ═══ WELCOME VARIATIONS ═══
+    function WelcomeA() { return <EmpWelcome onNext={()=>{}}/>; }
+
+    // Welcome B: Big quote-style pitch, single idea per screen
+    function WelcomeB() {
+      return (
+        <div style={{flex:1,display:'flex',flexDirection:'column',background:K.ink,color:'#fff',padding:'28px 24px',position:'relative',overflow:'hidden'}}>
+          <div style={{position:'absolute',top:-100,right:-60,width:360,height:360,borderRadius:'50%',background:`radial-gradient(circle,${K.volt}20,transparent 70%)`,pointerEvents:'none'}}/>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',position:'relative',zIndex:1}}>
+            <Logo size={28}/>
+            <span style={{padding:'3px 9px',borderRadius:999,background:`${K.volt}1a`,color:K.volt,fontSize:9.5,fontWeight:800,letterSpacing:'0.12em'}}>FOR EMPLOYERS</span>
+          </div>
+          <div style={{flex:1,display:'flex',flexDirection:'column',justifyContent:'center',position:'relative',zIndex:1}}>
+            <div style={{fontSize:62,fontWeight:900,color:K.volt,letterSpacing:'-0.06em',lineHeight:0.95,fontFamily:K.mono}}>11<span style={{fontSize:28}}> min</span></div>
+            <div style={{fontSize:11,color:'rgba(255,255,255,0.5)',letterSpacing:'0.14em',textTransform:'uppercase',fontWeight:700,margin:'8px 0 18px'}}>average fill time</div>
+            <h1 style={{fontSize:32,fontWeight:900,letterSpacing:'-0.04em',lineHeight:1.05,margin:'0 0 14px'}}>Post a shift.{'\n'}Go make dinner.{'\n'}It's filled when{'\n'}you come back.</h1>
+            <p style={{fontSize:13.5,color:'rgba(255,255,255,0.6)',lineHeight:1.55,margin:0,maxWidth:280}}>2,431 Nairobi businesses already stopped chasing WhatsApp groups at 4 PM.</p>
+          </div>
+          <GradientBtn>Set up my business</GradientBtn>
+          <div style={{textAlign:'center',marginTop:12,fontSize:11.5,color:'rgba(255,255,255,0.5)'}}>
+            Already have an account? <span style={{color:K.electric,fontWeight:700}}>Sign in</span>
+          </div>
+        </div>
+      );
+    }
+
+    // Welcome C: Proof-first — testimonial / ledger of recent fills
+    function WelcomeC() {
+      return (
+        <div style={{flex:1,display:'flex',flexDirection:'column',background:K.ink,color:'#fff',overflow:'hidden'}}>
+          <div style={{padding:'28px 24px 0',display:'flex',justifyContent:'space-between'}}><Logo size={28}/></div>
+          <div style={{padding:'24px 24px 0'}}>
+            <Eyebrow color={K.volt} style={{marginBottom:8}}>FOR EMPLOYERS</Eyebrow>
+            <h1 style={{fontSize:24,fontWeight:900,letterSpacing:'-0.03em',lineHeight:1.15,margin:'0 0 12px'}}>Your next shift,{'\n'}already being filled.</h1>
+            <div style={{fontSize:12.5,color:'rgba(255,255,255,0.55)',lineHeight:1.55,marginBottom:18}}>Live fills across Nairobi — right now.</div>
+          </div>
+          <div style={{flex:1,overflow:'hidden',position:'relative',padding:'0 24px'}}>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              {[
+                {biz:'Java House · Sarit',r:'Barista',w:'filled in 4 min',t:'just now',c:K.electric},
+                {biz:'Artcaffe · Westgate',r:'Waiter',w:'2 of 3 confirmed',t:'2m ago',c:K.volt},
+                {biz:'Talisman · Karen',r:'Kitchen',w:'filled in 9 min',t:'6m ago',c:K.electric},
+                {biz:'Brew Bistro · Kilimani',r:'Bartender',w:'filled in 12 min',t:'14m ago',c:K.electric},
+                {biz:'Inti Nomad · CBD',r:'Cashier',w:'filled in 7 min',t:'22m ago',c:K.electric},
+              ].map((x,i)=>(
+                <div key={i} style={{padding:'11px 13px',borderRadius:12,background:'rgba(255,255,255,0.03)',border:'0.5px solid rgba(255,255,255,0.06)',display:'flex',alignItems:'center',gap:10}}>
+                  <div style={{width:8,height:8,borderRadius:999,background:x.c,flexShrink:0,boxShadow:i<2?`0 0 8px ${x.c}`:'none'}}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:12,fontWeight:700,color:'#fff',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{x.biz} · <span style={{color:'rgba(255,255,255,0.55)',fontWeight:500}}>{x.r}</span></div>
+                    <div style={{fontSize:10.5,color:x.c,fontWeight:700}}>{x.w}</div>
+                  </div>
+                  <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',fontFamily:K.mono}}>{x.t}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{padding:'18px 24px 24px',background:'linear-gradient(180deg,transparent,#0A0A0F 30%)'}}>
+            <GradientBtn>Join them · set up free</GradientBtn>
+          </div>
+        </div>
+      );
+    }
+
+    // ═══ CANVAS ═══
+    function App() {
+      return (
+        <window.DesignCanvas title="Klokd · Employer variations" subtitle="Dashboard × 3 · Post shift × 2 · Matched workers × 2 · Welcome × 3">
+          <window.DCSection id="dashboard" title="Dashboard" subtitle="The home screen — sets the whole operator tone">
+            <window.DCArtboard id="dash-a" label="A · Escrow-first" width={340} height={760}><InPhone><DashA/></InPhone></window.DCArtboard>
+            <window.DCArtboard id="dash-b" label="B · Ops command center" width={340} height={760}><InPhone><DashB/></InPhone></window.DCArtboard>
+            <window.DCArtboard id="dash-c" label="C · Needs-attention inbox" width={340} height={760}><InPhone><DashC/></InPhone></window.DCArtboard>
+          </window.DCSection>
+
+          <window.DCSection id="post" title="Post a shift" subtitle="The core conversion moment">
+            <window.DCArtboard id="post-a" label="A · Form with rate intelligence" width={340} height={760}><InPhone><PostA/></InPhone></window.DCArtboard>
+            <window.DCArtboard id="post-b" label="B · Conversational draft" width={340} height={760}><InPhone><PostB/></InPhone></window.DCArtboard>
+          </window.DCSection>
+
+          <window.DCSection id="matched" title="Matched workers" subtitle="How the employer picks from the pool">
+            <window.DCArtboard id="match-a" label="A · Ranked list" width={340} height={760}><InPhone><MatchedA/></InPhone></window.DCArtboard>
+            <window.DCArtboard id="match-b" label="B · Single profile card" width={340} height={760}><InPhone><MatchedB/></InPhone></window.DCArtboard>
+          </window.DCSection>
+
+          <window.DCSection id="welcome" title="Welcome / first-run" subtitle="How the employer pitch lands">
+            <window.DCArtboard id="wel-a" label="A · Live metrics rotator" width={340} height={760}><InPhone><WelcomeA/></InPhone></window.DCArtboard>
+            <window.DCArtboard id="wel-b" label="B · Big-number typographic" width={340} height={760}><InPhone><WelcomeB/></InPhone></window.DCArtboard>
+            <window.DCArtboard id="wel-c" label="C · Live fills ledger" width={340} height={760}><InPhone><WelcomeC/></InPhone></window.DCArtboard>
+          </window.DCSection>
+        </window.DesignCanvas>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+  </script>
+</body>
+</html>

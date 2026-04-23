@@ -1,131 +1,170 @@
+/**
+ * Home screen — "Your ledger" card + sorted shift feed.
+ * Ported 1:1 from claude-design/screens/main.jsx
+ */
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
+import { StatusPill, Label, VLine } from '../../components/Primitives';
+import { Icons } from '../../components/Icons';
 import { useApi } from '../../hooks/useApi';
-import { colors, gradients, typography, spacing, radius } from '../../theme';
+import { colors, typography } from '../../theme';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
 
-interface Shift {
-  id: string;
-  role: string;
-  rateKes: number;
-  locationName: string;
-  startTime: string;
-  endTime: string;
-  distanceMeters: number;
-  employer: { businessName: string; ratingAggregate: number | null; totalShifts: number };
+const DEMO_SHIFTS = [
+  { id: 's1', role: 'Waiter', venue: 'The Brew Bistro', area: 'Westlands', date: 'Tonight', time: '5:00 – 10:00 PM', pay: 1800, dist: '0.8 km', rating: 4.8, shifts: 23, highlighted: true },
+  { id: 's2', role: 'Barista', venue: 'Java House · Sarit', area: 'Sarit Centre', date: 'Tomorrow', time: '7:00 AM – 2:00 PM', pay: 2100, dist: '1.6 km', rating: 4.6, shifts: 41 },
+  { id: 's3', role: 'Bartender', venue: 'Brew Bistro · Kilimani', area: 'Kilimani', date: 'Fri', time: '6:00 – 11:00 PM', pay: 2200, dist: '3.1 km', rating: 4.7, shifts: 12 },
+  { id: 's4', role: 'Cashier', venue: 'Artcaffe · Westgate', area: 'Westlands', date: 'Sat', time: '9:00 AM – 5:00 PM', pay: 1600, dist: '1.2 km', rating: 4.5, shifts: 67 },
+];
+
+function Stat({ n, l, color, star }: { n: string; l: string; color: string; star?: boolean }) {
+  return (
+    <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 4 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+        <Text style={{ fontSize: 18, fontWeight: '900', color, letterSpacing: -0.36 }}>{n}</Text>
+        {star && <Icons.star color={color} size={11} />}
+      </View>
+      <Text style={{ fontSize: 9.5, color: colors.white40, letterSpacing: 0.76, textTransform: 'uppercase', marginTop: 3 }}>{l}</Text>
+    </View>
+  );
+}
+
+function TimePill({ label, tone = 'neutral' }: { label: string; tone?: 'neutral' | 'volt' }) {
+  const map = {
+    neutral: { bg: colors.white05, c: colors.white65 },
+    volt: { bg: 'rgba(188,255,78,0.1)', c: colors.volt },
+  };
+  const t = map[tone];
+  return (
+    <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: t.bg }}>
+      <Text style={{ fontSize: 10.5, fontWeight: '600', color: t.c, letterSpacing: 0.21 }}>{label}</Text>
+    </View>
+  );
+}
+
+function ShiftCard({ shift, dim = 0, onPress }: { shift: typeof DEMO_SHIFTS[0]; dim?: number; onPress: () => void }) {
+  const isHi = shift.highlighted;
+  return (
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={onPress}
+      style={{
+        borderRadius: 16,
+        padding: 14,
+        backgroundColor: isHi ? 'rgba(0,229,160,0.035)' : 'rgba(255,255,255,0.025)',
+        borderWidth: 1,
+        borderColor: isHi ? colors.electricAlpha['40'] : colors.white06,
+        opacity: 1 - dim,
+      }}
+    >
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
+        <View style={{ flex: 1 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+            <Text style={{ fontSize: 14, fontWeight: '800', color: colors.white, letterSpacing: -0.28 }}>{shift.role}</Text>
+            {isHi && <StatusPill tone="mint">New</StatusPill>}
+          </View>
+          <Text style={{ fontSize: 11.5, color: colors.white55, marginBottom: 3 }}>{shift.venue}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+              <Icons.pin color={colors.white40} size={10} />
+              <Text style={{ fontSize: 10, color: colors.white40 }}>{shift.dist}</Text>
+            </View>
+            <Text style={{ fontSize: 10, color: colors.white25 }}>·</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+              <Icons.star color={colors.volt} size={10} />
+              <Text style={{ fontSize: 10, color: colors.white40 }}>{shift.rating}</Text>
+            </View>
+            <Text style={{ fontSize: 10, color: colors.white25 }}>·</Text>
+            <Text style={{ fontSize: 10, color: colors.white40 }}>{shift.shifts} shifts</Text>
+          </View>
+        </View>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={{ fontSize: 17, fontWeight: '900', color: colors.electric, letterSpacing: -0.34 }}>KES {shift.pay.toLocaleString()}</Text>
+          <Text style={{ fontSize: 10, color: colors.white45, marginTop: 2 }}>{shift.date}</Text>
+        </View>
+      </View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+        <TimePill label={shift.time} />
+        <TimePill label={shift.area} />
+        {isHi && <TimePill label="Fills fast" tone="volt" />}
+      </View>
+    </TouchableOpacity>
+  );
 }
 
 export function HomeScreen({ navigation }: Props) {
+  const [shifts, setShifts] = useState(DEMO_SHIFTS);
   const { get } = useApi();
-  const [shifts, setShifts] = useState<Shift[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ showUpRate: 0, rating: 0, totalShifts: 0 });
 
   useEffect(() => {
-    loadShifts();
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        let lat = -1.2921, lng = 36.8219;
+        if (status === 'granted') {
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          lat = loc.coords.latitude;
+          lng = loc.coords.longitude;
+        }
+        await get(`/shifts/available?lat=${lat}&lng=${lng}&radiusKm=10`);
+      } catch {}
+    })();
   }, []);
-
-  const loadShifts = async () => {
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      let lat = -1.2921, lng = 36.8219; // Default: Nairobi CBD
-
-      if (status === 'granted') {
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        lat = loc.coords.latitude;
-        lng = loc.coords.longitude;
-      }
-
-      const data = await get<Shift[]>(`/shifts/available?lat=${lat}&lng=${lng}&radiusKm=10`);
-      setShifts(data || []);
-    } catch {
-      // Silently fail — show empty state
-      setShifts([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const formatDistance = (m: number) => m < 1000 ? `${m}m` : `${(m / 1000).toFixed(1)} km`;
-
-  const formatTime = (start: string, end: string) => {
-    const s = new Date(start);
-    const e = new Date(end);
-    const fmt = (d: Date) => d.toLocaleTimeString('en-KE', { hour: 'numeric', minute: '2-digit' });
-    return `${fmt(s)}–${fmt(e)}`;
-  };
 
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+        {/* Header */}
+        <View style={styles.headerRow}>
           <View>
-            <Text style={styles.greeting}>Good morning</Text>
-            <Text style={styles.name}>Worker</Text>
+            <Text style={styles.date}>Thursday · 3 Apr</Text>
+            <Text style={styles.greeting}>Good morning, Akinyi</Text>
           </View>
-          <LinearGradient colors={[gradients.cta[0], gradients.cta[1]]} style={styles.avatar} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-            <Text style={styles.avatarText}>W</Text>
-          </LinearGradient>
-        </View>
-
-        <View style={styles.statsCard}>
-          <Text style={styles.statsLabel}>YOUR STATS</Text>
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: colors.electric }]}>{stats.showUpRate}%</Text>
-              <Text style={styles.statCaption}>Show-up</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: colors.volt }]}>{stats.rating || '—'}</Text>
-              <Text style={styles.statCaption}>Rating</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: '#fff' }]}>{stats.totalShifts}</Text>
-              <Text style={styles.statCaption}>Shifts</Text>
-            </View>
+          <View style={{ position: 'relative' }}>
+            <TouchableOpacity style={styles.bellBtn}>
+              <Icons.bell color={colors.white} size={16} />
+            </TouchableOpacity>
+            <View style={styles.bellDot} />
           </View>
         </View>
 
-        <Text style={styles.sectionLabel}>AVAILABLE SHIFTS NEAR YOU</Text>
-
-        {loading && <ActivityIndicator color={colors.electric} style={{ marginTop: 20 }} />}
-
-        {!loading && shifts.length === 0 && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>🔍</Text>
-            <Text style={styles.emptyText}>No shifts nearby right now</Text>
-            <Text style={styles.emptySub}>Pull down to refresh or check back later</Text>
+        {/* Ledger card */}
+        <View style={{ paddingHorizontal: 20, paddingTop: 14 }}>
+          <View style={styles.ledger}>
+            <View style={styles.ledgerHead}>
+              <Label color={colors.white40}>Your ledger · 47 shifts</Label>
+              <Text style={styles.verified}>VERIFIED</Text>
+            </View>
+            <View style={{ flexDirection: 'row' }}>
+              <Stat n="94%" l="show-up" color={colors.electric} />
+              <VLine />
+              <Stat n="4.8" l="rating" color={colors.volt} star />
+              <VLine />
+              <Stat n="KES 84k" l="this month" color={colors.white} />
+            </View>
           </View>
-        )}
+        </View>
 
-        {shifts.map((shift, i) => (
-          <TouchableOpacity key={shift.id} style={[styles.shiftCard, i === 0 && styles.shiftCardHighlighted]}
-            activeOpacity={0.7} onPress={() => navigation.navigate('ShiftDetail', { shiftId: shift.id })}>
-            <View style={styles.shiftTop}>
-              <Text style={styles.shiftRole}>{shift.role}</Text>
-              <Text style={[styles.shiftRate, i === 0 ? { color: colors.electric } : { color: colors.white50 }]}>
-                KES {shift.rateKes.toLocaleString()}
-              </Text>
-            </View>
-            <Text style={styles.shiftVenue}>{shift.employer.businessName} · {shift.locationName || ''}</Text>
-            <View style={styles.shiftPills}>
-              <View style={[styles.pill, i === 0 ? styles.pillHighlighted : styles.pillDefault]}>
-                <Text style={[styles.pillText, i === 0 && styles.pillTextHighlighted]}>
-                  {formatTime(shift.startTime, shift.endTime)}
-                </Text>
-              </View>
-              <View style={styles.pillDefault}>
-                <Text style={styles.pillText}>{formatDistance(shift.distanceMeters)}</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-        ))}
+        {/* Shift feed */}
+        <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <Label>Shifts near you · {shifts.length}</Label>
+            <Text style={{ fontSize: 10, color: colors.white35 }}>Sorted by distance</Text>
+          </View>
+          <View style={{ gap: 10 }}>
+            {shifts.map((s, i) => (
+              <ShiftCard
+                key={s.id}
+                shift={s}
+                dim={i > 0 ? 0.06 * i : 0}
+                onPress={() => navigation.navigate('ShiftDetail', { shift: s })}
+              />
+            ))}
+          </View>
+        </View>
       </ScrollView>
     </View>
   );
@@ -133,34 +172,27 @@ export function HomeScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ink },
-  scrollContent: { padding: spacing.lg, paddingBottom: 20 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
-  greeting: { fontSize: 10, color: colors.white50, marginBottom: 2 },
-  name: { fontSize: typography.size.h3, fontWeight: '700', color: '#fff', letterSpacing: -0.03 },
-  avatar: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontSize: 11, fontWeight: '700', color: colors.ink },
-  statsCard: { backgroundColor: colors.white08, borderRadius: radius.md, padding: 10, marginBottom: 10, borderWidth: 0.5, borderColor: colors.white10 },
-  statsLabel: { fontSize: typography.size.nano, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', color: colors.electric, marginBottom: 6 },
-  statsRow: { flexDirection: 'row', alignItems: 'center' },
-  statItem: { flex: 1, alignItems: 'center' },
-  statValue: { fontSize: typography.size.h3, fontWeight: '700' },
-  statCaption: { fontSize: typography.size.nano, color: colors.white42 },
-  statDivider: { width: 0.5, height: 24, backgroundColor: colors.white10 },
-  sectionLabel: { fontSize: typography.size.nano, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', color: colors.white42, marginBottom: 8 },
-  emptyState: { alignItems: 'center', paddingVertical: 40 },
-  emptyIcon: { fontSize: 32, marginBottom: 10 },
-  emptyText: { fontSize: typography.size.body, fontWeight: '600', color: colors.white50, marginBottom: 4 },
-  emptySub: { fontSize: typography.size.label, color: colors.white30 },
-  shiftCard: { backgroundColor: colors.white08, borderRadius: radius.md, padding: 10, marginBottom: 6, borderWidth: 0.5, borderColor: colors.white08 },
-  shiftCardHighlighted: { borderWidth: 1.5, borderColor: colors.electricAlpha['40'] },
-  shiftTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
-  shiftRole: { fontSize: 11, fontWeight: '700', color: '#fff' },
-  shiftRate: { fontSize: 10, fontWeight: '700' },
-  shiftVenue: { fontSize: 10, color: colors.white60, marginBottom: 6 },
-  shiftPills: { flexDirection: 'row', gap: 6 },
-  pill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999 },
-  pillDefault: { backgroundColor: colors.white08, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999 },
-  pillHighlighted: { backgroundColor: colors.electricAlpha['15'] },
-  pillText: { fontSize: typography.size.nano, color: colors.white42 },
-  pillTextHighlighted: { color: '#00A870' },
+  headerRow: { paddingHorizontal: 20, paddingTop: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  date: { fontSize: 11, color: colors.white45, marginBottom: 2 },
+  greeting: { fontSize: 22, fontWeight: '900', letterSpacing: -0.66, color: colors.white },
+  bellBtn: {
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: colors.white05,
+    borderWidth: 0.5, borderColor: colors.white08,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  bellDot: {
+    position: 'absolute', top: 6, right: 6,
+    width: 7, height: 7, borderRadius: 3.5,
+    backgroundColor: colors.electric,
+    borderWidth: 1.5, borderColor: colors.ink,
+  },
+  ledger: {
+    borderRadius: 18,
+    padding: 16,
+    backgroundColor: colors.white03,
+    borderWidth: 1, borderColor: colors.white06,
+  },
+  ledgerHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  verified: { fontSize: 10, color: colors.electric, fontWeight: '700' },
 });

@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=1600"/>
+  <title>Klokd · Worker variations</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+  <style>
+    html, body { margin:0; padding:0; background:#f0eee9; font-family:'Inter',-apple-system,sans-serif; }
+    *, *::before, *::after { box-sizing: border-box; }
+  </style>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script src="lib/klokd-tokens.js"></script>
+  <script type="text/babel" src="lib/klokd-phone.jsx"></script>
+  <script type="text/babel" src="lib/klokd-ui.jsx"></script>
+  <script type="text/babel" src="lib/design-canvas.jsx"></script>
+  <script type="text/babel" src="screens/onboarding.jsx"></script>
+  <script type="text/babel" src="screens/main.jsx"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { K, Phone, Welcome, Home, PaymentConfirmed, ShiftDetail, Consent, VerifyID,
+      DEMO_SHIFTS, Logo, LogoMark, I, GradientBtn, Label, StatusPill } = window;
+
+    // Theme presets for iframe-isolated accent exploration
+    const HUES = {
+      electric: { electric:'#00E5A0', volt:'#BCFF4E' },
+      sunrise:  { electric:'#FFB347', volt:'#FFDC5E' },
+      cobalt:   { electric:'#60A5FA', volt:'#A78BFA' },
+    };
+
+    // Non-themed container for same-theme artboards
+    function Themed({ children }) {
+      return (
+        <div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',background:'#111',padding:20}}>
+          {children}
+        </div>
+      );
+    }
+
+    // Each accent variant lives in its own iframe so it can mutate its own
+    // window.K with zero risk of bleeding into siblings.
+    function AccentFrame({ hue }) {
+      const h = HUES[hue];
+      const srcDoc = `<!doctype html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>html,body{margin:0;padding:0;background:#111;font-family:Inter,sans-serif;height:100%;overflow:hidden}*,*::before,*::after{box-sizing:border-box}#root{width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:20px}</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"><\/script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"><\/script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"><\/script>
+<script src="lib/klokd-tokens.js"><\/script>
+<script type="text/babel" src="lib/klokd-phone.jsx"><\/script>
+<script type="text/babel" src="lib/klokd-ui.jsx"><\/script>
+<script type="text/babel" src="screens/onboarding.jsx"><\/script>
+</head><body><div id="root"></div>
+<script type="text/babel" data-presets="react">
+  const boot = () => {
+    window.K.electric = '${h.electric}';
+    window.K.volt = '${h.volt}';
+    window.K.brandGrad = 'linear-gradient(135deg,${h.electric},${h.volt})';
+    window.K.mintGlow = 'radial-gradient(circle, ${h.electric}26 0%, transparent 70%)';
+    const { Phone, Welcome, K } = window;
+    if (!Phone || !Welcome) { setTimeout(boot, 80); return; }
+    ReactDOM.createRoot(document.getElementById('root')).render(
+      <Phone variant="dark" bg={K.ink}><Welcome onNext={()=>{}} staticSlide={2}/></Phone>
+    );
+  };
+  setTimeout(boot, 200);
+<\/script>
+</body></html>`;
+      return (
+        <iframe
+          srcDoc={srcDoc}
+          sandbox="allow-scripts allow-same-origin"
+          style={{width:'100%',height:'100%',border:0,background:'#111'}}
+        />
+      );
+    }
+
+    // ─── Variant screens ───
+
+    // 01 Welcome — the hero-metric variation (existing)
+    function WelcomeA() {
+      return <Phone variant="dark" bg={K.ink}><Welcome onNext={()=>{}} staticSlide={2}/></Phone>;
+    }
+
+    // 01 Welcome — minimalist typographic variation
+    function WelcomeMinimal() {
+      return (
+        <Phone variant="dark" bg={K.ink}>
+          <div style={{display:'flex',flexDirection:'column',height:'100%',background:K.ink,color:'#fff',position:'relative',overflow:'hidden',padding:28}}>
+            <Logo size={26}/>
+            <div style={{flex:1,display:'flex',flexDirection:'column',justifyContent:'center'}}>
+              <div style={{fontSize:11,fontWeight:800,letterSpacing:'0.2em',color:K.electric,marginBottom:14,textTransform:'uppercase'}}>Work that pays on time</div>
+              <h1 style={{fontSize:44,fontWeight:900,lineHeight:0.95,letterSpacing:'-0.05em',margin:'0 0 18px',color:'#fff'}}>
+                Clock out.<br/>
+                <span style={{color:K.electric}}>Get paid.</span><br/>
+                Every time.
+              </h1>
+              <div style={{fontSize:13.5,color:'rgba(255,255,255,0.55)',lineHeight:1.55}}>
+                Verified shifts across Nairobi. M-Pesa arrives in 30 minutes, or Klokd releases it for you.
+              </div>
+            </div>
+            <div style={{marginBottom:8}}>
+              <GradientBtn>Get started</GradientBtn>
+              <button style={{background:'none',border:'none',color:'rgba(255,255,255,0.5)',fontSize:13,fontWeight:500,marginTop:14,cursor:'pointer',width:'100%'}}>I already have an account</button>
+            </div>
+          </div>
+        </Phone>
+      );
+    }
+
+    // 01 Welcome — ledger-first (shows live stats prominently)
+    function WelcomeLedger() {
+      const rows = [
+        {who:'Mercy A.', role:'Barista · Java House', amt:'1,915', t:'just now'},
+        {who:'Brian K.', role:'Waiter · Brew Bistro', amt:'1,642', t:'2 min ago'},
+        {who:'Faith W.', role:'Cashier · Naivas',     amt:'1,460', t:'8 min ago'},
+        {who:'Dennis O.',role:'Bartender · Artcaffe', amt:'2,200', t:'14 min'},
+      ];
+      return (
+        <Phone variant="dark" bg={K.ink}>
+          <div style={{display:'flex',flexDirection:'column',height:'100%',background:K.ink,color:'#fff',padding:'24px 22px',overflow:'hidden'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}}>
+              <Logo size={24}/>
+              <span style={{fontSize:10,fontWeight:700,color:K.electric,letterSpacing:'0.12em'}}>● LIVE · NBI</span>
+            </div>
+            <div style={{fontSize:10.5,fontWeight:700,letterSpacing:'0.18em',color:'rgba(255,255,255,0.4)',textTransform:'uppercase',marginBottom:10}}>Last 15 minutes</div>
+            <div style={{flex:1,display:'flex',flexDirection:'column',gap:7,overflow:'hidden'}}>
+              {rows.map((r,i)=>(
+                <div key={i} style={{padding:'10px 12px',borderRadius:12,background:'rgba(0,229,160,0.04)',border:'1px solid rgba(0,229,160,0.14)',display:'flex',alignItems:'center',gap:10,opacity:1-i*0.12}}>
+                  <div style={{width:28,height:28,borderRadius:'50%',background:K.brandGrad,display:'flex',alignItems:'center',justifyContent:'center',color:K.ink,fontSize:10,fontWeight:900}}>{r.who[0]}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:11.5,fontWeight:700,color:'#fff'}}>{r.who} paid · <span style={{color:K.electric}}>KES {r.amt}</span></div>
+                    <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.role} · {r.t}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{marginTop:16,marginBottom:14}}>
+              <div style={{fontSize:22,fontWeight:900,letterSpacing:'-0.03em',lineHeight:1.15,marginBottom:6}}>Join 16,412 workers getting paid on time.</div>
+              <div style={{fontSize:12,color:'rgba(255,255,255,0.5)'}}>Average 18 min · clock-out to cash.</div>
+            </div>
+            <GradientBtn>Get started</GradientBtn>
+          </div>
+        </Phone>
+      );
+    }
+
+    // ─── Home variations ───
+    function HomeStandard() {
+      return <Phone variant="dark" bg={K.ink}><div style={{display:'flex',flexDirection:'column',height:'100%'}}><Home onOpenShift={()=>{}}/></div></Phone>;
+    }
+
+    // Home — map-first variation
+    function HomeMap() {
+      return (
+        <Phone variant="dark" bg={K.ink}>
+          <div style={{height:'100%',display:'flex',flexDirection:'column',background:K.ink,color:'#fff',overflow:'hidden'}}>
+            {/* Map placeholder */}
+            <div style={{height:260,position:'relative',background:'linear-gradient(135deg,#1a1a2e,#0a0a0f)',overflow:'hidden',flexShrink:0}}>
+              {/* grid */}
+              <svg width="100%" height="100%" style={{position:'absolute',inset:0,opacity:0.25}}>
+                <defs>
+                  <pattern id="g" width="30" height="30" patternUnits="userSpaceOnUse">
+                    <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="0.5"/>
+                  </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#g)"/>
+                <path d="M 0 140 Q 80 100 160 140 T 340 130" stroke="rgba(255,255,255,0.1)" strokeWidth="1.5" fill="none"/>
+                <path d="M 50 0 L 50 260" stroke="rgba(255,255,255,0.08)" strokeWidth="1"/>
+                <path d="M 230 0 L 230 260" stroke="rgba(255,255,255,0.08)" strokeWidth="1"/>
+              </svg>
+              {/* You-are-here */}
+              <div style={{position:'absolute',left:'50%',top:'55%',transform:'translate(-50%,-50%)'}}>
+                <div style={{width:14,height:14,borderRadius:'50%',background:'#60A5FA',boxShadow:`0 0 0 6px rgba(96,165,250,0.25), 0 0 0 12px rgba(96,165,250,0.1)`}}/>
+              </div>
+              {/* pins */}
+              {[[60,40,'1.8k'],[220,70,'2.1k'],[260,160,'1.6k'],[110,190,'2.2k']].map(([x,y,p],i)=>(
+                <div key={i} style={{position:'absolute',left:x,top:y,display:'flex',flexDirection:'column',alignItems:'center'}}>
+                  <div style={{padding:'3px 7px',borderRadius:999,background:K.electric,color:K.ink,fontSize:10,fontWeight:800,letterSpacing:'-0.01em',boxShadow:'0 4px 12px rgba(0,229,160,0.35)'}}>KES {p}</div>
+                  <div style={{width:8,height:8,borderRadius:'50%',background:K.electric,marginTop:-2}}/>
+                </div>
+              ))}
+              <div style={{position:'absolute',top:14,left:14}}>
+                <span style={{fontSize:10,padding:'4px 9px',borderRadius:999,background:'rgba(10,10,15,0.7)',color:'#fff',fontWeight:700,letterSpacing:'0.04em',backdropFilter:'blur(8px)'}}>4 shifts · 3 km radius</span>
+              </div>
+            </div>
+            {/* Sheet */}
+            <div style={{flex:1,marginTop:-20,background:K.ink,borderRadius:'20px 20px 0 0',padding:'16px 20px 0',overflow:'auto'}}>
+              <div style={{width:36,height:4,borderRadius:999,background:'rgba(255,255,255,0.2)',margin:'0 auto 14px'}}/>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                <div>
+                  <div style={{fontSize:17,fontWeight:900,letterSpacing:'-0.02em'}}>Shifts near you</div>
+                  <div style={{fontSize:11,color:'rgba(255,255,255,0.5)'}}>Thursday · sorted by distance</div>
+                </div>
+                <span style={{fontSize:10,color:K.electric,fontWeight:700,letterSpacing:'0.04em'}}>4 OPEN</span>
+              </div>
+              {DEMO_SHIFTS.slice(0,3).map((s,i)=>(
+                <div key={s.id} style={{padding:'10px 12px',borderRadius:12,background:i===0?`${K.electric}0d`:'rgba(255,255,255,0.03)',border:i===0?`1px solid ${K.electric}55`:'1px solid rgba(255,255,255,0.06)',marginBottom:6,display:'flex',alignItems:'center',gap:10}}>
+                  <div style={{width:30,height:30,borderRadius:8,background:'rgba(255,255,255,0.05)',fontSize:10,fontWeight:900,display:'flex',alignItems:'center',justifyContent:'center'}}>{s.dist}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:12.5,fontWeight:700,color:'#fff'}}>{s.role} · <span style={{color:'rgba(255,255,255,0.55)',fontWeight:500}}>{s.area}</span></div>
+                    <div style={{fontSize:10,color:'rgba(255,255,255,0.45)'}}>{s.time}</div>
+                  </div>
+                  <div style={{fontSize:13,fontWeight:900,color:K.electric,fontFamily:K.mono}}>{s.pay/1000}k</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Phone>
+      );
+    }
+
+    // Home — single-card "today's best shift" variation
+    function HomeFocused() {
+      const s = DEMO_SHIFTS[0];
+      return (
+        <Phone variant="dark" bg={K.ink}>
+          <div style={{height:'100%',display:'flex',flexDirection:'column',background:K.ink,color:'#fff',padding:'18px 20px',overflow:'hidden'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+              <div>
+                <div style={{fontSize:11,color:'rgba(255,255,255,0.45)'}}>Thursday · 3 Apr</div>
+                <div style={{fontSize:17,fontWeight:900,letterSpacing:'-0.02em'}}>Hi Akinyi</div>
+              </div>
+              <div style={{width:34,height:34,borderRadius:'50%',background:K.brandGrad,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:900,color:K.ink}}>AK</div>
+            </div>
+            <div style={{fontSize:10,fontWeight:800,letterSpacing:'0.18em',color:K.electric,textTransform:'uppercase',marginBottom:8}}>Today's pick · matches you</div>
+            <h1 style={{fontSize:24,fontWeight:900,letterSpacing:'-0.03em',lineHeight:1.05,margin:'0 0 4px'}}>{s.role} at {s.venue}</h1>
+            <div style={{fontSize:12,color:'rgba(255,255,255,0.55)',marginBottom:14}}>{s.area} · {s.dist} away · starts in 4 hours</div>
+            {/* Big pay tile */}
+            <div style={{padding:'18px 16px',borderRadius:18,background:'linear-gradient(180deg,rgba(0,229,160,0.09),rgba(0,229,160,0.01))',border:`1px solid ${K.electric}44`,marginBottom:12}}>
+              <div style={{fontSize:10.5,letterSpacing:'0.14em',color:'rgba(255,255,255,0.5)',textTransform:'uppercase',fontWeight:700,marginBottom:6}}>You'll earn tonight</div>
+              <div style={{fontSize:38,fontWeight:900,color:K.electric,letterSpacing:'-0.04em',fontFamily:K.mono,lineHeight:1}}>KES 1,800</div>
+              <div style={{fontSize:11,color:'rgba(255,255,255,0.55)',marginTop:6}}>5 PM – 10 PM · KES 360/hour · M-Pesa within 30 min</div>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+              <div style={{padding:'10px 12px',borderRadius:12,background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.06)'}}>
+                <div style={{fontSize:9.5,color:'rgba(255,255,255,0.4)',letterSpacing:'0.1em',textTransform:'uppercase'}}>Rating</div>
+                <div style={{fontSize:15,fontWeight:900,color:K.volt,display:'flex',alignItems:'center',gap:4}}>4.8 {I.star(K.volt,12)}</div>
+              </div>
+              <div style={{padding:'10px 12px',borderRadius:12,background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.06)'}}>
+                <div style={{fontSize:9.5,color:'rgba(255,255,255,0.4)',letterSpacing:'0.1em',textTransform:'uppercase'}}>Fills in</div>
+                <div style={{fontSize:15,fontWeight:900,color:'#fff'}}>~6 min</div>
+              </div>
+            </div>
+            <div style={{flex:1}}/>
+            <GradientBtn>Accept shift</GradientBtn>
+            <button style={{background:'none',border:'none',color:'rgba(255,255,255,0.5)',fontSize:12,fontWeight:500,marginTop:10,cursor:'pointer'}}>See 3 other shifts →</button>
+          </div>
+        </Phone>
+      );
+    }
+
+    // ─── Paid variation ───
+    function PaidStandard() {
+      return <Phone variant="dark" bg={K.ink}><PaymentConfirmed onHome={()=>{}}/></Phone>;
+    }
+
+    // Paid — receipt-forward, M-Pesa SMS-style variant
+    function PaidReceipt() {
+      return (
+        <Phone variant="dark" bg={K.ink}>
+          <div style={{height:'100%',display:'flex',flexDirection:'column',background:K.ink,color:'#fff',padding:'22px 20px',overflow:'hidden'}}>
+            <div style={{fontSize:10,fontWeight:800,letterSpacing:'0.18em',color:K.electric,textTransform:'uppercase',marginBottom:10}}>Paid · 18 min after clock-out</div>
+            <div style={{fontSize:42,fontWeight:900,color:K.electric,fontFamily:K.mono,letterSpacing:'-0.04em',lineHeight:1}}>KES 1,642</div>
+            <div style={{fontSize:12,color:'rgba(255,255,255,0.55)',marginTop:6,marginBottom:16}}>M-Pesa · 0722 ••• 500 · ref QAB7X2K1P9</div>
+
+            {/* receipt "paper" */}
+            <div style={{flex:1,padding:'16px 16px',borderRadius:14,background:'rgba(255,255,255,0.03)',border:'1px dashed rgba(255,255,255,0.15)',fontFamily:K.mono,overflow:'auto'}}>
+              <div style={{textAlign:'center',fontSize:11,color:'rgba(255,255,255,0.5)',marginBottom:4,letterSpacing:'0.08em'}}>- - - KLOKD PAY STATEMENT - - -</div>
+              <div style={{textAlign:'center',fontSize:10,color:'rgba(255,255,255,0.4)',marginBottom:12}}>3 APR 2025 · 22:18 EAT</div>
+              {[
+                ['Role','Waiter'],['Venue','The Brew Bistro'],['Hours','5.00'],
+                ['Rate','KES 360/hr'],
+              ].map(([k,v],i)=>(
+                <div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'rgba(255,255,255,0.7)',padding:'3px 0'}}>
+                  <span>{k}</span><span>{v}</span>
+                </div>
+              ))}
+              <div style={{height:1,borderTop:'1px dashed rgba(255,255,255,0.15)',margin:'8px 0'}}/>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:11,padding:'3px 0'}}><span>Gross</span><span style={{color:'#fff'}}>KES 1,800.00</span></div>
+              {[['PAYE','0.00'],['NSSF','108.00'],['SHIF','49.50'],['AHL','0.00 [suspended]']].map(([k,v],i)=>(
+                <div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:10.5,color:'rgba(255,255,255,0.55)',padding:'2px 0'}}><span>− {k}</span><span>KES {v}</span></div>
+              ))}
+              <div style={{height:1,borderTop:'1px dashed rgba(255,255,255,0.15)',margin:'8px 0'}}/>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:700,color:K.electric,padding:'3px 0'}}><span>NET TO M-PESA</span><span>KES 1,642.50</span></div>
+              <div style={{textAlign:'center',fontSize:9.5,color:'rgba(255,255,255,0.35)',marginTop:10,lineHeight:1.5}}>Kept 7 years per Kenyan law.<br/>Download PDF anytime from Pay tab.</div>
+            </div>
+
+            <div style={{marginTop:14,display:'flex',gap:8}}>
+              <button style={{flex:1,padding:'13px',borderRadius:12,background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',color:'#fff',fontSize:12.5,fontWeight:600,cursor:'pointer'}}>Download PDF</button>
+              <div style={{flex:1}}><GradientBtn>See open shifts</GradientBtn></div>
+            </div>
+          </div>
+        </Phone>
+      );
+    }
+
+    // ─── Canvas render ───
+    function Canvas() {
+      const { DesignCanvas, DCSection, DCArtboard } = window;
+      return (
+        <DesignCanvas>
+
+          <DCSection id="welcome" title="01 · Welcome screen" subtitle="Three ways to open the door">
+            <DCArtboard id="w-hero" label="A · Live metrics" width={380} height={760}>
+              <Themed hue="electric" mood="ink"><WelcomeA/></Themed>
+            </DCArtboard>
+            <DCArtboard id="w-min" label="B · Typographic" width={380} height={760}>
+              <Themed hue="electric" mood="ink"><WelcomeMinimal/></Themed>
+            </DCArtboard>
+            <DCArtboard id="w-ledger" label="C · Live ledger" width={380} height={760}>
+              <Themed hue="electric" mood="ink"><WelcomeLedger/></Themed>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="home" title="06 · Home / shifts feed" subtitle="How we surface today's work">
+            <DCArtboard id="h-list" label="A · Ledger + list" width={380} height={760}>
+              <Themed hue="electric" mood="ink"><HomeStandard/></Themed>
+            </DCArtboard>
+            <DCArtboard id="h-map" label="B · Map-first" width={380} height={760}>
+              <Themed hue="electric" mood="ink"><HomeMap/></Themed>
+            </DCArtboard>
+            <DCArtboard id="h-focus" label="C · Today's pick" width={380} height={760}>
+              <Themed hue="electric" mood="ink"><HomeFocused/></Themed>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="paid" title="10 · Paid confirmation" subtitle="The moment KES lands">
+            <DCArtboard id="p-std" label="A · Success + rating" width={380} height={760}>
+              <Themed hue="electric" mood="ink"><PaidStandard/></Themed>
+            </DCArtboard>
+            <DCArtboard id="p-receipt" label="B · Receipt paper" width={380} height={760}>
+              <Themed hue="electric" mood="ink"><PaidReceipt/></Themed>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="accents" title="Accent exploration · Welcome A" subtitle="Same screen, three accents — each in its own isolated frame">
+            <DCArtboard id="a-elec" label="Electric mint (default)" width={380} height={760}>
+              <AccentFrame hue="electric"/>
+            </DCArtboard>
+            <DCArtboard id="a-sun" label="Sunrise amber" width={380} height={760}>
+              <AccentFrame hue="sunrise"/>
+            </DCArtboard>
+            <DCArtboard id="a-cob" label="Cobalt violet" width={380} height={760}>
+              <AccentFrame hue="cobalt"/>
+            </DCArtboard>
+          </DCSection>
+
+        </DesignCanvas>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<Canvas/>);
+  </script>
+</body>
+</html>

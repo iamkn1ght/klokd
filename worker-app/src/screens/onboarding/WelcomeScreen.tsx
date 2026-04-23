@@ -1,178 +1,125 @@
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  View, Text, TouchableOpacity, StyleSheet, Animated, TextInput, Alert,
-} from 'react-native';
+/**
+ * Welcome screen — Bank-grade ledger metaphor.
+ * Ported 1:1 from claude-design/screens/onboarding.jsx
+ */
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useAuth } from '../../context/AuthContext';
-import { LogoMark } from '../../components/LogoMark';
-import { GradientButton } from '../../components/GradientButton';
-import { colors, typography, spacing } from '../../theme';
-
-const SLIDES = [
-  { headline: 'Verified once.\nWork everywhere.', sub: 'One ID check. Every employer on Klokd already trusts you.', icon: '✦' },
-  { headline: 'Shifts near you.\nApply in seconds.', sub: "See what's open today. One tap to accept. Show up and work.", icon: '⏱' },
-  { headline: 'Clock out.\nM-Pesa pays you.', sub: 'KES in your M-Pesa within 30 minutes of clocking out. Every shift.', icon: '💸' },
-];
+import { Logo, GradientBtn, Eyebrow, Label } from '../../components/Primitives';
+import { colors, typography } from '../../theme';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
 
+const SLIDES = [
+  { kicker: '01 · VERIFIED', head: 'Verified once.\nWork everywhere.', sub: 'One National ID check. Every employer sees the same trusted badge.' },
+  { kicker: '02 · INSTANT', head: 'Shifts near you.\nApply in seconds.', sub: 'Real shifts. Real rates. Sorted by distance, always.' },
+  { kicker: '03 · PAID', head: 'Clock out.\nM-Pesa pays you.', sub: 'Average 18 minutes from clock-out to cash. No chasing, no WhatsApp.' },
+];
+
+const METRICS = [
+  { k: '16,412', l: 'shifts paid' },
+  { k: '94.2%', l: 'show-up rate' },
+  { k: 'KES 1,823', l: 'avg pay/shift' },
+  { k: '18 min', l: 'clock-out → M-Pesa' },
+];
+
 export function WelcomeScreen({ navigation }: Props) {
-  const { requestOtp, verifyOtp } = useAuth();
-  const [activeSlide, setActiveSlide] = useState(0);
-  const [showLogin, setShowLogin] = useState(false);
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const [slide, setSlide] = useState(0);
 
   useEffect(() => {
-    if (showLogin) return;
-    const timer = setInterval(() => {
-      Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => {
-        setActiveSlide(prev => (prev + 1) % 3);
-        Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
-      });
-    }, 3400);
-    return () => clearInterval(timer);
-  }, [showLogin]);
+    const t = setTimeout(() => setSlide(s => (s + 1) % 3), 3800);
+    return () => clearTimeout(t);
+  }, [slide]);
 
-  const handleRequestOtp = async () => {
-    if (phone.length < 10) { Alert.alert('Invalid', 'Enter a valid Kenyan phone number'); return; }
-    setLoading(true);
-    try {
-      await requestOtp(phone);
-      setOtpSent(true);
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to send OTP');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async () => {
-    if (otp.length !== 6) { Alert.alert('Invalid', 'Enter the 6-digit code'); return; }
-    setLoading(true);
-    try {
-      const result = await verifyOtp(phone, otp);
-      if (result.isNewUser) {
-        navigation.navigate('VerifyID');
-      }
-      // If existing user, RootNavigator auto-redirects to Main via auth state
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Invalid OTP');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Login form
-  if (showLogin) {
-    return (
-      <View style={styles.screen}>
-        <LogoMark size={30} />
-        <View style={styles.loginArea}>
-          <Text style={styles.headline}>Sign in</Text>
-          <Text style={styles.sub}>Enter your M-Pesa phone number</Text>
-
-          <TextInput
-            style={styles.input}
-            placeholder="0722 400 500"
-            placeholderTextColor={colors.white25}
-            keyboardType="phone-pad"
-            value={phone}
-            onChangeText={setPhone}
-            maxLength={13}
-            editable={!otpSent}
-          />
-
-          {otpSent && (
-            <>
-              <Text style={[styles.sub, { marginTop: 16 }]}>Enter the 6-digit code sent to {phone}</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="000000"
-                placeholderTextColor={colors.white25}
-                keyboardType="number-pad"
-                value={otp}
-                onChangeText={setOtp}
-                maxLength={6}
-                autoFocus
-              />
-            </>
-          )}
-
-          <View style={{ marginTop: 20 }}>
-            <GradientButton
-              title={loading ? 'Please wait...' : otpSent ? 'Verify OTP' : 'Send OTP'}
-              onPress={otpSent ? handleVerifyOtp : handleRequestOtp}
-              disabled={loading}
-            />
-          </View>
-
-          <TouchableOpacity style={styles.signInRow} onPress={() => { setShowLogin(false); setOtpSent(false); setOtp(''); }}>
-            <Text style={styles.signInText}>← Back</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
-  // Carousel
-  const slide = SLIDES[activeSlide];
+  const s = SLIDES[slide];
 
   return (
     <View style={styles.screen}>
-      <LogoMark size={30} />
-
-      <Animated.View style={[styles.slideArea, { opacity: fadeAnim }]}>
-        <View style={styles.iconCircle}>
-          <Text style={styles.iconText}>{slide.icon}</Text>
+      {/* ambient glow — omitted on native (uses LinearGradient overlay if needed) */}
+      <ScrollView contentContainerStyle={styles.scroll} bounces={false}>
+        {/* logo */}
+        <View style={styles.logoRow}>
+          <Logo size={30} />
         </View>
-        <Text style={styles.headline}>{slide.headline}</Text>
-        <Text style={styles.sub}>{slide.sub}</Text>
-      </Animated.View>
 
-      <View style={styles.dots}>
-        {SLIDES.map((_, i) => (
-          <TouchableOpacity
-            key={i}
-            onPress={() => setActiveSlide(i)}
-            style={[styles.dot, {
-              width: i === activeSlide ? 22 : 6,
-              backgroundColor: i === activeSlide ? colors.electric : colors.white16,
-            }]}
-          />
-        ))}
-      </View>
+        {/* content */}
+        <View style={styles.content}>
+          {/* Metric grid */}
+          <View style={styles.metricGrid}>
+            {METRICS.map((m, i) => (
+              <View key={i} style={styles.metricCard}>
+                <Text style={[styles.metricK, { color: i % 2 ? colors.volt : colors.electric }]}>{m.k}</Text>
+                <Text style={styles.metricL}>{m.l}</Text>
+              </View>
+            ))}
+          </View>
+          <Label color={colors.white30} style={{ marginTop: 4 }}>Live, last 30 days · Nairobi</Label>
 
-      <GradientButton title="Get started" onPress={() => navigation.navigate('VerifyID')} />
+          <View style={{ marginTop: 28, marginBottom: 20 }}>
+            <Eyebrow color={colors.electric} style={{ marginBottom: 10 }}>{s.kicker}</Eyebrow>
+            <Text style={styles.headline}>{s.head}</Text>
+            <Text style={styles.sub}>{s.sub}</Text>
+          </View>
 
-      <TouchableOpacity style={styles.signInRow} onPress={() => setShowLogin(true)}>
-        <Text style={styles.signInText}>
-          Already verified? <Text style={styles.signInLink}>Sign in</Text>
-        </Text>
-      </TouchableOpacity>
+          <View style={styles.dots}>
+            {SLIDES.map((_, i) => (
+              <TouchableOpacity
+                key={i}
+                onPress={() => setSlide(i)}
+                style={{
+                  flex: i === slide ? 2 : 1,
+                  height: 3,
+                  borderRadius: 999,
+                  backgroundColor: i === slide ? colors.electric : colors.white12,
+                }}
+              />
+            ))}
+          </View>
+
+          <GradientBtn onPress={() => navigation.navigate('Consent')}>Get started</GradientBtn>
+          <TouchableOpacity style={{ marginTop: 14 }}>
+            <Text style={styles.signInText}>I already have an account</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.ink, padding: spacing.xl, paddingTop: 18 },
-  slideArea: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.md },
-  loginArea: { flex: 1, justifyContent: 'center' },
-  iconCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: colors.electricAlpha['10'], alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
-  iconText: { fontSize: 32 },
-  headline: { fontSize: typography.size.h1, fontWeight: '800', color: '#fff', textAlign: 'center', letterSpacing: -0.03, lineHeight: 27, marginBottom: 10 },
-  sub: { fontSize: typography.size.caption, color: colors.white42, textAlign: 'center', lineHeight: 19, maxWidth: 215 },
-  dots: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginBottom: 22 },
-  dot: { height: 6, borderRadius: 999 },
-  signInRow: { alignItems: 'center', marginTop: spacing.md },
-  signInText: { fontSize: typography.size.caption, color: colors.white25 },
-  signInLink: { color: colors.electric, fontWeight: '600' },
-  input: {
-    backgroundColor: colors.white08, borderWidth: 1, borderColor: colors.white10,
-    borderRadius: 14, paddingHorizontal: 18, paddingVertical: 14,
-    fontSize: 18, fontWeight: '600', color: '#fff', letterSpacing: 1, marginTop: 12,
+  screen: { flex: 1, backgroundColor: colors.ink },
+  scroll: { flexGrow: 1 },
+  logoRow: { padding: 28, paddingBottom: 0 },
+  content: { flex: 1, paddingHorizontal: 24, paddingTop: 36, paddingBottom: 32, justifyContent: 'flex-end' },
+
+  metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
+  metricCard: {
+    width: '48%',
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: colors.white03,
+    borderWidth: 1,
+    borderColor: colors.white06,
   },
+  metricK: { fontSize: 14, fontWeight: '900', letterSpacing: -0.28 },
+  metricL: {
+    fontSize: 9.5,
+    color: colors.white45,
+    letterSpacing: 0.38,
+    textTransform: 'uppercase',
+    marginTop: 2,
+  },
+
+  headline: {
+    fontSize: 30,
+    fontWeight: '900',
+    letterSpacing: -1.2,
+    lineHeight: 31,
+    color: colors.white,
+    marginBottom: 12,
+  },
+  sub: { fontSize: 13.5, color: colors.white55, lineHeight: 21 },
+
+  dots: { flexDirection: 'row', gap: 4, marginBottom: 16 },
+  signInText: { color: colors.white50, fontSize: 13, fontWeight: '500', textAlign: 'center' },
 });
