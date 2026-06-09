@@ -37,46 +37,28 @@ export class IdentityService {
   }
 
   /**
-   * Submit National ID + selfie to Identiti.
-   * Documents transit through Klokd API but are NEVER persisted in Klokd storage.
-   * Klokd stores the verification reference returned by Identiti.
+   * Submit National ID for IPRS verification via Identiti.
+   *
+   * NOTE: per Identiti live contract, KYC is IPRS-based (data lookup against
+   * government registry), NOT image-based. Inputs: national_id + name_first +
+   * name_last + date_of_birth. Images are NOT sent. This is a UX simplification
+   * from the advisory's id_front/id_back/selfie model.
+   *
+   * Implementation pending: the live /v1/customers/{uuid}/kyc/iprs endpoint
+   * schema needs to be confirmed against the sandbox (probe in next turn),
+   * and the mobile apps need to switch from photo upload to a typed-data form.
    */
   async submitIdVerification(
-    workerId: string,
-    tenantId: string,
-    data: { idFrontBase64: string; idBackBase64: string; selfieBase64: string }
-  ) {
-    const worker = await prisma.worker.findUnique({
-      where: { id: workerId },
-      include: { user: true },
-    });
-    if (!worker) throw new AppError(404, 'Worker not found');
-    if (!worker.accountUuid) {
-      throw new AppError(422, 'Worker has no Identiti account; complete authentication first');
-    }
-
-    const response = await identityRailClient.submitKycDocuments({
-      accountUuid: worker.accountUuid,
-      idFront: data.idFrontBase64,
-      idBack: data.idBackBase64,
-      selfie: data.selfieBase64,
-    });
-
-    await prisma.worker.update({
-      where: { id: workerId },
-      data: { verificationStatus: 'PENDING' },
-    });
-
-    await logAudit({
-      tenantId,
-      actorId: worker.userId,
-      action: 'identity.submitted',
-      resource: 'worker',
-      resourceId: workerId,
-      metadata: { verificationId: response.verificationId },
-    });
-
-    return { verificationStatus: 'PENDING', verificationId: response.verificationId };
+    _workerId: string,
+    _tenantId: string,
+    _data: { idFrontBase64: string; idBackBase64: string; selfieBase64: string }
+  ): Promise<never> {
+    void identityRailClient;
+    throw new AppError(
+      501,
+      'identity.submitIdVerification: pending /v1/customers/{uuid}/kyc/iprs wire confirmation. ' +
+        'Identiti KYC is IPRS data lookup, not image upload — mobile apps must collect national_id + DOB instead.'
+    );
   }
 
   async recordConsent(

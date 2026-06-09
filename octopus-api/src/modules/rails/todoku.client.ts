@@ -57,7 +57,7 @@ class CommsRailClient {
 
   private async freshPhoneToken(accountUuid: string): Promise<string> {
     const { phoneToken } = await identityRailClient.issuePhoneToken({
-      accountUuid,
+      accountUuid: accountUuid as `acc_${string}`,
       audience: 'todoku',
     });
     return phoneToken;

@@ -108,19 +108,32 @@ export class PaymentService {
       },
     });
 
+    // High-value payout step-up via Identiti (AD-K01).
+    // BLOCKER: Identiti's operation_kind enum is hard-coded per app; klokd.payout
+    // is not yet registered (only kipkiren_pay.* kinds are accepted as of
+    // 2026-06-09 against klokd_sandbox). Until Silvia registers klokd.payout,
+    // this branch will throw at the rail.
     let stepUpJwt: string | undefined;
     if (deductions.netKes > config.platform.payoutStepUpThresholdKes) {
-      const challenge = await identityRailClient.initiateStepUp({
-        accountUuid: shift.worker.accountUuid,
-        operation: 'payout',
-        contextRef: payment.id,
+      const accountUuid = shift.worker.accountUuid as `acc_${string}`;
+      const challenge = await identityRailClient.createStepUpChallenge({
+        accountUuid,
+        operationAudience: 'https://api.klokd.co.ke',
+        operationKind: 'klokd.payout',
+        operationRiskTier: 'high',
+        factor: 'phone_otp',
       });
-      const result = await identityRailClient.getStepUpResult(challenge.challengeId);
-      if (result.status !== 'approved' || !result.stepUpJwt) {
-        await prisma.payment.update({ where: { id: payment.id }, data: { status: 'FAILED' } });
-        throw new AppError(422, 'Step-up authentication required for payout was not approved');
-      }
-      stepUpJwt = result.stepUpJwt;
+
+      // In production the OTP arrives via Todoku; the user submits it through a
+      // separate endpoint. For now we surface the challenge id back to the caller
+      // and fail the disbursement — the caller (employer release flow) will need
+      // a 2-step UX. This is documented as v3 follow-up work.
+      await prisma.payment.update({ where: { id: payment.id }, data: { status: 'FAILED' } });
+      throw new AppError(
+        202,
+        `Step-up required for KES ${deductions.netKes.toLocaleString()} payout. ` +
+          `Challenge id: ${challenge.challengeId}. Submit OTP via /api/v1/payments/${payment.id}/step-up.`
+      );
     }
 
     const railResp = await paymentRailClient.initiatePayout({

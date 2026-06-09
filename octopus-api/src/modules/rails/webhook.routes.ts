@@ -58,18 +58,15 @@ router.post(
       const payload = getParsed<IdentitiWebhookPayload>(req);
       switch (payload.event) {
         case 'KYC_TIER_CHANGED': {
-          if (payload.kycTier !== undefined) {
+          if (payload.tier) {
+            const tierInt = parseInt(payload.tier.split('_')[1] ?? '0', 10);
             await prisma.worker.updateMany({
               where: { accountUuid: payload.accountUuid },
-              data: {
-                kycTier: payload.kycTier,
-                verificationStatus:
-                  payload.verificationStatus === 'approved'
-                    ? 'APPROVED'
-                    : payload.verificationStatus === 'rejected'
-                      ? 'REJECTED'
-                      : 'PENDING',
-              },
+              data: { kycTier: tierInt },
+            });
+            await prisma.user.updateMany({
+              where: { accountUuid: payload.accountUuid },
+              data: { kycTier: tierInt },
             });
           }
           break;
