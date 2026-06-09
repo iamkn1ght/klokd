@@ -14,12 +14,17 @@ import disputeRoutes from './modules/dispute/dispute.routes';
 import ratingRoutes from './modules/rating/rating.routes';
 import adminRoutes from './modules/admin/admin.routes';
 import securityRoutes from './modules/admin/security.routes';
+import railWebhookRoutes from './modules/rails/webhook.routes';
 
 const app = express();
 
 // ─── Global Middleware ──────────────────────────────────
 app.use(helmet());
 app.use(cors());
+
+// Rail webhooks need raw body for HMAC verification — mount BEFORE express.json()
+app.use('/api/v1/webhooks/rails', railWebhookRoutes);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(morgan('combined'));
 

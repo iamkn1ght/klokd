@@ -1,27 +1,29 @@
-import crypto from 'crypto';
 import prisma from '../../config/database';
 import { AppError } from '../../middleware/errorHandler';
 import { logAudit } from '../../utils/auditLogger';
+import { identityRailClient } from '../rails';
+
+// Klokd v3 — Identity Service (C2: revised S3-03)
+// All National ID images, biometrics, and KYC documents flow to Identiti (AD-K02).
+// Klokd retains only: account_uuid + kyc_tier + verificationStatus signal.
 
 export class IdentityService {
-  /**
-   * Create or update worker profile.
-   */
   async upsertWorkerProfile(
     userId: string,
     tenantId: string,
-    data: {
-      firstName: string;
-      lastName: string;
-      skills?: string[];
-    }
+    data: { firstName: string; lastName: string; skills?: string[] }
   ) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new AppError(404, 'User not found');
+
     const skillsJson = JSON.stringify(data.skills || []);
-    const worker = await prisma.worker.upsert({
+    return prisma.worker.upsert({
       where: { userId },
       create: {
         tenantId,
         userId,
+        accountUuid: user.accountUuid,
+        kycTier: user.kycTier,
         firstName: data.firstName,
         lastName: data.lastName,
         skills: skillsJson,
@@ -32,35 +34,37 @@ export class IdentityService {
         skills: skillsJson,
       },
     });
-
-    return worker;
   }
 
   /**
-   * Submit ID for verification. In production, images go to Supabase Storage.
-   * National ID number is hashed, never stored in plaintext.
+   * Submit National ID + selfie to Identiti.
+   * Documents transit through Klokd API but are NEVER persisted in Klokd storage.
+   * Klokd stores the verification reference returned by Identiti.
    */
   async submitIdVerification(
     workerId: string,
     tenantId: string,
-    data: {
-      idNumber: string;
-      idFrontKey: string;
-      idBackKey: string;
-      selfieKey: string;
-    }
+    data: { idFrontBase64: string; idBackBase64: string; selfieBase64: string }
   ) {
-    const idNumberHash = crypto.createHash('sha256').update(data.idNumber).digest('hex');
-
-    const worker = await prisma.worker.update({
+    const worker = await prisma.worker.findUnique({
       where: { id: workerId },
-      data: {
-        idNumberHash,
-        idFrontKey: data.idFrontKey,
-        idBackKey: data.idBackKey,
-        selfieKey: data.selfieKey,
-        verificationStatus: 'PENDING',
-      },
+      include: { user: true },
+    });
+    if (!worker) throw new AppError(404, 'Worker not found');
+    if (!worker.accountUuid) {
+      throw new AppError(422, 'Worker has no Identiti account; complete authentication first');
+    }
+
+    const response = await identityRailClient.submitKycDocuments({
+      accountUuid: worker.accountUuid,
+      idFront: data.idFrontBase64,
+      idBack: data.idBackBase64,
+      selfie: data.selfieBase64,
+    });
+
+    await prisma.worker.update({
+      where: { id: workerId },
+      data: { verificationStatus: 'PENDING' },
     });
 
     await logAudit({
@@ -69,14 +73,12 @@ export class IdentityService {
       action: 'identity.submitted',
       resource: 'worker',
       resourceId: workerId,
+      metadata: { verificationId: response.verificationId },
     });
 
-    return { verificationStatus: worker.verificationStatus };
+    return { verificationStatus: 'PENDING', verificationId: response.verificationId };
   }
 
-  /**
-   * Record DPA 2019 consent (biometric + GPS).
-   */
   async recordConsent(
     workerId: string,
     tenantId: string,
@@ -89,11 +91,7 @@ export class IdentityService {
 
     const worker = await prisma.worker.update({
       where: { id: workerId },
-      data: {
-        consentIdentity,
-        consentGps,
-        consentedAt: new Date(),
-      },
+      data: { consentIdentity, consentGps, consentedAt: new Date() },
     });
 
     await logAudit({
@@ -108,43 +106,25 @@ export class IdentityService {
     return { consentIdentity: worker.consentIdentity, consentGps: worker.consentGps };
   }
 
-  /**
-   * Set M-Pesa number (encrypted at rest).
-   */
-  async setMpesaNumber(workerId: string, mpesaNumber: string) {
-    // In production: encrypt with application-level key before storage
-    const encrypted = Buffer.from(mpesaNumber).toString('base64');
-
-    await prisma.worker.update({
-      where: { id: workerId },
-      data: { mpesaNumberEnc: encrypted },
-    });
-
-    return { message: 'M-Pesa number saved' };
-  }
-
-  /**
-   * Create or update employer profile.
-   */
   async upsertEmployerProfile(
     userId: string,
     tenantId: string,
-    data: {
-      businessName: string;
-      kraPin?: string;
-      contactPerson?: string;
-    }
+    data: { businessName: string; kraPin?: string; contactPerson?: string }
   ) {
-    // Validate KRA PIN format: letter + 9 digits + letter (e.g., P051234567A)
     if (data.kraPin && !/^[A-Z]\d{9}[A-Z]$/.test(data.kraPin)) {
       throw new AppError(422, 'Invalid KRA PIN format. Expected format: P051234567A');
     }
 
-    const employer = await prisma.employer.upsert({
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new AppError(404, 'User not found');
+
+    return prisma.employer.upsert({
       where: { userId },
       create: {
         tenantId,
         userId,
+        accountUuid: user.accountUuid,
+        kycTier: user.kycTier,
         businessName: data.businessName,
         kraPin: data.kraPin,
         contactPerson: data.contactPerson,
@@ -155,21 +135,12 @@ export class IdentityService {
         contactPerson: data.contactPerson,
       },
     });
-
-    return employer;
   }
 
-  /**
-   * Declare WIBA coverage (employer onboarding screen 3).
-   */
   async declareWiba(
     employerId: string,
     tenantId: string,
-    data: {
-      policyRef: string;
-      insurer: string;
-      policyExpiry: Date;
-    }
+    data: { policyRef: string; insurer: string; policyExpiry: Date }
   ) {
     if (new Date(data.policyExpiry) < new Date()) {
       throw new AppError(422, 'WIBA policy has expired. Please provide a valid policy.');
@@ -197,28 +168,9 @@ export class IdentityService {
   }
 
   /**
-   * Set employer M-Pesa payment method.
-   */
-  async setEmployerMpesa(
-    employerId: string,
-    method: string,
-    accountNumber: string
-  ) {
-    const encrypted = Buffer.from(accountNumber).toString('base64');
-
-    await prisma.employer.update({
-      where: { id: employerId },
-      data: {
-        mpesaMethod: method,
-        mpesaAccountEnc: encrypted,
-      },
-    });
-
-    return { message: 'M-Pesa payment method saved' };
-  }
-
-  /**
-   * Admin: approve or reject worker verification.
+   * Admin: approve or reject verification.
+   * In v3 this is a no-op locally; the source of truth is Identiti's KYC tier.
+   * Retained as an admin override hook only.
    */
   async updateVerificationStatus(
     workerId: string,

@@ -3,6 +3,13 @@ import { z } from 'zod';
 import { identityService } from './identity.service';
 import { authenticate, authorize } from '../../middleware/auth';
 import { storageService } from '../storage/storage.service';
+import prisma from '../../config/database';
+
+// Klokd v3 — Identity routes
+// AD-K02: National ID + biometrics flow to Identiti.
+// AD-K04: Pay statements + contracts + certificates remain in Klokd S3.
+// M-Pesa numbers are no longer collected by Klokd — Identiti holds the phone token,
+// Kipkiren Pay holds the wallet/payout destination.
 
 const router = Router();
 
@@ -26,10 +33,7 @@ router.post('/workers/consent', authenticate, authorize('WORKER'), async (req: R
   });
   const { consentIdentity, consentGps } = schema.parse(req.body);
 
-  // Need worker record
-  const worker = await (await import('../../config/database')).default.worker.findUnique({
-    where: { userId: req.user!.userId },
-  });
+  const worker = await prisma.worker.findUnique({ where: { userId: req.user!.userId } });
   if (!worker) {
     res.status(404).json({ success: false, error: 'Worker profile not found. Complete profile setup first.' });
     return;
@@ -41,16 +45,13 @@ router.post('/workers/consent', authenticate, authorize('WORKER'), async (req: R
 
 router.post('/workers/verify-id', authenticate, authorize('WORKER'), async (req: Request, res: Response) => {
   const schema = z.object({
-    idNumber: z.string().min(5),
-    idFrontKey: z.string(),
-    idBackKey: z.string(),
-    selfieKey: z.string(),
+    idFrontBase64: z.string().min(1),
+    idBackBase64: z.string().min(1),
+    selfieBase64: z.string().min(1),
   });
   const data = schema.parse(req.body);
 
-  const worker = await (await import('../../config/database')).default.worker.findUnique({
-    where: { userId: req.user!.userId },
-  });
+  const worker = await prisma.worker.findUnique({ where: { userId: req.user!.userId } });
   if (!worker) {
     res.status(404).json({ success: false, error: 'Worker profile not found' });
     return;
@@ -58,24 +59,6 @@ router.post('/workers/verify-id', authenticate, authorize('WORKER'), async (req:
 
   const result = await identityService.submitIdVerification(worker.id, req.user!.tenantId, data);
   res.json({ success: true, data: result });
-});
-
-router.put('/workers/mpesa', authenticate, authorize('WORKER'), async (req: Request, res: Response) => {
-  const schema = z.object({
-    mpesaNumber: z.string().regex(/^(?:254|\+254|0)\d{9}$/, 'Invalid M-Pesa number'),
-  });
-  const { mpesaNumber } = schema.parse(req.body);
-
-  const worker = await (await import('../../config/database')).default.worker.findUnique({
-    where: { userId: req.user!.userId },
-  });
-  if (!worker) {
-    res.status(404).json({ success: false, error: 'Worker profile not found' });
-    return;
-  }
-
-  const result = await identityService.setMpesaNumber(worker.id, mpesaNumber);
-  res.json({ success: true, ...result });
 });
 
 // ─── Employer Profile ───────────────────────────────────
@@ -99,9 +82,7 @@ router.post('/employers/wiba', authenticate, authorize('EMPLOYER'), async (req: 
   });
   const data = schema.parse(req.body);
 
-  const employer = await (await import('../../config/database')).default.employer.findUnique({
-    where: { userId: req.user!.userId },
-  });
+  const employer = await prisma.employer.findUnique({ where: { userId: req.user!.userId } });
   if (!employer) {
     res.status(404).json({ success: false, error: 'Employer profile not found' });
     return;
@@ -111,55 +92,24 @@ router.post('/employers/wiba', authenticate, authorize('EMPLOYER'), async (req: 
   res.json({ success: true, data: result });
 });
 
-router.put('/employers/mpesa', authenticate, authorize('EMPLOYER'), async (req: Request, res: Response) => {
-  const schema = z.object({
-    method: z.enum(['paybill', 'till', 'personal']),
-    accountNumber: z.string().min(1),
-  });
-  const { method, accountNumber } = schema.parse(req.body);
-
-  const employer = await (await import('../../config/database')).default.employer.findUnique({
-    where: { userId: req.user!.userId },
-  });
-  if (!employer) {
-    res.status(404).json({ success: false, error: 'Employer profile not found' });
-    return;
-  }
-
-  const result = await identityService.setEmployerMpesa(employer.id, method, accountNumber);
-  res.json({ success: true, ...result });
-});
-
-// ─── File Upload ───────────────────────────────────────
+// ─── File Upload (certificates only; AD-K02 bars identity docs from Klokd S3) ──
 
 router.post('/upload', authenticate, async (req: Request, res: Response) => {
   const schema = z.object({
-    type: z.enum(['id-front', 'id-back', 'selfie', 'certificate']),
-    data: z.string().min(1), // base64 encoded
+    type: z.literal('certificate'),
+    data: z.string().min(1),
     contentType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']).default('image/jpeg'),
   });
-  const { type, data, contentType } = schema.parse(req.body);
+  const { data, contentType } = schema.parse(req.body);
 
-  const worker = await (await import('../../config/database')).default.worker.findUnique({
-    where: { userId: req.user!.userId },
-  });
+  const worker = await prisma.worker.findUnique({ where: { userId: req.user!.userId } });
   if (!worker) {
     res.status(404).json({ success: false, error: 'Worker profile not found' });
     return;
   }
 
   const buffer = Buffer.from(data, 'base64');
-
-  let storageKey: string;
-  if (type === 'selfie') {
-    storageKey = await storageService.uploadSelfie(worker.id, buffer, contentType);
-  } else if (type === 'certificate') {
-    storageKey = await storageService.uploadCertificate(worker.id, buffer, contentType);
-  } else {
-    const side = type === 'id-front' ? 'front' : 'back';
-    storageKey = await storageService.uploadIdDocument(worker.id, side, buffer, contentType);
-  }
-
+  const storageKey = await storageService.uploadCertificate(worker.id, buffer, contentType);
   res.json({ success: true, data: { storageKey } });
 });
 

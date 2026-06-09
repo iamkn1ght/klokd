@@ -77,6 +77,11 @@ model User {
   id            String           @id @default(uuid())
   tenantId      String           @map("tenant_id")
   phone         String           @unique
+  // Identiti account_uuid — primary cross-platform identity (AD-K10).
+  // Phone is retained for migration window only; v3 lookups use accountUuid.
+  accountUuid   String?          @unique @map("account_uuid")
+  // Cached Identiti KYC tier; refreshed via KYC_TIER_CHANGED webhook.
+  kycTier       Int              @default(0) @map("kyc_tier")
   passwordHash  String?          @map("password_hash")
   role          UserRole
   isActive      Boolean          @default(true) @map("is_active")
@@ -110,8 +115,16 @@ model Worker {
   id                  String             @id @default(uuid())
   tenantId            String             @map("tenant_id")
   userId              String             @unique @map("user_id")
+  // Identiti — primary cross-platform FK (AD-K10).
+  accountUuid         String?            @unique @map("account_uuid")
+  // Kipkiren Pay / LipaStack wallet (S4-NEW-01).
+  walletId            String?            @map("wallet_id")
+  // Identiti KYC tier (cached signal; refreshed via KYC_TIER_CHANGED webhook).
+  kycTier             Int                @default(0) @map("kyc_tier")
   firstName           String             @map("first_name")
   lastName            String             @map("last_name")
+  // Deprecated per AD-K02 — identity documents live in Identiti, not Klokd S3.
+  // Columns retained nullable through backfill window only; do not write to them.
   idNumberHash        String?            @map("id_number_hash")
   idFrontKey          String?            @map("id_front_key")
   idBackKey           String?            @map("id_back_key")
@@ -119,6 +132,7 @@ model Worker {
   verificationStatus  VerificationStatus @default(PENDING) @map("verification_status")
   skills              String             @default("[]")
   certificationKeys   String             @default("[]") @map("certification_keys")
+  // Deprecated per AD-K01 — M-Pesa number lives in Identiti phone token, not Klokd.
   mpesaNumberEnc      String?            @map("mpesa_number_enc")
   consentIdentity     Boolean            @default(false) @map("consent_identity")
   consentGps          Boolean            @default(false) @map("consent_gps")
@@ -146,12 +160,19 @@ model Employer {
   id                String             @id @default(uuid())
   tenantId          String             @map("tenant_id")
   userId            String             @unique @map("user_id")
+  // Identiti — primary cross-platform FK (AD-K10).
+  accountUuid       String?            @unique @map("account_uuid")
+  // Kipkiren Pay / LipaStack wallet (S4-NEW-01).
+  walletId          String?            @map("wallet_id")
+  // Identiti KYC tier (cached signal; refreshed via KYC_TIER_CHANGED webhook).
+  kycTier           Int                @default(0) @map("kyc_tier")
   businessName      String             @map("business_name")
   kraPin            String?            @map("kra_pin")
   contactPerson     String?            @map("contact_person")
   wibaPolicyRef     String?            @map("wiba_policy_ref")
   wibaInsurer       String?            @map("wiba_insurer")
   wibaPolicyExpiry  DateTime?          @map("wiba_policy_expiry")
+  // Deprecated per AD-K01 — M-Pesa account lives in Kipkiren Pay wallet, not Klokd.
   mpesaMethod       String?            @map("mpesa_method")
   mpesaAccountEnc   String?            @map("mpesa_account_enc")
   ratingAggregate   Float?             @map("rating_aggregate")
@@ -296,6 +317,11 @@ model Payment {
   platformFeeKes  Int           @default(0) @map("platform_fee_kes")
   netKes          Int           @map("net_kes")
   status          PaymentStatus @default(PENDING)
+  // Payment rail payment_id (Kipkiren Pay phase 1; LipaStack phase 3 via DTO mapping).
+  paymentRailRef  String?       @unique @map("payment_rail_ref")
+  // M-Pesa receipt forwarded by Payment Rail webhook (display only).
+  mpesaRef        String?       @map("mpesa_ref")
+  // Deprecated per AD-K01 — kept for migration compatibility; do not write.
   darajaRef       String?       @map("daraja_ref")
   retryCount      Int           @default(0) @map("retry_count")
   paidAt          DateTime?     @map("paid_at")
@@ -405,6 +431,27 @@ model Notification {
   user User @relation(fields: [userId], references: [id])
 
   @@map("notifications")
+}
+
+// ─── NOTIFICATION LOG (Todoku message receipts) ─────────
+// Per S3-NEW-02 AC: no phone number column. Klokd never stores phone numbers.
+// Phone resolution happens inside Todoku via the Identiti phone token.
+
+model NotificationLog {
+  id               String    @id @default(uuid())
+  tenantId         String    @map("tenant_id")
+  accountUuid      String    @map("account_uuid")
+  channel          String
+  templateId       String    @map("template_id")
+  todokuMessageId  String    @unique @map("todoku_message_id")
+  status           String    @default("SENT")
+  failureReason    String?   @map("failure_reason")
+  sentAt           DateTime  @default(now()) @map("sent_at")
+  deliveredAt      DateTime? @map("delivered_at")
+
+  @@index([accountUuid])
+  @@index([templateId])
+  @@map("notification_log")
 }
 
 // ─── AUDIT LOG (append-only) ────────────────────────────

@@ -3,14 +3,17 @@ import { config } from '../../config';
 import { AppError } from '../../middleware/errorHandler';
 import { complianceService } from '../compliance/compliance.service';
 import { logAudit } from '../../utils/auditLogger';
+import { paymentRailClient, identityRailClient } from '../rails';
 
-/**
- * Payment Service — fully decoupled from Shift Service.
- * A failed payment NEVER corrupts a shift.
- */
+// Klokd v3 — Payment Service (C4: revised S16-01)
+// All payments flow through the KMV payment rail (PaymentRailClient).
+// Klokd never calls Daraja. Webhook updates from the rail land at
+// POST /api/v1/webhooks/rails/payment-rail.
+
 export class PaymentService {
   /**
-   * Initiate escrow funding via STK Push on shift confirmation.
+   * Initiate escrow funding via the payment rail.
+   * Status transitions to FUNDED arrive via the ESCROW_FUNDED webhook.
    */
   async initiateEscrow(
     shiftId: string,
@@ -18,8 +21,20 @@ export class PaymentService {
     amountKes: number,
     tenantId: string
   ) {
+    const employer = await prisma.employer.findUnique({ where: { id: employerId } });
+    if (!employer?.accountUuid) {
+      throw new AppError(422, 'Employer has no Identiti account — escrow cannot be funded');
+    }
+
+    const shift = await prisma.shift.findUnique({
+      where: { id: shiftId },
+      include: { worker: { select: { accountUuid: true } } },
+    });
+    if (!shift?.worker?.accountUuid) {
+      throw new AppError(422, 'Worker has no Identiti account — escrow cannot be funded');
+    }
+
     const feeKes = Math.round(amountKes * (config.platform.feePercent / 100));
-    const totalKes = amountKes + feeKes;
 
     const escrow = await prisma.escrow.create({
       data: {
@@ -32,32 +47,24 @@ export class PaymentService {
       },
     });
 
-    // In production: trigger Daraja STK Push to employer's M-Pesa
-    // For sandbox, we simulate a successful funding
-    if (config.daraja.env === 'sandbox') {
-      await this.confirmEscrowFunding(escrow.id, `SANDBOX-${Date.now()}`);
-    }
+    const railResp = await paymentRailClient.fundEscrow({
+      shiftId,
+      employerAccountUuid: employer.accountUuid,
+      amountGrossKes: amountKes,
+      feeRate: config.platform.feePercent / 100,
+      workerAccountUuid: shift.worker.accountUuid,
+      idempotencyKey: `escrow-${escrow.id}`,
+    });
 
-    return escrow;
-  }
-
-  /**
-   * Confirm escrow funding (called by Daraja callback or sandbox simulation).
-   */
-  async confirmEscrowFunding(escrowId: string, stkPushRef: string) {
     return prisma.escrow.update({
-      where: { id: escrowId },
-      data: {
-        status: 'FUNDED',
-        stkPushRef,
-        fundedAt: new Date(),
-      },
+      where: { id: escrow.id },
+      data: { stkPushRef: railResp.escrowRef },
     });
   }
 
   /**
-   * Disburse payment to worker. Called on payment release or auto-release.
-   * Compliance deductions applied BEFORE disbursement.
+   * Disburse payment to worker via the payment rail.
+   * Compliance deductions calculated by Klokd; amounts passed to the rail.
    */
   async disbursePayment(shiftId: string, tenantId: string) {
     const shift = await prisma.shift.findUnique({
@@ -68,12 +75,16 @@ export class PaymentService {
     if (!shift || !shift.workerId || !shift.escrow) {
       throw new AppError(404, 'Shift or escrow not found');
     }
-
     if (shift.escrow.status !== 'FUNDED') {
       throw new AppError(422, 'Escrow not funded');
     }
+    if (!shift.worker?.accountUuid) {
+      throw new AppError(422, 'Worker has no Identiti account — payout cannot be initiated');
+    }
+    if (!shift.escrow.stkPushRef) {
+      throw new AppError(422, 'Escrow has no rail reference — payout cannot be initiated');
+    }
 
-    // Calculate compliance deductions
     const deductions = await complianceService.calculateDeductions(tenantId, shift.rateKes);
 
     const retainUntil = new Date();
@@ -97,25 +108,51 @@ export class PaymentService {
       },
     });
 
-    // In production: call Daraja B2C to send netKes to worker's M-Pesa
-    // For sandbox, simulate success
-    if (config.daraja.env === 'sandbox') {
-      await this.confirmDisbursement(payment.id, `B2C-SANDBOX-${Date.now()}`);
+    let stepUpJwt: string | undefined;
+    if (deductions.netKes > config.platform.payoutStepUpThresholdKes) {
+      const challenge = await identityRailClient.initiateStepUp({
+        accountUuid: shift.worker.accountUuid,
+        operation: 'payout',
+        contextRef: payment.id,
+      });
+      const result = await identityRailClient.getStepUpResult(challenge.challengeId);
+      if (result.status !== 'approved' || !result.stepUpJwt) {
+        await prisma.payment.update({ where: { id: payment.id }, data: { status: 'FAILED' } });
+        throw new AppError(422, 'Step-up authentication required for payout was not approved');
+      }
+      stepUpJwt = result.stepUpJwt;
     }
 
-    // Release escrow
+    const railResp = await paymentRailClient.initiatePayout({
+      workerAccountUuid: shift.worker.accountUuid,
+      netAmountKes: deductions.netKes,
+      shiftId,
+      escrowRef: shift.escrow.stkPushRef,
+      feeAmountKes: shift.escrow.feeKes,
+      stepUpJwt,
+      idempotencyKey: `payout-${payment.id}`,
+    });
+
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: { paymentRailRef: railResp.paymentId },
+    });
+
+    await paymentRailClient.releaseEscrow({
+      escrowRef: shift.escrow.stkPushRef,
+      idempotencyKey: `release-${shift.escrow.id}`,
+    });
+
     await prisma.escrow.update({
       where: { id: shift.escrow.id },
       data: { status: 'RELEASED', releasedAt: new Date() },
     });
 
-    // Update shift to PAID
     await prisma.shift.update({
       where: { id: shiftId },
       data: { status: 'PAID' },
     });
 
-    // Log the shift event
     await prisma.shiftEvent.create({
       data: {
         tenantId,
@@ -127,13 +164,11 @@ export class PaymentService {
       },
     });
 
-    // Update worker stats
     await prisma.worker.update({
       where: { id: shift.workerId },
       data: { totalShifts: { increment: 1 } },
     });
 
-    // Update employer stats
     await prisma.employer.update({
       where: { id: shift.employerId },
       data: { totalShifts: { increment: 1 } },
@@ -143,21 +178,8 @@ export class PaymentService {
   }
 
   /**
-   * Confirm B2C disbursement (Daraja callback or sandbox).
-   */
-  async confirmDisbursement(paymentId: string, darajaRef: string) {
-    return prisma.payment.update({
-      where: { id: paymentId },
-      data: {
-        status: 'COMPLETED',
-        darajaRef,
-        paidAt: new Date(),
-      },
-    });
-  }
-
-  /**
    * Handle payment failure with retry logic.
+   * Rail-side failures arrive via PAYOUT_FAILED webhook; this is the retry kick.
    */
   async handlePaymentFailure(paymentId: string) {
     const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
@@ -168,32 +190,21 @@ export class PaymentService {
         where: { id: paymentId },
         data: { status: 'FAILED' },
       });
-      // In production: notify admin for manual resolution
       return { status: 'FAILED', message: 'Max retries reached. Admin notified.' };
     }
 
     await prisma.payment.update({
       where: { id: paymentId },
-      data: {
-        status: 'RETRYING',
-        retryCount: { increment: 1 },
-      },
+      data: { status: 'RETRYING', retryCount: { increment: 1 } },
     });
 
-    // In production: re-trigger Daraja B2C call
     return { status: 'RETRYING', retryCount: payment.retryCount + 1 };
   }
 
-  /**
-   * Get payment details for a shift.
-   */
   async getPaymentByShift(shiftId: string) {
     return prisma.payment.findUnique({ where: { shiftId } });
   }
 
-  /**
-   * Release payment (employer action or auto-release).
-   */
   async releasePayment(shiftId: string, tenantId: string, actorId: string) {
     const shift = await prisma.shift.findUnique({
       where: { id: shiftId },
@@ -204,7 +215,6 @@ export class PaymentService {
       throw new AppError(422, 'Shift must be completed before payment can be released');
     }
 
-    // Check no open dispute
     const dispute = await prisma.dispute.findUnique({ where: { shiftId } });
     if (dispute && dispute.status === 'OPEN') {
       throw new AppError(422, 'Cannot release payment while dispute is open');

@@ -38,33 +38,9 @@ export class StorageService {
     return `${params.bucket}/${path}`;
   }
 
-  /**
-   * Upload a worker's ID document image.
-   */
-  async uploadIdDocument(workerId: string, side: 'front' | 'back', buffer: Buffer, contentType: string): Promise<string> {
-    return this.upload({
-      bucket: 'id-documents',
-      buffer,
-      contentType,
-      folder: workerId,
-    });
-  }
+  // uploadIdDocument and uploadSelfie removed per AD-K02. National ID and selfie
+  // images flow to Identiti via identityRailClient.submitKycDocuments.
 
-  /**
-   * Upload a worker's selfie.
-   */
-  async uploadSelfie(workerId: string, buffer: Buffer, contentType: string): Promise<string> {
-    return this.upload({
-      bucket: 'selfies',
-      buffer,
-      contentType,
-      folder: workerId,
-    });
-  }
-
-  /**
-   * Upload a certificate.
-   */
   async uploadCertificate(workerId: string, buffer: Buffer, contentType: string): Promise<string> {
     return this.upload({
       bucket: 'certificates',

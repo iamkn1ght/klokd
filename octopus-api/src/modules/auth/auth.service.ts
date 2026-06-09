@@ -2,92 +2,99 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import prisma from '../../config/database';
 import { config } from '../../config';
-import { supabase } from '../../config/supabase';
 import { JwtPayload } from '../../types';
 import { UserRole } from '@prisma/client';
 import { AppError } from '../../middleware/errorHandler';
 import { logAudit } from '../../utils/auditLogger';
+import { identityRailClient, commsRailClient, TODOKU_TEMPLATES } from '../rails';
+
+// Klokd v3 — Auth Service (C1: revised S3-02)
+// OTP flow routes through Identiti (account_uuid issuance) + Todoku (delivery).
+// Klokd never holds phone numbers in logs or sends OTP via Africa's Talking directly.
+//
+// Phone is retained on the User row as a unique lookup key for the migration window.
+// Long-term, all auth lookups will key on account_uuid only.
+
+// In-memory OTP rate-limit window (3 attempts / 10 min per phone).
+const otpAttempts = new Map<string, { count: number; windowStartedAt: number }>();
+const OTP_WINDOW_MS = 10 * 60 * 1000;
+const OTP_MAX_ATTEMPTS = 3;
 
 export class AuthService {
   /**
-   * Request OTP via Supabase Auth (sends SMS automatically).
+   * Request OTP: ensure Identiti account exists, then ask Todoku to deliver.
+   * Klokd does not generate or hold the OTP value — Identiti+Todoku handle it.
    */
   async requestOtp(phone: string): Promise<{ message: string }> {
-    // Normalize phone to E.164 format for Supabase
     const normalized = this.normalizePhone(phone);
+    this.enforceOtpRateLimit(normalized);
 
-    const { error } = await supabase.auth.signInWithOtp({
-      phone: normalized,
-    });
+    let user = await prisma.user.findUnique({ where: { phone: normalized } });
 
-    if (error) {
-      console.error('[Auth] Supabase OTP error:', error.message);
+    let accountUuid = user?.accountUuid ?? null;
 
-      // Fallback: if Supabase phone auth isn't configured, use dev mode
-      if (config.nodeEnv === 'development' || error.message.includes('not enabled')) {
-        const code = Math.floor(100000 + Math.random() * 900000).toString();
-        // Store in a simple fallback for dev
-        devOtpStore.set(normalized, { code, expiresAt: Date.now() + 5 * 60 * 1000 });
-        console.log(`[DEV] OTP for ${normalized}: ${code}`);
-        return { message: 'OTP sent successfully (dev mode)' };
+    if (!accountUuid) {
+      const created = await identityRailClient.createAccount({ phone: normalized });
+      accountUuid = created.accountUuid;
+
+      if (user) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { accountUuid },
+        });
       }
-
-      throw new AppError(502, 'Failed to send OTP. Please try again.');
     }
+
+    await commsRailClient.sendOtp(accountUuid, TODOKU_TEMPLATES.OTP, {
+      expiry_mins: '5',
+    });
 
     return { message: 'OTP sent successfully' };
   }
 
   /**
-   * Verify OTP and return JWT tokens.
-   * Tries Supabase first, falls back to dev store.
+   * Verify OTP via Identiti, then mint Klokd JWT.
    */
-  async verifyOtp(phone: string, code: string, role: UserRole): Promise<{
-    accessToken: string;
-    refreshToken: string;
-    isNewUser: boolean;
-  }> {
+  async verifyOtp(
+    phone: string,
+    code: string,
+    role: UserRole
+  ): Promise<{ accessToken: string; refreshToken: string; isNewUser: boolean }> {
     const normalized = this.normalizePhone(phone);
-    let verified = false;
 
-    // Try Supabase verification first
-    const { error } = await supabase.auth.verifyOtp({
-      phone: normalized,
-      token: code,
-      type: 'sms',
-    });
+    let user = await prisma.user.findUnique({ where: { phone: normalized } });
+    const accountUuid = user?.accountUuid;
 
-    if (!error) {
-      verified = true;
-    } else {
-      // Fallback: check dev OTP store
-      const stored = devOtpStore.get(normalized);
-      if (stored && stored.code === code && Date.now() < stored.expiresAt) {
-        verified = true;
-        devOtpStore.delete(normalized);
-      }
+    if (!accountUuid) {
+      throw new AppError(400, 'No OTP requested for this phone');
     }
 
-    if (!verified) {
+    const result = await identityRailClient.verifyOtp({ accountUuid, otp: code });
+    if (result.status !== 'active') {
       throw new AppError(400, 'Invalid or expired OTP');
     }
 
-    // Find or create user in our database
-    let user = await prisma.user.findUnique({ where: { phone: normalized } });
     let isNewUser = false;
-
     if (!user) {
       user = await prisma.user.create({
         data: {
           tenantId: config.defaultTenantId,
           phone: normalized,
+          accountUuid,
+          kycTier: result.kycTier,
           role,
         },
       });
       isNewUser = true;
+    } else if (user.kycTier !== result.kycTier) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { kycTier: result.kycTier },
+      });
     }
 
-    // Issue our own JWT (not Supabase's)
+    otpAttempts.delete(normalized);
+
     const payload: JwtPayload = {
       userId: user.id,
       role: user.role,
@@ -95,7 +102,7 @@ export class AuthService {
     };
 
     const accessToken = jwt.sign(payload, config.jwt.secret, {
-      expiresIn: config.jwt.expiry as any,
+      expiresIn: config.jwt.expiry as jwt.SignOptions['expiresIn'],
     });
 
     const refreshTokenValue = crypto.randomUUID();
@@ -118,16 +125,9 @@ export class AuthService {
       resourceId: user.id,
     });
 
-    return {
-      accessToken,
-      refreshToken: refreshTokenValue,
-      isNewUser,
-    };
+    return { accessToken, refreshToken: refreshTokenValue, isNewUser };
   }
 
-  /**
-   * Refresh access token using refresh token.
-   */
   async refreshAccessToken(refreshToken: string): Promise<{ accessToken: string }> {
     const stored = await prisma.refreshToken.findUnique({
       where: { token: refreshToken },
@@ -148,22 +148,16 @@ export class AuthService {
     };
 
     const accessToken = jwt.sign(payload, config.jwt.secret, {
-      expiresIn: config.jwt.expiry as any,
+      expiresIn: config.jwt.expiry as jwt.SignOptions['expiresIn'],
     });
 
     return { accessToken };
   }
 
-  /**
-   * Logout — invalidate refresh token.
-   */
   async logout(refreshToken: string): Promise<void> {
     await prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
   }
 
-  /**
-   * Normalize Kenyan phone number to E.164 format (+254...).
-   */
   private normalizePhone(phone: string): string {
     let cleaned = phone.replace(/[\s\-\(\)]/g, '');
     if (cleaned.startsWith('0')) {
@@ -174,9 +168,22 @@ export class AuthService {
     }
     return cleaned;
   }
-}
 
-// Dev fallback OTP store (only used when Supabase phone auth isn't configured)
-const devOtpStore = new Map<string, { code: string; expiresAt: number }>();
+  private enforceOtpRateLimit(normalizedPhone: string): void {
+    const now = Date.now();
+    const record = otpAttempts.get(normalizedPhone);
+
+    if (!record || now - record.windowStartedAt > OTP_WINDOW_MS) {
+      otpAttempts.set(normalizedPhone, { count: 1, windowStartedAt: now });
+      return;
+    }
+
+    if (record.count >= OTP_MAX_ATTEMPTS) {
+      throw new AppError(429, 'Too many OTP requests. Try again in 10 minutes.');
+    }
+
+    record.count += 1;
+  }
+}
 
 export const authService = new AuthService();

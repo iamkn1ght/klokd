@@ -72,71 +72,8 @@ router.get('/monthly/:year/:month', authenticate, authorize('WORKER'), async (re
   res.json({ success: true, data: result });
 });
 
-// ─── Daraja Callbacks ───────────────────────────────────
-
-// STK Push callback (escrow funding confirmation)
-router.post('/callback/stk', async (req: Request, res: Response) => {
-  const body = req.body?.Body?.stkCallback;
-  if (!body) {
-    res.json({ ResultCode: 0, ResultDesc: 'Accepted' });
-    return;
-  }
-
-  const checkoutRequestId = body.CheckoutRequestID;
-  const resultCode = body.ResultCode;
-
-  if (resultCode === 0) {
-    // Find escrow by STK ref and confirm
-    const escrow = await prisma.escrow.findFirst({
-      where: { stkPushRef: checkoutRequestId },
-    });
-    if (escrow) {
-      await paymentService.confirmEscrowFunding(escrow.id, checkoutRequestId);
-    }
-  }
-
-  res.json({ ResultCode: 0, ResultDesc: 'Accepted' });
-});
-
-// B2C result callback (worker payment confirmation)
-router.post('/callback/b2c', async (req: Request, res: Response) => {
-  const result = req.body?.Result;
-  if (!result) {
-    res.json({ ResultCode: 0, ResultDesc: 'Accepted' });
-    return;
-  }
-
-  const conversationId = result.ConversationID;
-  const resultCode = result.ResultCode;
-
-  const payment = await prisma.payment.findFirst({
-    where: { darajaRef: conversationId },
-  });
-
-  if (payment) {
-    if (resultCode === 0) {
-      await paymentService.confirmDisbursement(payment.id, conversationId);
-    } else {
-      await paymentService.handlePaymentFailure(payment.id);
-    }
-  }
-
-  res.json({ ResultCode: 0, ResultDesc: 'Accepted' });
-});
-
-// B2C timeout callback
-router.post('/callback/timeout', async (req: Request, res: Response) => {
-  const conversationId = req.body?.Result?.ConversationID;
-  if (conversationId) {
-    const payment = await prisma.payment.findFirst({
-      where: { darajaRef: conversationId },
-    });
-    if (payment) {
-      await paymentService.handlePaymentFailure(payment.id);
-    }
-  }
-  res.json({ ResultCode: 0, ResultDesc: 'Accepted' });
-});
+// Daraja callbacks removed per AD-K01. Payment rail status transitions arrive
+// at POST /api/v1/webhooks/rails/payment-rail (HMAC-verified).
 
 // ─── Admin: Reconciliation ──────────────────────────────
 

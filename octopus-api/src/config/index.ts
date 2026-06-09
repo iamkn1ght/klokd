@@ -1,9 +1,15 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+// Klokd v3 — Configuration
+// Per AD-K01/02/03 cardinal rules: Klokd never holds Daraja credentials,
+// never calls Africa's Talking directly, never stores National ID images.
+// All such concerns flow through KMV rails (Identiti / Todoku / Kipkiren Pay).
+
 export const config = {
   port: parseInt(process.env.PORT || '3000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
+  region: process.env.AWS_REGION || 'eu-west-1', // Platform standard
 
   jwt: {
     secret: process.env.JWT_SECRET || 'dev-secret-change-me',
@@ -12,30 +18,49 @@ export const config = {
     refreshExpiry: process.env.JWT_REFRESH_EXPIRY || '7d',
   },
 
-  otp: {
-    apiKey: process.env.AT_API_KEY || '',
-    username: process.env.AT_USERNAME || '',
-    senderId: process.env.AT_SENDER_ID || 'Klokd',
-    expiryMinutes: 5,
-    maxAttempts: 3,
-    windowMinutes: 10,
+  // ─── KMV Platform Rails ─────────────────────────────────
+
+  // Identiti — account UUID, KYC, phone tokens, step-up (AD-K02, AD-K10)
+  identiti: {
+    baseUrl: process.env.IDENTITI_BASE_URL || '',
+    apiKey: process.env.IDENTITI_API_KEY || '',
+    webhookSecret: process.env.IDENTITI_WEBHOOK_SECRET || '',
   },
 
-  daraja: {
-    consumerKey: process.env.DARAJA_CONSUMER_KEY || '',
-    consumerSecret: process.env.DARAJA_CONSUMER_SECRET || '',
-    passkey: process.env.DARAJA_PASSKEY || '',
-    shortcode: process.env.DARAJA_SHORTCODE || '',
-    b2cSecurityCredential: process.env.DARAJA_B2C_SECURITY_CREDENTIAL || '',
-    env: process.env.DARAJA_ENV || 'sandbox',
+  // Todoku — SMS, OTP, WhatsApp (AD-K03)
+  // Klokd is registered as external billed tenant id "klokd"
+  todoku: {
+    baseUrl: process.env.TODOKU_BASE_URL || '',
+    apiKey: process.env.TODOKU_API_KEY || '',
+    tenantId: process.env.TODOKU_TENANT_ID || 'klokd',
+    webhookSecret: process.env.TODOKU_WEBHOOK_SECRET || '',
   },
 
+  // Payment Rail — escrow, payouts, wallets (AD-K01, AD-K06, AD-K07)
+  // Phase 1: Kipkiren Pay sandbox · Phase 3: LipaStack (env-only change)
+  paymentRail: {
+    baseUrl: process.env.PAYMENT_RAIL_BASE_URL || '',
+    apiKey: process.env.PAYMENT_RAIL_API_KEY || '',
+    webhookSecret: process.env.PAYMENT_RAIL_WEBHOOK_SECRET || '',
+  },
+
+  // Hakken — geo-indexed discovery (AD-K09)
+  // Phase 1: register entities only · Phase 3: query for shift feed + worker ranking
+  hakken: {
+    baseUrl: process.env.HAKKEN_BASE_URL || '',
+    apiKey: process.env.HAKKEN_API_KEY || '',
+  },
+
+  // ─── Klokd-Owned Infrastructure ─────────────────────────
+
+  // Supabase — Klokd's own DB + storage (pay statements + contracts only — AD-K04)
   supabase: {
     url: process.env.SUPABASE_URL || '',
     serviceKey: process.env.SUPABASE_SERVICE_KEY || '',
     storageBucket: process.env.SUPABASE_STORAGE_BUCKET || 'klokd-documents',
   },
 
+  // FCM via Expo — direct integration (AD-K05; Todoku does NOT handle push)
   expoPush: {
     accessToken: process.env.EXPO_PUSH_TOKEN || '',
   },
@@ -49,6 +74,7 @@ export const config = {
     section37BlockDays: 30,
     minRatingsForDisplay: 3,
     dataRetentionYears: 7,
+    payoutStepUpThresholdKes: parseInt(process.env.PAYOUT_STEP_UP_THRESHOLD_KES || '20000', 10),
   },
 
   defaultTenantId: 'klokd-ke-default',

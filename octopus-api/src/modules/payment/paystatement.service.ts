@@ -52,7 +52,7 @@ export class PayStatementService {
       doc.fontSize(9).font('Helvetica').fillColor('#6B7280')
         .text(`Reference: ${payment.id}`);
       doc.text(`Date: ${payment.paidAt?.toISOString().split('T')[0] || 'Pending'}`);
-      doc.text(`Daraja Ref: ${payment.darajaRef || 'N/A'}`);
+      doc.text(`M-Pesa Ref: ${payment.mpesaRef || payment.darajaRef || 'N/A'}`);
       doc.moveDown(1);
 
       // Worker & Employer info
@@ -173,7 +173,7 @@ export class PayStatementService {
         location: p.shift.locationName,
         grossKes: p.grossKes,
         netKes: p.netKes,
-        darajaRef: p.darajaRef,
+        mpesaRef: p.mpesaRef ?? p.darajaRef,
       })),
       totals,
     };

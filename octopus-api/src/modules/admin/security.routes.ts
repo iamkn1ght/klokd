@@ -98,7 +98,7 @@ router.get('/owasp-check', authenticate, authorize('ADMIN'), async (_req: Reques
         { id: 'A07', name: 'Auth Failures', status: 'MITIGATED', detail: 'OTP rate limited, JWT expiry 15min, refresh token rotation' },
         { id: 'A08', name: 'Data Integrity Failures', status: 'MITIGATED', detail: 'Webhook HMAC-SHA256 signatures, shift event immutable log' },
         { id: 'A09', name: 'Logging Failures', status: 'MITIGATED', detail: 'AuditLog on all sensitive operations, IP hashed (DPA compliant)' },
-        { id: 'A10', name: 'SSRF', status: 'LOW_RISK', detail: 'Only outbound calls to Daraja API (hardcoded base URL)' },
+        { id: 'A10', name: 'SSRF', status: 'LOW_RISK', detail: 'Outbound only to KMV rails (Identiti, Todoku, Payment Rail, Hakken) via env-configured base URLs' },
       ],
     },
   });
