@@ -21,9 +21,12 @@ export const config = {
   // ─── KMV Platform Rails ─────────────────────────────────
 
   // Identiti — account UUID, KYC, phone tokens, step-up (AD-K02, AD-K10)
+  // Per-request HMAC-SHA256 signing (operator request §4). NOT bearer token.
+  // Webhook secret deferred until ID-14 Phase 2 — events flow via Kafka today.
   identiti: {
     baseUrl: process.env.IDENTITI_BASE_URL || '',
-    apiKey: process.env.IDENTITI_API_KEY || '',
+    appId: process.env.IDENTITI_APP_ID || '',
+    appSecret: process.env.IDENTITI_APP_SECRET || '',
     webhookSecret: process.env.IDENTITI_WEBHOOK_SECRET || '',
   },
 
