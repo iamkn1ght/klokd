@@ -44,11 +44,14 @@ export const config = {
     webhookSecret: process.env.TODOKU_WEBHOOK_SECRET || '',
   },
 
-  // Payment Rail — escrow, payouts, wallets (AD-K01, AD-K06, AD-K07)
+  // Payment Rail — accounts, holds, payouts (AD-K01, AD-K06, AD-K07)
   // Phase 1: Kipkiren Pay sandbox · Phase 3: LipaStack (env-only change)
+  // Per-request HMAC-SHA256 signing, base64 signature output.
+  // APP_SECRET is base64url-43 (KP follows Todoku encoding, not Identiti's hex-64).
   paymentRail: {
-    baseUrl: process.env.PAYMENT_RAIL_BASE_URL || '',
-    apiKey: process.env.PAYMENT_RAIL_API_KEY || '',
+    baseUrl: process.env.PAYMENT_RAIL_API_BASE || process.env.PAYMENT_RAIL_BASE_URL || '',
+    appId: process.env.PAYMENT_RAIL_APP_ID || '',
+    appSecret: process.env.PAYMENT_RAIL_APP_SECRET || '',
     webhookSecret: process.env.PAYMENT_RAIL_WEBHOOK_SECRET || '',
   },
 

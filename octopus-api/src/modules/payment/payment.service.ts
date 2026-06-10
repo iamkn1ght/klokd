@@ -4,16 +4,22 @@ import { AppError } from '../../middleware/errorHandler';
 import { complianceService } from '../compliance/compliance.service';
 import { logAudit } from '../../utils/auditLogger';
 import { paymentRailClient, identityRailClient } from '../rails';
+import { PAYOUT_STEP_UP_THRESHOLD_KES } from '../rails/payment-rail.dto';
 
 // Klokd v3 — Payment Service (C4: revised S16-01)
 // All payments flow through the KMV payment rail (PaymentRailClient).
-// Klokd never calls Daraja. Webhook updates from the rail land at
-// POST /api/v1/webhooks/rails/payment-rail.
+// Klokd never calls Daraja. KP wire status updates arrive via the rail
+// webhook (POST /api/v1/webhooks/rails/payment-rail).
+//
+// KP vocabulary mapping (per handover 2026-06-10):
+//   Klokd "escrow"   = KP "hold"
+//   Klokd "release"  = KP "release"
+//   Klokd "reverse"  = KP "refund"
 
 export class PaymentService {
   /**
-   * Initiate escrow funding via the payment rail.
-   * Status transitions to FUNDED arrive via the ESCROW_FUNDED webhook.
+   * Create a KP hold (Klokd's "escrow funding") when an employer confirms a shift.
+   * Status transitions to RESERVED arrive via the HOLD_RESERVED webhook.
    */
   async initiateEscrow(
     shiftId: string,
@@ -23,7 +29,7 @@ export class PaymentService {
   ) {
     const employer = await prisma.employer.findUnique({ where: { id: employerId } });
     if (!employer?.accountUuid) {
-      throw new AppError(422, 'Employer has no Identiti account — escrow cannot be funded');
+      throw new AppError(422, 'Employer has no Identiti account — hold cannot be created');
     }
 
     const shift = await prisma.shift.findUnique({
@@ -31,7 +37,7 @@ export class PaymentService {
       include: { worker: { select: { accountUuid: true } } },
     });
     if (!shift?.worker?.accountUuid) {
-      throw new AppError(422, 'Worker has no Identiti account — escrow cannot be funded');
+      throw new AppError(422, 'Worker has no Identiti account — hold cannot be created');
     }
 
     const feeKes = Math.round(amountKes * (config.platform.feePercent / 100));
@@ -47,24 +53,27 @@ export class PaymentService {
       },
     });
 
-    const railResp = await paymentRailClient.fundEscrow({
-      shiftId,
-      employerAccountUuid: employer.accountUuid,
-      amountGrossKes: amountKes,
-      feeRate: config.platform.feePercent / 100,
-      workerAccountUuid: shift.worker.accountUuid,
-      idempotencyKey: `escrow-${escrow.id}`,
+    const hold = await paymentRailClient.createHold({
+      payerAccountUuid: employer.accountUuid as `acc_${string}`,
+      payeeAccountUuid: shift.worker.accountUuid as `acc_${string}`,
+      amountKes: amountKes + feeKes,
+      purpose: `klokd_shift_escrow_${shiftId}`,
+      idempotencyKey: `hold-${escrow.id}`,
     });
 
     return prisma.escrow.update({
       where: { id: escrow.id },
-      data: { stkPushRef: railResp.escrowRef },
+      // stkPushRef column repurposed as hold_id reference for backward compat.
+      data: { stkPushRef: hold.holdId },
     });
   }
 
   /**
-   * Disburse payment to worker via the payment rail.
-   * Compliance deductions calculated by Klokd; amounts passed to the rail.
+   * Disburse payment to worker via KP payout.
+   * For payouts above KES 10k threshold (per KP rail contract §12.2), require
+   * an Identiti step-up token with audience=kipkiren_pay and
+   * operation_kind=kipkiren_pay.payout.initiate (NOT a custom klokd.* kind —
+   * KP-bound step-ups must use KP's pre-registered operation kinds).
    */
   async disbursePayment(shiftId: string, tenantId: string) {
     const shift = await prisma.shift.findUnique({
@@ -73,16 +82,16 @@ export class PaymentService {
     });
 
     if (!shift || !shift.workerId || !shift.escrow) {
-      throw new AppError(404, 'Shift or escrow not found');
+      throw new AppError(404, 'Shift or hold not found');
     }
     if (shift.escrow.status !== 'FUNDED') {
-      throw new AppError(422, 'Escrow not funded');
+      throw new AppError(422, 'Hold not reserved');
     }
     if (!shift.worker?.accountUuid) {
       throw new AppError(422, 'Worker has no Identiti account — payout cannot be initiated');
     }
     if (!shift.escrow.stkPushRef) {
-      throw new AppError(422, 'Escrow has no rail reference — payout cannot be initiated');
+      throw new AppError(422, 'Hold has no rail reference — payout cannot be initiated');
     }
 
     const deductions = await complianceService.calculateDeductions(tenantId, shift.rateKes);
@@ -108,26 +117,21 @@ export class PaymentService {
       },
     });
 
-    // High-value payout step-up via Identiti (AD-K01).
-    // BLOCKER: Identiti's operation_kind enum is hard-coded per app; klokd.payout
-    // is not yet registered (only kipkiren_pay.* kinds are accepted as of
-    // 2026-06-09 against klokd_sandbox). Until Silvia registers klokd.payout,
-    // this branch will throw at the rail.
-    let stepUpJwt: string | undefined;
-    if (deductions.netKes > config.platform.payoutStepUpThresholdKes) {
+    // Step-up for payouts above KES 10k (KP rail policy, not Klokd policy).
+    let stepUpToken: string | undefined;
+    if (deductions.netKes > PAYOUT_STEP_UP_THRESHOLD_KES) {
       const accountUuid = shift.worker.accountUuid as `acc_${string}`;
       const challenge = await identityRailClient.createStepUpChallenge({
         accountUuid,
-        operationAudience: 'https://api.klokd.co.ke',
-        operationKind: 'klokd.payout',
+        operationAudience: 'kipkiren_pay',
+        operationKind: 'kipkiren_pay.payout.initiate',
         operationRiskTier: 'high',
         factor: 'phone_otp',
       });
 
-      // In production the OTP arrives via Todoku; the user submits it through a
-      // separate endpoint. For now we surface the challenge id back to the caller
-      // and fail the disbursement — the caller (employer release flow) will need
-      // a 2-step UX. This is documented as v3 follow-up work.
+      // Caller (employer release flow) must submit OTP through a separate
+      // endpoint that calls verifyStepUpChallenge and stores the resulting
+      // JWT to reattempt this disbursement. v3 follow-up work.
       await prisma.payment.update({ where: { id: payment.id }, data: { status: 'FAILED' } });
       throw new AppError(
         202,
@@ -136,23 +140,23 @@ export class PaymentService {
       );
     }
 
-    const railResp = await paymentRailClient.initiatePayout({
-      workerAccountUuid: shift.worker.accountUuid,
-      netAmountKes: deductions.netKes,
-      shiftId,
-      escrowRef: shift.escrow.stkPushRef,
+    const payoutResp = await paymentRailClient.initiatePayout({
+      workerAccountUuid: shift.worker.accountUuid as `acc_${string}`,
+      amountKes: deductions.netKes,
+      holdId: shift.escrow.stkPushRef,
       feeAmountKes: shift.escrow.feeKes,
-      stepUpJwt,
+      stepUpToken,
       idempotencyKey: `payout-${payment.id}`,
     });
 
     await prisma.payment.update({
       where: { id: payment.id },
-      data: { paymentRailRef: railResp.paymentId },
+      data: { paymentRailRef: payoutResp.payoutId },
     });
 
-    await paymentRailClient.releaseEscrow({
-      escrowRef: shift.escrow.stkPushRef,
+    // Release the hold (settles funds to worker via the payout pipeline).
+    await paymentRailClient.releaseHold({
+      holdId: shift.escrow.stkPushRef,
       idempotencyKey: `release-${shift.escrow.id}`,
     });
 
@@ -190,10 +194,6 @@ export class PaymentService {
     return payment;
   }
 
-  /**
-   * Handle payment failure with retry logic.
-   * Rail-side failures arrive via PAYOUT_FAILED webhook; this is the retry kick.
-   */
   async handlePaymentFailure(paymentId: string) {
     const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
     if (!payment) throw new AppError(404, 'Payment not found');
@@ -245,6 +245,42 @@ export class PaymentService {
     });
 
     return payment;
+  }
+
+  /**
+   * Dispute resolution: refund the hold back to the employer.
+   * KP terminology: "refund" not "reverse".
+   */
+  async refundEscrow(shiftId: string, tenantId: string, actorId: string) {
+    const shift = await prisma.shift.findUnique({
+      where: { id: shiftId },
+      include: { escrow: true },
+    });
+
+    if (!shift?.escrow?.stkPushRef) {
+      throw new AppError(404, 'Hold not found for shift');
+    }
+
+    await paymentRailClient.refundHold({
+      holdId: shift.escrow.stkPushRef,
+      idempotencyKey: `refund-${shift.escrow.id}`,
+    });
+
+    await prisma.escrow.update({
+      where: { id: shift.escrow.id },
+      data: { status: 'REFUNDED' },
+    });
+
+    await logAudit({
+      tenantId,
+      actorId,
+      action: 'escrow.refunded',
+      resource: 'escrow',
+      resourceId: shift.escrow.id,
+      metadata: { shiftId, holdId: shift.escrow.stkPushRef },
+    });
+
+    return { status: 'REFUNDED' };
   }
 }
 

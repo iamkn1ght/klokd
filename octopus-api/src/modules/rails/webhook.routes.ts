@@ -115,6 +115,14 @@ router.post(
 );
 
 // ─── Payment Rail (Kipkiren Pay → LipaStack) ─────────────
+//
+// KP rail emits to Kafka today (kp.wallet.events, kp.payout.events,
+// kp.hold.events). This HTTP handler activates when KP ships fork-2 (webhook
+// signer service) and PAYMENT_RAIL_WEBHOOK_SECRET lands. Until then the route
+// returns 503 via the HMAC verify shim if the secret is unset.
+//
+// Event shapes per KP handover 2026-06-10 (data field; raw envelope wraps it
+// with topic/type/key/occurred_at):
 
 router.post(
   '/payment-rail',
@@ -122,45 +130,58 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const payload = getParsed<PaymentRailWebhookPayload>(req);
-      switch (payload.event) {
-        case 'ESCROW_FUNDED': {
-          if (payload.escrowRef) {
-            await prisma.escrow.updateMany({
-              where: { stkPushRef: payload.escrowRef },
-              data: { status: 'FUNDED', fundedAt: new Date() },
-            });
-          }
+      switch (payload.type) {
+        case 'HOLD_RESERVED': {
+          // Klokd's old "ESCROW_FUNDED" — hold is reserved, shift can clock in.
+          await prisma.escrow.updateMany({
+            where: { stkPushRef: payload.data.holdId },
+            data: { status: 'FUNDED', fundedAt: new Date(payload.occurredAt) },
+          });
           break;
         }
-        case 'ESCROW_FUND_FAILED': {
-          if (payload.escrowRef) {
-            await prisma.escrow.updateMany({
-              where: { stkPushRef: payload.escrowRef },
-              data: { status: 'PENDING' },
-            });
-          }
+        case 'HOLD_RELEASED': {
+          await prisma.escrow.updateMany({
+            where: { stkPushRef: payload.data.holdId },
+            data: { status: 'RELEASED', releasedAt: new Date(payload.occurredAt) },
+          });
+          break;
+        }
+        case 'HOLD_REFUNDED': {
+          await prisma.escrow.updateMany({
+            where: { stkPushRef: payload.data.holdId },
+            data: { status: 'REFUNDED' },
+          });
           break;
         }
         case 'PAYOUT_COMPLETED': {
-          if (payload.paymentId) {
-            await prisma.payment.updateMany({
-              where: { paymentRailRef: payload.paymentId },
-              data: {
-                status: 'COMPLETED',
-                paidAt: payload.settledAt ? new Date(payload.settledAt) : new Date(),
-                mpesaRef: payload.mpesaRef ?? null,
-              },
-            });
-          }
+          await prisma.payment.updateMany({
+            where: { paymentRailRef: payload.data.payoutId },
+            data: {
+              status: 'COMPLETED',
+              paidAt: new Date(payload.occurredAt),
+              // KP uses mpesa_conversation_id for payouts (vs mpesa_receipt for topups).
+              mpesaRef: payload.data.mpesaConversationId,
+            },
+          });
           break;
         }
         case 'PAYOUT_FAILED': {
-          if (payload.paymentId) {
-            await prisma.payment.updateMany({
-              where: { paymentRailRef: payload.paymentId },
-              data: { status: 'FAILED' },
-            });
-          }
+          await prisma.payment.updateMany({
+            where: { paymentRailRef: payload.data.payoutId },
+            data: { status: 'FAILED' },
+          });
+          await logAudit({
+            tenantId: config.defaultTenantId,
+            actorId: 'payment-rail',
+            action: 'payout.failed',
+            resource: 'payment',
+            resourceId: payload.data.payoutId,
+            metadata: {
+              resultCode: payload.data.resultCode,
+              failureReason: payload.data.failureReason,
+              refunded: payload.data.refunded,
+            },
+          });
           break;
         }
         case 'WALLET_CREDITED': {
@@ -169,8 +190,14 @@ router.post(
             actorId: 'payment-rail',
             action: 'wallet.credited',
             resource: 'wallet',
-            resourceId: payload.walletId ?? 'unknown',
-            metadata: { settledAt: payload.settledAt },
+            resourceId: payload.data.walletId,
+            metadata: {
+              accountUuid: payload.data.accountUuid,
+              amountKes: payload.data.amountKes,
+              referenceType: payload.data.referenceType,
+              mpesaReceipt: payload.data.mpesaReceipt,
+              occurredAt: payload.occurredAt,
+            },
           });
           break;
         }

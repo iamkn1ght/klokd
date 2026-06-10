@@ -1,107 +1,221 @@
+import crypto from 'crypto';
 import { config } from '../../config';
 import { AppError } from '../../middleware/errorHandler';
-import type {
-  PaymentRailWalletRequest,
-  PaymentRailWalletResponse,
-  PaymentRailBalanceResponse,
-  PaymentRailLimitsResponse,
-  PaymentRailEscrowFundRequest,
-  PaymentRailEscrowFundResponse,
-  PaymentRailPayoutRequest,
-  PaymentRailPayoutResponse,
-  PaymentRailReleaseRequest,
+import {
+  toKpMinor,
+  fromKpMinor,
+  type PaymentRailCreateAccountRequest,
+  type PaymentRailCreateAccountResponse,
+  type PaymentRailWalletResponse,
+  type PaymentRailHoldRequest,
+  type PaymentRailHoldResponse,
+  type PaymentRailHoldActionRequest,
+  type PaymentRailPayoutRequest,
+  type PaymentRailPayoutResponse,
+  type PaymentRailWalletId,
+  type PaymentRailAccountUuid,
+  type PaymentRailHoldId,
+  type PaymentRailPayoutId,
 } from './payment-rail.dto';
 
 // Klokd v3 — Payment Rail Client (S3-NEW-03)
-// Rail-agnostic by design. Phase 1: Kipkiren Pay sandbox. Phase 3: LipaStack.
-// The base URL changes via env var only. This class name must NEVER reference
-// a specific rail (no KipkirenPayClient, no LipaStackClient).
+// Rail-agnostic by NAME. Phase 1: Kipkiren Pay. Phase 3: LipaStack.
+// Per AD-K06, this class is NEVER renamed to KipkirenPayClient — the env var
+// PAYMENT_RAIL_API_BASE flips at Phase 3 and the client stays.
 //
-// AD-K06: PAYMENT_RAIL_BASE_URL must come from env, never hardcoded.
-// AD-K07: All responses pass through typed DTOs at this boundary.
+// Aligned to Kipkiren Pay live wire contract per handover 2026-06-10.
+//
+// Wire format (per platform-shared/dist/hmac.js verified live for Identiti + Todoku):
+//   Authorization: KipkirenPay-HMAC-SHA256 app_id=<id>, signature=<base64>
+//   X-KipkirenPay-Timestamp: <RFC 3339>
+//   X-Idempotency-Key: <UUIDv4>  (writes)
+// Canonical: METHOD\nPATH_AND_QUERY\nCONTENT_TYPE\nTIMESTAMP\nSHA256_HEX(body)
+//
+// Vocabulary: KP calls escrow "holds" and reverse "refund". DTOs use Klokd's
+// semantic names externally; this file maps to wire terms internally.
+//
+// UNITS: KP carries KES MINOR units (bigint) everywhere. This file converts
+// at the boundary. Business logic NEVER sees minor units.
+
+interface RailEnvelope<T> {
+  ok: boolean;
+  data?: T;
+  error?: { code: string; message: string; detail?: unknown; field?: string };
+  meta?: { request_id?: string; timestamp?: string };
+}
 
 class PaymentRailClient {
   private get baseUrl(): string {
     return config.paymentRail.baseUrl;
   }
 
-  private get apiKey(): string {
-    return config.paymentRail.apiKey;
+  private get appId(): string {
+    return config.paymentRail.appId;
+  }
+
+  private get appSecret(): string {
+    return config.paymentRail.appSecret;
+  }
+
+  private assertConfigured(): void {
+    if (!this.baseUrl || !this.appId || !this.appSecret) {
+      throw new AppError(
+        503,
+        'RAIL_CONFIG_INCOMPLETE: payment_rail (set PAYMENT_RAIL_API_BASE, PAYMENT_RAIL_APP_ID, PAYMENT_RAIL_APP_SECRET)'
+      );
+    }
+  }
+
+  private sign(method: string, path: string, contentType: string, timestamp: string, body: string): string {
+    const bodyHash = crypto.createHash('sha256').update(body, 'utf8').digest('hex');
+    const canonical = [method, path, contentType, timestamp, bodyHash].join('\n');
+    return crypto.createHmac('sha256', this.appSecret).update(canonical, 'utf8').digest('base64');
   }
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
-    if (!this.baseUrl || !this.apiKey) {
-      throw new AppError(
-        503,
-        'Payment rail not configured. Set PAYMENT_RAIL_BASE_URL and PAYMENT_RAIL_API_KEY.'
-      );
+    this.assertConfigured();
+
+    const hasBody = body !== undefined && method !== 'GET';
+    const serialized = hasBody ? JSON.stringify(body) : '';
+    const contentType = hasBody ? 'application/json; charset=utf-8' : '';
+    const timestamp = new Date().toISOString();
+    const signature = this.sign(method, path, contentType, timestamp, serialized);
+
+    const headers: Record<string, string> = {
+      Authorization: `KipkirenPay-HMAC-SHA256 app_id=${this.appId}, signature=${signature}`,
+      'X-KipkirenPay-Timestamp': timestamp,
+    };
+    if (hasBody) {
+      headers['Content-Type'] = contentType;
+      headers['X-Idempotency-Key'] = crypto.randomUUID();
     }
 
     const res = await fetch(`${this.baseUrl}${path}`, {
       method,
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: body ? JSON.stringify(body) : undefined,
+      headers,
+      body: hasBody ? serialized : undefined,
     });
+
+    const text = await res.text();
+    let envelope: RailEnvelope<T> | null = null;
+    try { envelope = text.length > 0 ? (JSON.parse(text) as RailEnvelope<T>) : null; } catch { /* opaque */ }
 
     if (!res.ok) {
-      const detail = await res.text().catch(() => '');
-      throw new AppError(502, `Payment rail ${method} ${path} failed (${res.status}): ${detail}`);
+      const code = envelope?.error?.code ?? 'unknown';
+      const msg = envelope?.error?.message ?? `Payment Rail HTTP ${res.status}`;
+      throw new AppError(res.status === 401 ? 401 : 502, `Payment Rail ${method} ${path} failed: ${code} — ${msg}`);
     }
-
-    return res.json() as Promise<T>;
+    if (!envelope || envelope.ok === false || envelope.data === undefined) {
+      throw new AppError(502, `Payment Rail ${method} ${path} returned invalid envelope`);
+    }
+    return envelope.data;
   }
 
-  // ─── Wallets ─────────────────────────────────────────
+  // ─── Accounts + wallets ────────────────────────────────
+  // POST /v1/accounts combines KP account + wallet creation. Tier is set
+  // server-side from Identiti's account.events.TIER_CHANGED Kafka event.
 
-  async createWallet(req: PaymentRailWalletRequest): Promise<PaymentRailWalletResponse> {
-    return this.request<PaymentRailWalletResponse>('POST', '/wallets', {
+  async createAccount(req: PaymentRailCreateAccountRequest): Promise<PaymentRailCreateAccountResponse> {
+    const raw = await this.request<{
+      account_uuid: PaymentRailAccountUuid;
+      wallet_id: PaymentRailWalletId;
+      tier: string;
+    }>('POST', '/v1/accounts', {
       account_uuid: req.accountUuid,
-      type: req.type,
     });
+    return { accountUuid: raw.account_uuid, walletId: raw.wallet_id, tier: raw.tier };
   }
 
-  async getBalance(walletId: string): Promise<PaymentRailBalanceResponse> {
-    return this.request<PaymentRailBalanceResponse>('GET', `/wallets/${walletId}/balance`);
+  async getWallet(accountUuid: PaymentRailAccountUuid): Promise<PaymentRailWalletResponse> {
+    const raw = await this.request<{
+      wallet_id: PaymentRailWalletId;
+      spendable_bal: string;
+      reserved_bal: string;
+      currency: 'KES';
+    }>('GET', `/v1/accounts/${encodeURIComponent(accountUuid)}/wallet`);
+    return {
+      walletId: raw.wallet_id,
+      spendableKes: fromKpMinor(raw.spendable_bal),
+      reservedKes: fromKpMinor(raw.reserved_bal),
+      currency: raw.currency,
+    };
   }
 
-  async getLimits(walletId: string): Promise<PaymentRailLimitsResponse> {
-    return this.request<PaymentRailLimitsResponse>('GET', `/wallets/${walletId}/limits`);
+  // ─── Holds (Klokd's "escrow") ─────────────────────────
+  // POST /v1/holds — reserve funds from payer.
+  // POST /v1/holds/:id/release — settle to payee.
+  // POST /v1/holds/:id/refund — return to payer.
+  // GET  /v1/holds/:id — pending; request from KP if needed.
+
+  async createHold(req: PaymentRailHoldRequest): Promise<PaymentRailHoldResponse> {
+    const raw = await this.request<{
+      hold_id: PaymentRailHoldId;
+      status: PaymentRailHoldResponse['status'];
+      amount_minor: string;
+    }>('POST', '/v1/holds', {
+      payer_account_uuid: req.payerAccountUuid,
+      payee_account_uuid: req.payeeAccountUuid,
+      amount_minor: toKpMinor(req.amountKes).toString(),
+      purpose: req.purpose,
+      idempotency_key: req.idempotencyKey,
+    });
+    return { holdId: raw.hold_id, status: raw.status, amountKes: fromKpMinor(raw.amount_minor) };
   }
 
-  // ─── Escrow ──────────────────────────────────────────
-
-  async fundEscrow(req: PaymentRailEscrowFundRequest): Promise<PaymentRailEscrowFundResponse> {
-    return this.request<PaymentRailEscrowFundResponse>('POST', '/escrow/fund', {
-      shift_id: req.shiftId,
-      employer_account_uuid: req.employerAccountUuid,
-      amount_gross_kes: req.amountGrossKes,
-      fee_rate: req.feeRate,
-      worker_account_uuid: req.workerAccountUuid,
+  async releaseHold(req: PaymentRailHoldActionRequest): Promise<{ status: string }> {
+    return this.request<{ status: string }>('POST', `/v1/holds/${encodeURIComponent(req.holdId)}/release`, {
       idempotency_key: req.idempotencyKey,
     });
   }
 
-  async releaseEscrow(req: PaymentRailReleaseRequest): Promise<{ status: string }> {
-    return this.request<{ status: string }>('POST', `/escrow/${req.escrowRef}/release`, {
+  /** Refund (KP term) maps to Klokd's "reverse escrow". Used for dispute resolution. */
+  async refundHold(req: PaymentRailHoldActionRequest): Promise<{ status: string }> {
+    return this.request<{ status: string }>('POST', `/v1/holds/${encodeURIComponent(req.holdId)}/refund`, {
       idempotency_key: req.idempotencyKey,
     });
   }
 
-  // ─── Payouts ─────────────────────────────────────────
+  // ─── Payouts ──────────────────────────────────────────
 
   async initiatePayout(req: PaymentRailPayoutRequest): Promise<PaymentRailPayoutResponse> {
-    return this.request<PaymentRailPayoutResponse>('POST', '/payouts', {
+    const raw = await this.request<{
+      payout_id: PaymentRailPayoutId;
+      status: PaymentRailPayoutResponse['status'];
+      account_uuid: PaymentRailAccountUuid;
+      amount_minor: string;
+      settled_at?: string;
+    }>('POST', '/v1/payouts/initiate', {
       worker_account_uuid: req.workerAccountUuid,
-      net_amount_kes: req.netAmountKes,
-      shift_id: req.shiftId,
-      escrow_ref: req.escrowRef,
-      fee_amount_kes: req.feeAmountKes,
-      step_up_jwt: req.stepUpJwt,
+      amount_minor: toKpMinor(req.amountKes).toString(),
+      hold_id: req.holdId,
+      fee_amount_minor: toKpMinor(req.feeAmountKes).toString(),
+      step_up_token: req.stepUpToken,
       idempotency_key: req.idempotencyKey,
     });
+    return {
+      payoutId: raw.payout_id,
+      status: raw.status,
+      workerAccountUuid: raw.account_uuid,
+      amountKes: fromKpMinor(raw.amount_minor),
+      settledAt: raw.settled_at,
+    };
+  }
+
+  async getPayout(payoutId: PaymentRailPayoutId): Promise<PaymentRailPayoutResponse> {
+    const raw = await this.request<{
+      payout_id: PaymentRailPayoutId;
+      status: PaymentRailPayoutResponse['status'];
+      account_uuid: PaymentRailAccountUuid;
+      amount_minor: string;
+      settled_at?: string;
+    }>('GET', `/v1/payouts/${encodeURIComponent(payoutId)}`);
+    return {
+      payoutId: raw.payout_id,
+      status: raw.status,
+      workerAccountUuid: raw.account_uuid,
+      amountKes: fromKpMinor(raw.amount_minor),
+      settledAt: raw.settled_at,
+    };
   }
 }
 

@@ -36,17 +36,16 @@ export class PaymentRetryService {
 
       try {
         const railResp = await paymentRailClient.initiatePayout({
-          workerAccountUuid,
-          netAmountKes: payment.netKes,
-          shiftId: payment.shiftId,
-          escrowRef,
+          workerAccountUuid: workerAccountUuid as `acc_${string}`,
+          amountKes: payment.netKes,
+          holdId: escrowRef,
           feeAmountKes: payment.platformFeeKes,
           idempotencyKey: `payout-${payment.id}-retry-${payment.retryCount}`,
         });
 
         await prisma.payment.update({
           where: { id: payment.id },
-          data: { status: 'PROCESSING', paymentRailRef: railResp.paymentId },
+          data: { status: 'PROCESSING', paymentRailRef: railResp.payoutId },
         });
 
         retried++;
