@@ -33,11 +33,14 @@ export const config = {
   },
 
   // Todoku — SMS, OTP, WhatsApp (AD-K03)
-  // Klokd is registered as external billed tenant id "klokd"
+  // Per-request HMAC-SHA256 signing, base64 signature output.
+  // Tenant identity comes from APP_ID inside the Authorization header — there
+  // is no X-Todoku-Tenant header (rail ignores it).
+  // APP_SECRET is base64url-43 (no padding) per Todoku CONTRACT.md.
   todoku: {
-    baseUrl: process.env.TODOKU_BASE_URL || '',
-    apiKey: process.env.TODOKU_API_KEY || '',
-    tenantId: process.env.TODOKU_TENANT_ID || 'klokd',
+    baseUrl: process.env.TODOKU_API_BASE || process.env.TODOKU_BASE_URL || '',
+    appId: process.env.TODOKU_APP_ID || '',
+    appSecret: process.env.TODOKU_APP_SECRET || '',
     webhookSecret: process.env.TODOKU_WEBHOOK_SECRET || '',
   },
 

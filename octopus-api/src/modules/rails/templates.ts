@@ -1,16 +1,17 @@
-// Klokd v3 — Todoku template IDs (S9-NEW-01)
-// Templates must be registered with Todoku before use. WhatsApp templates require
-// Meta approval (24–72h via Todoku's WhatsApp Business Account).
+// Klokd v3 — Todoku template ULIDs (S9-NEW-01)
+// All 8 templates approved + live in Todoku sandbox as of 2026-06-10.
+// Klokd's send logic picks SMS or WhatsApp variant based on channel at runtime.
+// Template IDs are 26-char Crockford ULIDs, NOT slugs.
 
 export const TODOKU_TEMPLATES = {
-  SHIFT_CONFIRMED: 'klokd_shift_confirmed',
-  SHIFT_REMINDER: 'klokd_shift_reminder',
-  PAYMENT_RECEIVED: 'klokd_payment_received',
-  SHIFT_FILLED: 'klokd_shift_filled',
-  DISPUTE_UPDATE: 'klokd_dispute_update',
-  OTP: 'klokd_otp',
-  KMPDC_EXPIRY_60: 'klokdh_kmpdc_expiry_60',
-  KMPDC_EXPIRY_30: 'klokdh_kmpdc_expiry_30',
+  OTP_SMS: '01KTRJ25DNCQ452PWHE2D6VBXY',
+  SHIFT_CONFIRMED_SMS: '01KTRJ2CKHA8AW224ZR8MHNEHV',
+  SHIFT_CONFIRMED_WA: '01KTRJFAR3Z9WTX1TAWG0ANK52',
+  SHIFT_REMINDER_WA: '01KTRJFDYZV04P59RXNE5B3KD7',
+  PAYMENT_RECEIVED_SMS: '01KTRJ2JZ41F1NG77H8DBYS2ZY',
+  PAYMENT_RECEIVED_WA: '01KTRJFJZQWY44N1AQGS7CVZ7K',
+  SHIFT_FILLED_SMS: '01KTRJ2QGCK0HH5R2BP92Q5K57',
+  DISPUTE_UPDATE_SMS: '01KTRJ2TV93A9VW7PGDWB4YFZR',
 } as const;
 
 export type TodokuTemplateId = (typeof TODOKU_TEMPLATES)[keyof typeof TODOKU_TEMPLATES];

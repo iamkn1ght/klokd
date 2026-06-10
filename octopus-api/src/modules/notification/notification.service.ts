@@ -127,7 +127,8 @@ export class NotificationService {
       type: 'shift.confirmed',
       title: 'Shift Confirmed',
       body: `You've been selected for ${shiftRole} at ${venue}. Check your app for details.`,
-      templateId: TODOKU_TEMPLATES.SHIFT_CONFIRMED,
+      // WhatsApp variant preferred; caller can swap to SHIFT_CONFIRMED_SMS if WA fails.
+      templateId: TODOKU_TEMPLATES.SHIFT_CONFIRMED_WA,
       templateVariables: {
         worker_name: worker.firstName,
         role: shiftRole,
@@ -158,7 +159,7 @@ export class NotificationService {
       type: 'payment.sent',
       title: 'Paid!',
       body: `KES ${amountKes.toLocaleString()} has been sent to your M-Pesa.`,
-      templateId: TODOKU_TEMPLATES.PAYMENT_RECEIVED,
+      templateId: TODOKU_TEMPLATES.PAYMENT_RECEIVED_WA,
       templateVariables: {
         worker_name: worker.firstName,
         amount_kes: String(amountKes),

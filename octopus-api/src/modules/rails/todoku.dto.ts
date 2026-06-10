@@ -1,36 +1,31 @@
 // Klokd v3 — Todoku DTOs (AD-K03)
-// All SMS, OTP, and WhatsApp messages flow through Todoku.
-// Klokd holds phone tokens (15-min freshness from Identiti) and template IDs.
-// Phone numbers are never stored in Klokd's database, logs, or message queues.
+// Live wire contract verified 2026-06-10 against todoku-prod-production.up.railway.app.
 
 export type TodokuChannel = 'sms' | 'whatsapp' | 'voice';
 
-export interface TodokuOtpSendRequest {
-  phoneToken: string;
-  templateId: string;
-  variables: Record<string, string>;
-}
-
-export interface TodokuOtpSendResponse {
-  messageId: string;
-  status: 'queued' | 'sent';
-}
-
-export interface TodokuMessageSendRequest {
-  phoneToken: string;
-  templateId: string;
+export interface TodokuSendRequest {
+  recipientToken: string; // Identiti phone_token (15-min freshness)
+  templateId: string; // ULID, NOT slug
   channel: TodokuChannel;
   variables: Record<string, string>;
-  fallbackChannel?: TodokuChannel;
+  idempotencyKey?: string;
 }
 
-export interface TodokuMessageSendResponse {
+export interface TodokuSendResponse {
   messageId: string;
-  status: 'queued' | 'sent';
+  status: 'queued' | 'sent' | 'delivered' | 'failed';
   channel: TodokuChannel;
 }
 
-export type TodokuWebhookEvent = 'MESSAGE_DELIVERED' | 'MESSAGE_FAILED';
+export interface TodokuMessageStatus {
+  messageId: string;
+  status: 'queued' | 'sent' | 'delivered' | 'failed';
+  channel: TodokuChannel;
+  attempts: number;
+  failureReason?: string;
+}
+
+export type TodokuWebhookEvent = 'MESSAGE_DELIVERED' | 'MESSAGE_FAILED' | 'MESSAGE_SENT';
 
 export interface TodokuWebhookPayload {
   event: TodokuWebhookEvent;

@@ -101,12 +101,12 @@ export class AuthService {
       console.log(`[DEV] OTP for ${normalized}: ${challenge.otpPlaintext} (challenge ${challenge.challengeId})`);
     }
 
-    // Also pass through Todoku for delivery confirmation (FCM/SMS).
-    try {
-      await commsRailClient.sendOtp(accountUuid, TODOKU_TEMPLATES.OTP, { expiry_mins: '5' });
-    } catch (err) {
-      console.warn('[AUTH] Todoku OTP delivery failed (non-fatal in sandbox):', err);
-    }
+    // Identiti's createStepUpChallenge already dispatches the OTP through
+    // Todoku internally (see SandboxIdentitiClient resolver). Klokd does NOT
+    // need to call Todoku again for login OTP — would result in a duplicate
+    // SMS. In sandbox, the OTP is also echoed in challenge.otpPlaintext above.
+    void commsRailClient;
+    void TODOKU_TEMPLATES;
 
     return { challengeId: challenge.challengeId, message: 'OTP sent' };
   }
