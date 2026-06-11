@@ -454,6 +454,66 @@ model NotificationLog {
   @@map("notification_log")
 }
 
+// ─── HELPAN AI agent runtime tables ─────────────────────
+// Per KMV_RAILS_INTEGRATION_GUIDE.md §7. Klokd has dual role: consuming app
+// (owns these tables) AND target rail (audit_log captures inbound dispatches).
+
+model DelegatedAuthority {
+  id               String   @id @default(uuid())
+  tenantId         String   @map("tenant_id")
+  accountUuid      String   @map("account_uuid")
+  agentId          String   @map("agent_id")
+  authorityJti     String   @unique @map("authority_jti")
+  /// RS256 JWT captured on issue. Encrypted at rest in production.
+  authorityJwt     String   @map("authority_jwt")
+  scopes           String   @default("[]") // JSON array
+  status           String   @default("ACTIVE")
+  ttlSeconds       Int      @map("ttl_seconds")
+  issuedAt         DateTime @default(now()) @map("issued_at")
+  expiresAt        DateTime @map("expires_at")
+  revokedAt        DateTime? @map("revoked_at")
+
+  @@index([accountUuid])
+  @@index([agentId])
+  @@map("delegated_authorities")
+}
+
+model AgentBriefing {
+  id               String   @id @default(uuid())
+  tenantId         String   @map("tenant_id")
+  accountUuid      String   @map("account_uuid")
+  helpanBriefingId String   @unique @map("helpan_briefing_id")
+  briefingType     String   @map("briefing_type")
+  intent           String   // JSON
+  status           String   @default("ACTIVE")
+  createdAt        DateTime @default(now()) @map("created_at")
+  expiresAt        DateTime @map("expires_at")
+
+  @@index([accountUuid])
+  @@map("agent_briefings")
+}
+
+model AgentAction {
+  id                    String   @id @default(uuid())
+  tenantId              String   @map("tenant_id")
+  accountUuid           String   @map("account_uuid")
+  helpanActionId        String   @unique @map("helpan_action_id")
+  agentId               String   @map("agent_id")
+  delegatedAuthorityJti String   @map("delegated_authority_jti")
+  targetRail            String   @map("target_rail")
+  targetOperation       String   @map("target_operation")
+  businessOpId          String   @map("business_op_id")
+  traceparent           String
+  status                String   @default("PENDING")
+  errorCode             String?  @map("error_code")
+  createdAt             DateTime @default(now()) @map("created_at")
+  completedAt           DateTime? @map("completed_at")
+
+  @@index([accountUuid])
+  @@index([businessOpId])
+  @@map("agent_actions")
+}
+
 // ─── AUDIT LOG (append-only) ────────────────────────────
 
 model AuditLog {

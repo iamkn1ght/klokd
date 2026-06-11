@@ -15,6 +15,10 @@ import ratingRoutes from './modules/rating/rating.routes';
 import adminRoutes from './modules/admin/admin.routes';
 import securityRoutes from './modules/admin/security.routes';
 import railWebhookRoutes from './modules/rails/webhook.routes';
+import demoRoutes from './modules/demo/demo.routes';
+import agentDispatchRoutes from './modules/agent/agent-dispatch.routes';
+import agentRoutes from './modules/agent/agent.routes';
+import path from 'path';
 
 const app = express();
 
@@ -24,6 +28,9 @@ app.use(cors());
 
 // Rail webhooks need raw body for HMAC verification — mount BEFORE express.json()
 app.use('/api/v1/webhooks/rails', railWebhookRoutes);
+
+// Helpan-as-orchestrator forwards dispatches here. Needs raw body for HMAC.
+app.use('/api/v1/agents/dispatch', agentDispatchRoutes);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(morgan('combined'));
@@ -69,6 +76,11 @@ app.use('/api/v1/disputes', disputeRoutes);
 app.use('/api/v1/ratings', ratingRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/security', securityRoutes);
+app.use('/api/v1/agents', agentRoutes);
+app.use('/api/v1/demo', demoRoutes);
+
+// Static demo page — http://localhost:3000/demo.html
+app.use(express.static(path.join(process.cwd(), 'public')));
 
 // ─── Error Handler (must be last) ───────────────────────
 app.use(errorHandler);

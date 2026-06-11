@@ -8,6 +8,7 @@ import { logAudit } from '../../utils/auditLogger';
 import type { IdentitiWebhookPayload } from './identiti.dto';
 import type { TodokuWebhookPayload } from './todoku.dto';
 import type { PaymentRailWebhookPayload } from './payment-rail.dto';
+import type { HelpanWebhookPayload } from './helpan.dto';
 
 // Klokd v3 — Rail webhook ingress.
 // Signature header is X-Webhook-Signature: hmac-sha256(secret, rawBody) hex.
@@ -197,6 +198,99 @@ router.post(
               referenceType: payload.data.referenceType,
               mpesaReceipt: payload.data.mpesaReceipt,
               occurredAt: payload.occurredAt,
+            },
+          });
+          break;
+        }
+      }
+      res.json({ received: true });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// ─── Helpan AI ───────────────────────────────────────────
+// Webhook canonical is UNIQUE — different from request signing:
+//   {TIMESTAMP}\n{PATH}\n{SHA256_HEX(body)}
+// (no method, no content type). Base64 HMAC.
+// Headers: X-Helpan-Webhook-Signature + X-Helpan-Webhook-Timestamp.
+
+function verifyHelpanWebhook(req: Request, _res: Response, next: NextFunction): void {
+  const secret = config.helpan.webhookSecret;
+  if (!secret) {
+    return next(new AppError(503, 'Helpan webhook secret not configured'));
+  }
+
+  const signature = req.header('X-Helpan-Webhook-Signature') || '';
+  const timestamp = req.header('X-Helpan-Webhook-Timestamp') || '';
+  if (!signature || !timestamp) {
+    return next(new AppError(401, 'Missing Helpan webhook signature or timestamp'));
+  }
+
+  const raw = (req.body as Buffer) ?? Buffer.alloc(0);
+  const bodyHash = crypto.createHash('sha256').update(raw).digest('hex');
+  const canonical = [timestamp, req.path, bodyHash].join('\n');
+  const expected = crypto.createHmac('sha256', secret).update(canonical, 'utf8').digest('base64');
+
+  const ok =
+    signature.length === expected.length &&
+    crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+
+  if (!ok) {
+    return next(new AppError(401, 'Invalid Helpan webhook signature'));
+  }
+
+  try {
+    (req as Request & { parsedBody: unknown }).parsedBody = JSON.parse(raw.toString('utf8'));
+  } catch {
+    return next(new AppError(400, 'Helpan webhook body is not JSON'));
+  }
+  next();
+}
+
+router.post(
+  '/helpan',
+  verifyHelpanWebhook,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const payload = getParsed<HelpanWebhookPayload>(req);
+      switch (payload.type) {
+        case 'BRIEFING_MATCHED': {
+          // Worker's standing briefing matched a new shift event. Decide
+          // whether to auto-apply via dispatchAction (will be wired through
+          // an agent decision module — for now log + persist).
+          await logAudit({
+            tenantId: config.defaultTenantId,
+            actorId: 'helpan-ai',
+            action: 'briefing.matched',
+            resource: 'briefing',
+            resourceId: payload.data.briefingId,
+            metadata: {
+              accountUuid: payload.data.accountUuid,
+              eventId: payload.data.eventId,
+              confidence: payload.data.confidence,
+              matchKind: payload.data.detail.matchKind,
+              shiftId: payload.data.detail.shiftId,
+              reasons: payload.data.detail.reasons,
+            },
+          });
+          break;
+        }
+        case 'AUTHORITY_REVOKED': {
+          await prisma.delegatedAuthority.updateMany({
+            where: { authorityJti: payload.data.authorityId },
+            data: { status: 'REVOKED', revokedAt: new Date(payload.occurredAt) },
+          });
+          break;
+        }
+        case 'ACTION_COMPLETED':
+        case 'ACTION_FAILED': {
+          await prisma.agentAction.updateMany({
+            where: { helpanActionId: payload.data.actionId },
+            data: {
+              status: payload.type === 'ACTION_COMPLETED' ? 'COMPLETED' : 'FAILED',
+              completedAt: new Date(payload.occurredAt),
             },
           });
           break;

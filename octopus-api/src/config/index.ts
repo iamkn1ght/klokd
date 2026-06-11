@@ -62,6 +62,18 @@ export const config = {
     apiKey: process.env.HAKKEN_API_KEY || '',
   },
 
+  // Helpan AI — agent runtime rail (per KMV_RAILS_INTEGRATION_GUIDE.md §7)
+  // Klokd has dual role: consuming app (issues authorities, dispatches actions)
+  // AND target rail (receives forwarded dispatches at /agents/dispatch/*).
+  // App ID is LITERAL 'klokd' (NOT klokd_sandbox — Helpan keys on app slug).
+  // Webhook canonical is unique: {TIMESTAMP}\n{PATH}\n{SHA256_HEX(body)}
+  helpan: {
+    baseUrl: process.env.HELPAN_API_BASE || '',
+    appId: process.env.HELPAN_APP_ID || 'klokd',
+    appSecret: process.env.HELPAN_APP_SECRET || '',
+    webhookSecret: process.env.HELPAN_WEBHOOK_SECRET || '',
+  },
+
   // ─── Klokd-Owned Infrastructure ─────────────────────────
 
   // Supabase — Klokd's own DB + storage (pay statements + contracts only — AD-K04)
