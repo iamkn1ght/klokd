@@ -11,14 +11,17 @@ import type { IdentitiAccountUuid, IdentitiTier } from '../rails/identiti.dto';
 
 // Klokd v3 — Auth Service (C1: revised S3-02)
 //
-// IMPORTANT FLOW CHANGE FROM v1:
-// Identiti requires name_first + name_last + consent AT customer creation time.
-// Klokd's current mobile UX captures these AFTER OTP verify. The v3-aligned
-// flow needs Klokd's WelcomeScreen to collect name + consent before requestOtp,
-// OR call PATCH /v1/customers/<uuid> at profile-setup time.
+// FIRST-LOGIN OTP: Klokd-side dispatch via Todoku.
+// Identiti's /v1/stepup/challenges requires customer.state == active, but new
+// customers are created pending_onboarding. The rail has no first-OTP path
+// today (escalation pending with Silvia). For now Klokd generates a 6-digit
+// OTP, persists in-memory with 5-min TTL, and sends via Todoku using the
+// klokd_otp_sms template + phone_token from Identiti. Cardinal rule holds —
+// phone never crosses Klokd's boundary; phone_token does the resolve.
 //
-// This turn: requestOtp accepts an optional name+consent block. When omitted,
-// the call throws so the mobile apps fail loudly and the UX gets rearranged.
+// HIGH-VALUE PAYOUT step-up still uses Identiti's stepup endpoints — those
+// run on already-active customers and the operation_kind enum permits
+// kipkiren_pay.* + app.custom_high_risk for app-defined kinds.
 
 const HEX_TIER_TO_INT: Record<IdentitiTier, number> = {
   tier_0: 0,
@@ -39,16 +42,34 @@ interface RequestOtpProfile {
   marketingConsent?: boolean;
 }
 
+interface PendingOtp {
+  accountUuid: IdentitiAccountUuid;
+  code: string;
+  expiresAt: number;
+}
+
+// challenge_id → pending OTP. Cleared on verify or expiry.
+const pendingOtps = new Map<string, PendingOtp>();
+const OTP_TTL_MS = 5 * 60 * 1000;
+
+function generateOtp(): string {
+  return String(crypto.randomInt(100_000, 1_000_000));
+}
+
+interface RequestOtpResult {
+  challengeId: string;
+  message: string;
+  /** Echoed in dev mode for testing convenience. Stripped in production. */
+  sandboxOtp?: string;
+}
+
 export class AuthService {
   /**
-   * Request OTP. If the user has no Identiti account yet, profile is required
-   * (Identiti rail mandates name_first + name_last + consent at create time).
-   * Returns the step-up challenge_id; mobile app submits OTP to verifyOtp().
+   * Request OTP. New phones require profile (Identiti customer-create
+   * needs nameFirst + nameLast + consent up front). Returns a challenge_id
+   * that must be passed back to verifyOtp.
    */
-  async requestOtp(
-    phone: string,
-    profile?: RequestOtpProfile
-  ): Promise<{ challengeId: string; message: string }> {
+  async requestOtp(phone: string, profile?: RequestOtpProfile): Promise<RequestOtpResult> {
     const normalized = this.normalizePhone(phone);
     this.enforceOtpRateLimit(normalized);
 
@@ -77,6 +98,7 @@ export class AuthService {
       });
       accountUuid = created.accountUuid;
 
+      // Persist immediately so retries skip createCustomer.
       if (user) {
         user = await prisma.user.update({
           where: { id: user.id },
@@ -85,77 +107,88 @@ export class AuthService {
             kycTier: HEX_TIER_TO_INT[created.tier],
           },
         });
+      } else {
+        user = await prisma.user.create({
+          data: {
+            tenantId: config.defaultTenantId,
+            phone: normalized,
+            accountUuid: created.accountUuid,
+            kycTier: HEX_TIER_TO_INT[created.tier],
+            role: 'WORKER',
+            isActive: false,
+          },
+        });
       }
     }
 
-    const challenge = await identityRailClient.createStepUpChallenge({
+    // Klokd-side OTP — generated here, sent via Todoku, verified locally.
+    const code = generateOtp();
+    const challengeId = `klokd_${crypto.randomUUID()}`;
+    pendingOtps.set(challengeId, {
       accountUuid,
-      operationAudience: 'https://api.klokd.co.ke',
-      operationKind: 'klokd.login',
-      operationRiskTier: 'low',
-      factor: 'phone_otp',
+      code,
+      expiresAt: Date.now() + OTP_TTL_MS,
     });
 
-    // Sandbox: if OTP is echoed back, log it server-side for dev convenience.
-    if (challenge.sandboxOnly && challenge.otpPlaintext && config.nodeEnv !== 'production') {
-      console.log(`[DEV] OTP for ${normalized}: ${challenge.otpPlaintext} (challenge ${challenge.challengeId})`);
+    // Send via Todoku. In sandbox the phone token is rejected (cross-rail gap),
+    // so the OTP delivery throws — we catch + log + still return the challenge.
+    try {
+      await commsRailClient.sendNotification(
+        accountUuid,
+        TODOKU_TEMPLATES.OTP_SMS,
+        'sms',
+        { otp_code: code, expiry_mins: '5' }
+      );
+    } catch (err) {
+      console.warn('[AUTH] Todoku OTP delivery failed (will use sandbox echo):', (err as Error).message);
     }
 
-    // Identiti's createStepUpChallenge already dispatches the OTP through
-    // Todoku internally (see SandboxIdentitiClient resolver). Klokd does NOT
-    // need to call Todoku again for login OTP — would result in a duplicate
-    // SMS. In sandbox, the OTP is also echoed in challenge.otpPlaintext above.
-    void commsRailClient;
-    void TODOKU_TEMPLATES;
+    if (config.nodeEnv !== 'production') {
+      console.log(`[DEV] OTP for ${normalized}: ${code} (challenge ${challengeId})`);
+    }
 
-    return { challengeId: challenge.challengeId, message: 'OTP sent' };
+    return {
+      challengeId,
+      message: 'OTP sent',
+      sandboxOtp: config.nodeEnv !== 'production' ? code : undefined,
+    };
   }
 
-  /**
-   * Verify OTP by submitting it to the step-up challenge.
-   * Returns Klokd-issued JWT + refresh token.
-   */
   async verifyOtp(
     phone: string,
     challengeId: string,
-    otp: string,
+    code: string,
     role: UserRole
   ): Promise<{ accessToken: string; refreshToken: string; isNewUser: boolean }> {
     const normalized = this.normalizePhone(phone);
 
     let user = await prisma.user.findUnique({ where: { phone: normalized } });
-    const accountUuid = user?.accountUuid as IdentitiAccountUuid | null | undefined;
-
-    if (!accountUuid) {
+    if (!user?.accountUuid) {
       throw new AppError(400, 'No OTP requested for this phone');
     }
 
-    await identityRailClient.verifyStepUpChallenge({ challengeId, response: otp });
+    const pending = pendingOtps.get(challengeId);
+    if (!pending) throw new AppError(400, 'Invalid or expired challenge');
+    if (Date.now() > pending.expiresAt) {
+      pendingOtps.delete(challengeId);
+      throw new AppError(400, 'OTP expired. Request a new one.');
+    }
+    if (pending.accountUuid !== user.accountUuid) {
+      throw new AppError(400, 'Challenge does not match account');
+    }
+    if (pending.code !== code) throw new AppError(400, 'Invalid OTP');
 
-    // After successful step-up, fetch current tier (Identiti webhook may not yet have fired).
-    const tierResp = await identityRailClient.getTier(accountUuid);
-    const kycTier = HEX_TIER_TO_INT[tierResp.tier];
+    pendingOtps.delete(challengeId);
+    otpAttempts.delete(normalized);
 
-    let isNewUser = false;
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          tenantId: config.defaultTenantId,
-          phone: normalized,
-          accountUuid,
-          kycTier,
-          role,
-        },
-      });
-      isNewUser = true;
-    } else if (user.kycTier !== kycTier) {
+    // First successful verify activates the user.
+    const justActivated = !user.isActive;
+    if (justActivated || user.role !== role) {
       user = await prisma.user.update({
         where: { id: user.id },
-        data: { kycTier },
+        data: { isActive: true, role },
       });
     }
-
-    otpAttempts.delete(normalized);
 
     const payload: JwtPayload = {
       userId: user.id,
@@ -182,12 +215,12 @@ export class AuthService {
     await logAudit({
       tenantId: user.tenantId,
       actorId: user.id,
-      action: isNewUser ? 'user.registered' : 'user.login',
+      action: justActivated ? 'user.registered' : 'user.login',
       resource: 'user',
       resourceId: user.id,
     });
 
-    return { accessToken, refreshToken: refreshTokenValue, isNewUser };
+    return { accessToken, refreshToken: refreshTokenValue, isNewUser: justActivated };
   }
 
   async refreshAccessToken(refreshToken: string): Promise<{ accessToken: string }> {
@@ -195,24 +228,18 @@ export class AuthService {
       where: { token: refreshToken },
       include: { user: true },
     });
-
     if (!stored || stored.expiresAt < new Date()) {
-      if (stored) {
-        await prisma.refreshToken.delete({ where: { id: stored.id } });
-      }
+      if (stored) await prisma.refreshToken.delete({ where: { id: stored.id } });
       throw new AppError(401, 'Invalid or expired refresh token');
     }
-
     const payload: JwtPayload = {
       userId: stored.user.id,
       role: stored.user.role,
       tenantId: stored.user.tenantId,
     };
-
     const accessToken = jwt.sign(payload, config.jwt.secret, {
       expiresIn: config.jwt.expiry as jwt.SignOptions['expiresIn'],
     });
-
     return { accessToken };
   }
 
@@ -222,28 +249,21 @@ export class AuthService {
 
   private normalizePhone(phone: string): string {
     let cleaned = phone.replace(/[\s\-()]/g, '');
-    if (cleaned.startsWith('0')) {
-      cleaned = '254' + cleaned.slice(1);
-    }
-    if (!cleaned.startsWith('+')) {
-      cleaned = '+' + cleaned;
-    }
+    if (cleaned.startsWith('0')) cleaned = '254' + cleaned.slice(1);
+    if (!cleaned.startsWith('+')) cleaned = '+' + cleaned;
     return cleaned;
   }
 
   private enforceOtpRateLimit(normalizedPhone: string): void {
     const now = Date.now();
     const record = otpAttempts.get(normalizedPhone);
-
     if (!record || now - record.windowStartedAt > OTP_WINDOW_MS) {
       otpAttempts.set(normalizedPhone, { count: 1, windowStartedAt: now });
       return;
     }
-
     if (record.count >= OTP_MAX_ATTEMPTS) {
       throw new AppError(429, 'Too many OTP requests. Try again in 10 minutes.');
     }
-
     record.count += 1;
   }
 }
