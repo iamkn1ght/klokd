@@ -30,9 +30,10 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "owner": "kmv209",
     "extra": {
       "eas": {
-        "projectId": "6c161028-7337-4681-b052-a0b571205df0"
+        "projectId": "f29c48de-8704-4c2f-a60a-7c53934e2676"
       }
     }
   }
