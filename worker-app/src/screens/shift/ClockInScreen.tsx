@@ -8,6 +8,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { GradientBtn, IconBtn, Label } from '../../components/Primitives';
+import { AmbientOrbs } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { useApi } from '../../hooks/useApi';
 import { colors, typography } from '../../theme';
@@ -80,6 +81,7 @@ export function ClockInScreen({ navigation, route }: Props) {
 
   return (
     <View style={styles.screen}>
+      <AmbientOrbs intensity="subtle" />
       <View style={styles.header}>
         <IconBtn onPress={() => navigation.goBack()}>
           <Icons.back color={colors.white} size={14} />

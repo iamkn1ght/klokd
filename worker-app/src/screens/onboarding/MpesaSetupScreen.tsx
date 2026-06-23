@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GradientBtn, Eyebrow, Label, StepProgress } from '../../components/Primitives';
+import { AmbientOrbs, FadeUp } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { useApi } from '../../hooks/useApi';
 import { colors, typography } from '../../theme';
@@ -74,32 +75,33 @@ export function MpesaSetupScreen({ navigation }: Props) {
 
   return (
     <View style={styles.screen}>
+      <AmbientOrbs intensity="subtle" />
       <OnbHeader step={4} onBack={() => navigation.goBack()} />
 
-      <View style={styles.titleBlock}>
+      <FadeUp delay={0} style={styles.titleBlock}>
         <Eyebrow color={colors.white40} style={{ marginBottom: 8 }}>Step 5 of 5 · Get paid</Eyebrow>
         <Text style={styles.h2}>Where should we send your money?</Text>
         <Text style={styles.sub}>Your M-Pesa number. Money lands within 30 minutes of every clock-out.</Text>
-      </View>
+      </FadeUp>
 
       <View style={styles.content}>
         {/* Number display */}
-        <View style={styles.numDisplay}>
+        <FadeUp delay={120} style={styles.numDisplay}>
           <Label color={colors.electric} style={{ marginBottom: 6, letterSpacing: 1.54 }}>Safaricom M-Pesa</Label>
           <Text style={styles.bigNumber}>
             {formatted || <Text style={{ color: 'rgba(255,255,255,0.2)' }}>0722 000 000</Text>}
           </Text>
           <Text style={styles.numCounter}>{num.length}/10 digits</Text>
-        </View>
+        </FadeUp>
 
         {/* Guarantee strip */}
-        <View style={styles.guarantee}>
+        <FadeUp delay={220} style={styles.guarantee}>
           <Icons.mpesa color={colors.electric} size={14} />
           <View style={{ flex: 1 }}>
             <Text style={styles.guaranteeTitle}>30-minute guarantee</Text>
             <Text style={styles.guaranteeSub}>KES lands here after every clock-out.</Text>
           </View>
-        </View>
+        </FadeUp>
 
         {/* Numpad */}
         <View style={styles.numpad}>

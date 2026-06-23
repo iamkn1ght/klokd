@@ -9,6 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { GradientBtn, Eyebrow, StepProgress } from '../../components/Primitives';
+import { AmbientOrbs, FadeUp } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { useApi } from '../../hooks/useApi';
 import { colors } from '../../theme';
@@ -122,16 +123,17 @@ export function VerifyIDScreen({ navigation }: Props) {
 
   return (
     <View style={styles.screen}>
+      <AmbientOrbs intensity="subtle" />
       <OnbHeader step={2} onBack={() => navigation.goBack()} />
 
-      <View style={styles.titleBlock}>
+      <FadeUp delay={0} style={styles.titleBlock}>
         <Eyebrow color={colors.white40} style={{ marginBottom: 8 }}>Step 3 of 5 · ID verification</Eyebrow>
         <Text style={styles.h2}>Get your Verified badge.</Text>
         <Text style={styles.sub}>Every worker on Klokd is verified. That's why employers trust you — and why you always work somewhere safe.</Text>
-      </View>
+      </FadeUp>
 
       {/* Badge preview */}
-      <View style={styles.badgeRow}>
+      <FadeUp delay={120} style={styles.badgeRow}>
         <LinearGradient
           colors={[colors.electricAlpha['15'], colors.voltAlpha['10']]}
           start={{ x: 0, y: 0 }}
@@ -148,29 +150,30 @@ export function VerifyIDScreen({ navigation }: Props) {
           </LinearGradient>
           <Text style={styles.badgeText}>VERIFIED WORKER · unlocks all shifts</Text>
         </LinearGradient>
-      </View>
+      </FadeUp>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
         <View style={{ gap: 10 }}>
-          {ZONES.map(z => (
-            <UploadZone
-              key={z.key}
-              label={z.label}
-              meta={z.meta}
-              iconKey={z.iconKey}
-              done={!!state[z.key]}
-              uploading={uploading === z.key}
-              onPress={() => pickImage(z.key)}
-            />
+          {ZONES.map((z, i) => (
+            <FadeUp key={z.key} delay={200 + i * 90}>
+              <UploadZone
+                label={z.label}
+                meta={z.meta}
+                iconKey={z.iconKey}
+                done={!!state[z.key]}
+                uploading={uploading === z.key}
+                onPress={() => pickImage(z.key)}
+              />
+            </FadeUp>
           ))}
         </View>
 
-        <View style={styles.privacyNote}>
+        <FadeUp delay={520} style={styles.privacyNote}>
           <Icons.lock color={colors.white45} size={12} />
           <Text style={styles.privacyText}>
             Encrypted in transit. Stored in Kenya (AWS Cape Town). Your ID number is hashed, never visible to employers.
           </Text>
-        </View>
+        </FadeUp>
       </ScrollView>
 
       <View style={styles.footer}>

@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Chip, GradientBtn, Eyebrow, Label, StepProgress } from '../../components/Primitives';
+import { AmbientOrbs, FadeUp } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { useApi } from '../../hooks/useApi';
 import { colors } from '../../theme';
@@ -62,24 +63,27 @@ export function SkillsScreen({ navigation }: Props) {
 
   return (
     <View style={styles.screen}>
+      <AmbientOrbs intensity="subtle" />
       <OnbHeader step={3} onBack={() => navigation.goBack()} />
 
-      <View style={styles.titleBlock}>
+      <FadeUp delay={0} style={styles.titleBlock}>
         <Eyebrow color={colors.white40} style={{ marginBottom: 8 }}>Step 4 of 5 · Your skills</Eyebrow>
         <Text style={styles.h2}>What work do you do?</Text>
         <Text style={styles.sub}>Pick everything you can do. You'll only see shifts that match.</Text>
-      </View>
+      </FadeUp>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
-        <Label style={{ marginBottom: 10 }}>Hospitality roles · pick any</Label>
-        <View style={styles.chipWrap}>
-          {ROLES.map(r => (
-            <Chip key={r} active={picked.has(r)} onPress={() => toggle(r)}>{r}</Chip>
-          ))}
-          <Chip onPress={() => {}}>+ Other</Chip>
-        </View>
+        <FadeUp delay={120}>
+          <Label style={{ marginBottom: 10 }}>Hospitality roles · pick any</Label>
+          <View style={styles.chipWrap}>
+            {ROLES.map(r => (
+              <Chip key={r} active={picked.has(r)} onPress={() => toggle(r)}>{r}</Chip>
+            ))}
+            <Chip onPress={() => {}}>+ Other</Chip>
+          </View>
+        </FadeUp>
 
-        <View style={styles.certBox}>
+        <FadeUp delay={220} style={styles.certBox}>
           <View style={styles.certHeader}>
             <Label color={colors.white55}>Certificates · optional</Label>
             <Text style={styles.certHeaderSub}>PDF or photo · 5MB max</Text>
@@ -89,14 +93,14 @@ export function SkillsScreen({ navigation }: Props) {
             <Icons.upload color={colors.white55} size={14} />
             <Text style={styles.uploadBtnText}>Upload a certificate</Text>
           </TouchableOpacity>
-        </View>
+        </FadeUp>
 
-        <View style={styles.nudge}>
+        <FadeUp delay={320} style={styles.nudge}>
           <View style={styles.nudgeIcon}>
             <Icons.star color={colors.volt} size={12} />
           </View>
           <Text style={styles.nudgeText}>Certified workers earn ~KES 300 more per shift, on average.</Text>
-        </View>
+        </FadeUp>
       </ScrollView>
 
       <View style={styles.footer}>

@@ -7,6 +7,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-nati
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { GradientBtn, Eyebrow, Label, StepProgress } from '../../components/Primitives';
+import { AmbientOrbs, FadeUp } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { colors, typography } from '../../theme';
 
@@ -64,29 +65,34 @@ export function MpesaSetupScreen({ navigation }: Props) {
 
   return (
     <View style={styles.screen}>
+      <AmbientOrbs intensity="subtle" />
       <EmpOnbHeader step={1} onBack={() => navigation.goBack()} />
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 22, paddingBottom: 120 }}>
-        <Eyebrow color={colors.volt} style={{ marginBottom: 10 }}>STEP 02 · ESCROW</Eyebrow>
-        <Text style={styles.h1}>Fund your M-Pesa escrow</Text>
-        <Text style={styles.sub}>Pre-fund an amount. Workers see you're ready to pay, which means faster fills.</Text>
+        <FadeUp delay={0}>
+          <Eyebrow color={colors.volt} style={{ marginBottom: 10 }}>STEP 02 · ESCROW</Eyebrow>
+          <Text style={styles.h1}>Fund your M-Pesa escrow</Text>
+          <Text style={styles.sub}>Pre-fund an amount. Workers see you're ready to pay, which means faster fills.</Text>
+        </FadeUp>
 
         {/* Big amount display */}
-        <LinearGradient
-          colors={[colors.electricAlpha['10'], colors.electricAlpha['03']]}
-          start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
-          style={styles.amountCard}
-        >
-          <Label color={colors.white50}>Fund amount</Label>
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: 6, marginTop: 10 }}>
-            <Text style={styles.amountKES}>KES</Text>
-            <Text style={styles.amountBig}>{amount.toLocaleString()}</Text>
-          </View>
-          <Text style={styles.amountShifts}>≈ {Math.round(amount / 1800)} shifts</Text>
-        </LinearGradient>
+        <FadeUp delay={120}>
+          <LinearGradient
+            colors={[colors.electricAlpha['10'], colors.electricAlpha['03']]}
+            start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
+            style={styles.amountCard}
+          >
+            <Label color={colors.white50}>Fund amount</Label>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: 6, marginTop: 10 }}>
+              <Text style={styles.amountKES}>KES</Text>
+              <Text style={styles.amountBig}>{amount.toLocaleString()}</Text>
+            </View>
+            <Text style={styles.amountShifts}>≈ {Math.round(amount / 1800)} shifts</Text>
+          </LinearGradient>
+        </FadeUp>
 
         {/* Presets */}
-        <View style={styles.presets}>
+        <FadeUp delay={200} style={styles.presets}>
           {PRESETS.map(p => (
             <TouchableOpacity
               key={p}
@@ -104,10 +110,10 @@ export function MpesaSetupScreen({ navigation }: Props) {
               </Text>
             </TouchableOpacity>
           ))}
-        </View>
+        </FadeUp>
 
         {/* M-Pesa source */}
-        <View style={styles.mpesaSource}>
+        <FadeUp delay={280} style={styles.mpesaSource}>
           <View style={styles.mpesaIcon}>
             <Icons.mpesa color={colors.electric} size={18} />
           </View>
@@ -118,10 +124,10 @@ export function MpesaSetupScreen({ navigation }: Props) {
           <View style={styles.defaultPill}>
             <Text style={styles.defaultText}>DEFAULT</Text>
           </View>
-        </View>
+        </FadeUp>
 
         {/* How escrow works */}
-        <View style={styles.howBox}>
+        <FadeUp delay={360} style={styles.howBox}>
           <Label color={colors.white50} style={{ marginBottom: 10 }}>How escrow works</Label>
           {[
             { n: '1', t: 'You fund', s: 'M-Pesa holds the amount. Worker sees funded badge.' },
@@ -138,7 +144,7 @@ export function MpesaSetupScreen({ navigation }: Props) {
               </View>
             </View>
           ))}
-        </View>
+        </FadeUp>
       </ScrollView>
 
       <View style={styles.footer}>

@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GradientBtn, Chip, Label, IconBtn } from '../../components/Primitives';
+import { AmbientOrbs } from '../../components/KlokdLayout';
 import { Stepper, MoneyLine } from '../../components/EmployerPrimitives';
 import { Icons } from '../../components/Icons';
 import { IE } from '../../components/IconsEmployer';
@@ -57,6 +58,7 @@ export function PostShiftScreen({ navigation }: Props) {
 
   return (
     <View style={styles.screen}>
+      <AmbientOrbs intensity="subtle" />
       <View style={styles.header}>
         <IconBtn onPress={() => navigation.goBack()}>
           <Icons.back color={colors.white} size={14} />

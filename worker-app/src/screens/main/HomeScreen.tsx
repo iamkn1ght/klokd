@@ -7,6 +7,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-nati
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
 import { StatusPill, Label, VLine } from '../../components/Primitives';
+import { AmbientOrbs } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { useApi } from '../../hooks/useApi';
 import { colors, typography } from '../../theme';
@@ -116,6 +117,7 @@ export function HomeScreen({ navigation }: Props) {
 
   return (
     <View style={styles.screen}>
+      <AmbientOrbs intensity="subtle" />
       <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
         {/* Header */}
         <View style={styles.headerRow}>

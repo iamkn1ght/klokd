@@ -6,6 +6,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Label } from '../../components/Primitives';
+import { AmbientOrbs } from '../../components/KlokdLayout';
 import { EscrowMeter } from '../../components/EmployerPrimitives';
 import { Icons } from '../../components/Icons';
 import { colors, typography, gradients } from '../../theme';
@@ -37,6 +38,7 @@ function MiniStat({ l, v, c }: { l: string; v: string; c: string }) {
 export function PayScreen() {
   return (
     <View style={styles.screen}>
+      <AmbientOrbs intensity="subtle" />
       <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
         <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
           <Text style={styles.title}>Pay</Text>

@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GradientBtn, Eyebrow, StepProgress } from '../../components/Primitives';
+import { AmbientOrbs, FadeUp } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { colors } from '../../theme';
 
@@ -56,49 +57,54 @@ export function ConsentScreen({ navigation }: Props) {
 
   return (
     <View style={styles.screen}>
+      <AmbientOrbs intensity="subtle" />
       <OnbHeader step={1} onBack={() => navigation.goBack()} />
-      <View style={styles.titleBlock}>
+      <FadeUp delay={0} style={styles.titleBlock}>
         <Eyebrow color={colors.white40} style={{ marginBottom: 8 }}>Step 2 of 5 · Your data</Eyebrow>
         <Text style={styles.h2}>Before we start — here's exactly what we collect.</Text>
         <Text style={styles.sub}>No surprises. No selling your data. DPA 2019 compliant.</Text>
-      </View>
+      </FadeUp>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
         <View style={{ gap: 8 }}>
           {ITEMS.map((it, i) => {
             const Ico = Icons[it.icon];
             return (
-              <View key={i} style={styles.itemCard}>
-                <View style={{ flexDirection: 'row', gap: 11, alignItems: 'flex-start' }}>
-                  <View style={styles.itemIcon}>
-                    <Ico color={colors.electric} size={it.icon === 'clock' || it.icon === 'pin' || it.icon === 'mpesa' ? 18 : 18} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <View style={styles.itemTop}>
-                      <Text style={styles.itemName}>{it.name}</Text>
-                      <Text style={styles.itemMeta}>{it.meta}</Text>
+              <FadeUp key={i} delay={120 + i * 80}>
+                <View style={styles.itemCard}>
+                  <View style={{ flexDirection: 'row', gap: 11, alignItems: 'flex-start' }}>
+                    <View style={styles.itemIcon}>
+                      <Ico color={colors.electric} size={18} />
                     </View>
-                    <Text style={styles.itemUse}>{it.use}</Text>
-                    <Text style={styles.itemWho}>{it.who}</Text>
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.itemTop}>
+                        <Text style={styles.itemName}>{it.name}</Text>
+                        <Text style={styles.itemMeta}>{it.meta}</Text>
+                      </View>
+                      <Text style={styles.itemUse}>{it.use}</Text>
+                      <Text style={styles.itemWho}>{it.who}</Text>
+                    </View>
                   </View>
                 </View>
-              </View>
+              </FadeUp>
             );
           })}
         </View>
 
-        <View style={styles.agreeBox}>
+        <FadeUp delay={500} style={styles.agreeBox}>
           <Eyebrow style={{ marginBottom: 10 }}>I agree to share</Eyebrow>
           <ConsentToggle label="My identity documents" on={idOK} onPress={() => setIdOK(!idOK)} />
           <View style={{ height: 8 }} />
           <ConsentToggle label="My GPS at clock-in" on={gpsOK} onPress={() => setGpsOK(!gpsOK)} />
-        </View>
+        </FadeUp>
 
-        <Text style={styles.legal}>
-          By continuing, you agree to our{' '}
-          <Text style={styles.link}>Privacy Policy</Text> and{' '}
-          <Text style={styles.link}>Terms</Text>. You can change your consent any time in Me → Privacy.
-        </Text>
+        <FadeUp delay={580}>
+          <Text style={styles.legal}>
+            By continuing, you agree to our{' '}
+            <Text style={styles.link}>Privacy Policy</Text> and{' '}
+            <Text style={styles.link}>Terms</Text>. You can change your consent any time in Me → Privacy.
+          </Text>
+        </FadeUp>
       </ScrollView>
 
       <View style={styles.footer}>

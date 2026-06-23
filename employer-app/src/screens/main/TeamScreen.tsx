@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Chip } from '../../components/Primitives';
+import { AmbientOrbs } from '../../components/KlokdLayout';
 import { StatTile, Worker } from '../../components/EmployerPrimitives';
 import { Icons } from '../../components/Icons';
 import { IE } from '../../components/IconsEmployer';
@@ -28,6 +29,7 @@ export function TeamScreen() {
 
   return (
     <View style={styles.screen}>
+      <AmbientOrbs intensity="subtle" />
       <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
         <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
           <Text style={styles.title}>Team</Text>

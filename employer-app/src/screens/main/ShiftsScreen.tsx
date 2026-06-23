@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Chip, Label, StatusPill } from '../../components/Primitives';
+import { AmbientOrbs } from '../../components/KlokdLayout';
 import { IE } from '../../components/IconsEmployer';
 import { colors, typography, gradients } from '../../theme';
 
@@ -37,6 +38,7 @@ export function ShiftsScreen() {
 
   return (
     <View style={styles.screen}>
+      <AmbientOrbs intensity="subtle" />
       <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
         {/* Header */}
         <View style={styles.headerRow}>

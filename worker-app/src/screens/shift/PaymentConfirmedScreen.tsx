@@ -7,6 +7,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-nati
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { GradientBtn, Label } from '../../components/Primitives';
+import { AmbientOrbs } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { colors, typography } from '../../theme';
 
@@ -33,6 +34,7 @@ export function PaymentConfirmedScreen({ navigation }: Props) {
 
   return (
     <View style={styles.screen}>
+      <AmbientOrbs />
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }}>
         {/* Success */}
         <View style={styles.success}>

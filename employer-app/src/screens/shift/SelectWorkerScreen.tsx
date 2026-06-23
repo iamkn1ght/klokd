@@ -7,6 +7,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-nati
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Chip, Label, IconBtn, GradientBtn } from '../../components/Primitives';
+import { AmbientOrbs } from '../../components/KlokdLayout';
 import { WorkerCard, Worker } from '../../components/EmployerPrimitives';
 import { Icons } from '../../components/Icons';
 import { IE } from '../../components/IconsEmployer';
@@ -32,6 +33,7 @@ export function SelectWorkerScreen({ navigation }: Props) {
 
   return (
     <View style={styles.screen}>
+      <AmbientOrbs intensity="subtle" />
       <View style={styles.header}>
         <IconBtn onPress={() => navigation.goBack()}>
           <Icons.back color={colors.white} size={14} />

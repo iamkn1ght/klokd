@@ -7,6 +7,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-nati
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Label, StatusPill } from '../../components/Primitives';
+import { AmbientOrbs } from '../../components/KlokdLayout';
 import { EmpHeader, StatTile, WorkerCard, EscrowMeter, Worker } from '../../components/EmployerPrimitives';
 import { Icons } from '../../components/Icons';
 import { IE } from '../../components/IconsEmployer';
@@ -66,6 +67,7 @@ function EmpShiftRow({ shift, onPress }: { shift: typeof EMP_SHIFTS[0]; onPress?
 export function DashboardScreen({ navigation }: Props) {
   return (
     <View style={styles.screen}>
+      <AmbientOrbs intensity="subtle" />
       <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
         <EmpHeader greeting="Habari, Wanjiku" />
 

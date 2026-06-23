@@ -7,6 +7,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-nati
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GradientBtn, Chip, Eyebrow, StepProgress } from '../../components/Primitives';
 import { EmpInput } from '../../components/EmployerPrimitives';
+import { AmbientOrbs, FadeUp } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { IE } from '../../components/IconsEmployer';
 import { colors } from '../../theme';
@@ -39,64 +40,71 @@ export function BusinessVerifyScreen({ navigation }: Props) {
 
   return (
     <View style={styles.screen}>
+      <AmbientOrbs intensity="subtle" />
       <EmpOnbHeader step={0} onBack={() => navigation.goBack()} />
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 22, paddingBottom: 120 }}>
-        <Eyebrow color={colors.volt} style={{ marginBottom: 10 }}>STEP 01 · BUSINESS</Eyebrow>
-        <Text style={styles.h1}>Verify your business</Text>
-        <Text style={styles.sub}>We check KRA PIN against the Business Registration Service. Takes ~30 seconds.</Text>
+        <FadeUp delay={0}>
+          <Eyebrow color={colors.volt} style={{ marginBottom: 10 }}>STEP 01 · BUSINESS</Eyebrow>
+          <Text style={styles.h1}>Verify your business</Text>
+          <Text style={styles.sub}>We check KRA PIN against the Business Registration Service. Takes ~30 seconds.</Text>
+        </FadeUp>
 
-        <EmpInput label="Business name" value={bizName} onChangeText={setBizName} />
-        <EmpInput label="KRA PIN" value={kra} onChangeText={setKra} prefix="KE" hint="Encrypted & only used for verification. We never share it." />
+        <FadeUp delay={120}>
+          <EmpInput label="Business name" value={bizName} onChangeText={setBizName} />
+          <EmpInput label="KRA PIN" value={kra} onChangeText={setKra} prefix="KE" hint="Encrypted & only used for verification. We never share it." />
+        </FadeUp>
 
-        <View style={{ marginBottom: 16 }}>
+        <FadeUp delay={220} style={{ marginBottom: 16 }}>
           <Text style={styles.industryLabel}>Industry</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
             {INDUSTRIES.map(ind => (
               <Chip key={ind} active={industry === ind} onPress={() => setIndustry(ind)}>{ind}</Chip>
             ))}
           </View>
-        </View>
+        </FadeUp>
 
         {/* Upload cert */}
-        <TouchableOpacity
-          onPress={() => setDoc(true)}
-          activeOpacity={0.7}
-          style={[
-            styles.uploadBox,
-            docUploaded
-              ? { borderWidth: 1, borderColor: 'rgba(0,229,160,0.33)', backgroundColor: 'rgba(0,229,160,0.03)' }
-              : { borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.white15, backgroundColor: colors.white02 },
-          ]}
-        >
-          {!docUploaded ? (
-            <>
-              <View style={styles.uploadIcon}>
-                <Icons.upload color={colors.white55} size={16} />
+        <FadeUp delay={320}>
+          <TouchableOpacity
+            onPress={() => setDoc(true)}
+            activeOpacity={0.7}
+            style={[
+              styles.uploadBox,
+              docUploaded
+                ? { borderWidth: 1, borderColor: 'rgba(0,229,160,0.33)', backgroundColor: 'rgba(0,229,160,0.03)' }
+                : { borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.white15, backgroundColor: colors.white02 },
+            ]}
+          >
+            {!docUploaded ? (
+              <>
+                <View style={styles.uploadIcon}>
+                  <Icons.upload color={colors.white55} size={16} />
+                </View>
+                <Text style={styles.uploadTitle}>Upload business cert</Text>
+                <Text style={styles.uploadSub}>PDF, JPG or PNG · up to 10 MB</Text>
+              </>
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
+                <View style={styles.uploadCheckIcon}>
+                  <Icons.check color={colors.electric} size={14} />
+                </View>
+                <View>
+                  <Text style={styles.uploadTitle}>BRS-cert-2024.pdf</Text>
+                  <Text style={styles.uploadMatch}>Uploaded · matching KRA…</Text>
+                </View>
               </View>
-              <Text style={styles.uploadTitle}>Upload business cert</Text>
-              <Text style={styles.uploadSub}>PDF, JPG or PNG · up to 10 MB</Text>
-            </>
-          ) : (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
-              <View style={styles.uploadCheckIcon}>
-                <Icons.check color={colors.electric} size={14} />
-              </View>
-              <View>
-                <Text style={styles.uploadTitle}>BRS-cert-2024.pdf</Text>
-                <Text style={styles.uploadMatch}>Uploaded · matching KRA…</Text>
-              </View>
-            </View>
-          )}
-        </TouchableOpacity>
+            )}
+          </TouchableOpacity>
+        </FadeUp>
 
         {/* Badge promise */}
-        <View style={styles.badgePromise}>
+        <FadeUp delay={420} style={styles.badgePromise}>
           <Icons.shield color={colors.volt} size={14} />
           <Text style={styles.badgeText}>
             Once verified, your venue gets a <Text style={{ color: colors.volt, fontWeight: '700' }}>green badge</Text> — workers see this before accepting any shift.
           </Text>
-        </View>
+        </FadeUp>
       </ScrollView>
 
       <View style={styles.footer}>
