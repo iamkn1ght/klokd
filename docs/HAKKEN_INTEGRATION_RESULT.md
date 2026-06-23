@@ -119,3 +119,13 @@ This session: 0 new tests authored. Reason: smoke script + adversarial-verify wo
 - `chamia new docs/klokd_rails_integration_advisory.md` §2.4
 - `chamia new docs/klokd_sprint_backlog_delta_silvia_v1.1.md` (S5-NEW-01, S8-NEW-01)
 - `OPERATOR_REQUEST_HAKKEN.md` (Klokd, 9 Jun — pre-existing) — OI-05 ask
+
+---
+
+## Klokd-Itafika scope decision — 2026-06-23
+
+Per playbook §3.3 the four options were surfaced. **User chose (d) None — park the thread.**
+
+Rationale: Klokd workers commute independently (advisory §2.6 already says Itafika is N/A for Klokd core marketplace). Edge cases (Europa visa logistics, payslip courier) are low-volume and don't justify rail integration cost. If demand surfaces later, re-open via `OPERATOR_REQUEST_ITAFIKA.md`.
+
+No Klokd-Itafika code exists in this codebase. No Itafika env var slots. No Itafika rail client. Klokd's KMV_RAILS_INTEGRATION_GUIDE.md §1 already lists Itafika as "NOT APPLICABLE per advisory §2.6" — that line stands.
