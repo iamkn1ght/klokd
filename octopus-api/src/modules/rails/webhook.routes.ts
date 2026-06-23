@@ -69,6 +69,18 @@ router.post(
               where: { accountUuid: payload.accountUuid },
               data: { kycTier: tierInt },
             });
+            // Tier 1+ unlocks shift apply — register/refresh in Hakken (S5-NEW-01).
+            if (tierInt >= 1) {
+              const { hakkenIntegrationService } = await import('../hakken/hakken.service');
+              const worker = await prisma.worker.findFirst({
+                where: { accountUuid: payload.accountUuid },
+              });
+              if (worker) void hakkenIntegrationService.upsertWorkerEntity(worker.id);
+              const employer = await prisma.employer.findFirst({
+                where: { accountUuid: payload.accountUuid },
+              });
+              if (employer) void hakkenIntegrationService.upsertEmployerEntity(employer.id);
+            }
           }
           break;
         }

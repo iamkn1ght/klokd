@@ -5,6 +5,7 @@ import { AppError } from '../../middleware/errorHandler';
 import { calculateDistance, toGeoHash } from '../../utils/geoUtils';
 import { logAudit } from '../../utils/auditLogger';
 import { complianceService } from '../compliance/compliance.service';
+import { hakkenIntegrationService } from '../hakken/hakken.service';
 
 // Valid state transitions for the shift lifecycle
 const VALID_TRANSITIONS: Record<ShiftStatus, ShiftStatus[]> = {
@@ -73,6 +74,10 @@ export class ShiftService {
 
     // Log event
     await this.logEvent(shift.id, tenantId, null, 'POSTED', employer.userId);
+
+    // Publish to Hakken discovery (S5-NEW-01) — fire-and-forget, non-blocking.
+    // Klokd's flow completes regardless; failure logged inside the service.
+    void hakkenIntegrationService.publishShiftOpen(shift.id);
 
     return shift;
   }
@@ -236,6 +241,10 @@ export class ShiftService {
         data: { status: 'REJECTED' },
       }),
     ]);
+
+    // Soft-revoke Hakken broadcast — shift is filled, no longer discoverable.
+    // Non-blocking; failure logged inside the service.
+    void hakkenIntegrationService.revokeShiftBroadcast(shiftId);
 
     const employer = await prisma.employer.findUnique({ where: { id: employerId } });
     await this.logEvent(shiftId, tenantId, 'POSTED', 'CONFIRMED', employer!.userId, { workerId });

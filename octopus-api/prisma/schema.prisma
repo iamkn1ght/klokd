@@ -119,6 +119,8 @@ model Worker {
   accountUuid         String?            @unique @map("account_uuid")
   // Kipkiren Pay / LipaStack wallet (S4-NEW-01).
   walletId            String?            @map("wallet_id")
+  // Hakken entity_id (S5-NEW-01). Set after first successful POST /v1/entities.
+  hakkenEntityId      String?            @map("hakken_entity_id")
   // Identiti KYC tier (cached signal; refreshed via KYC_TIER_CHANGED webhook).
   kycTier             Int                @default(0) @map("kyc_tier")
   firstName           String             @map("first_name")
@@ -164,6 +166,8 @@ model Employer {
   accountUuid       String?            @unique @map("account_uuid")
   // Kipkiren Pay / LipaStack wallet (S4-NEW-01).
   walletId          String?            @map("wallet_id")
+  // Hakken entity_id (S5-NEW-01). Set after first successful POST /v1/entities.
+  hakkenEntityId    String?            @map("hakken_entity_id")
   // Identiti KYC tier (cached signal; refreshed via KYC_TIER_CHANGED webhook).
   kycTier           Int                @default(0) @map("kyc_tier")
   businessName      String             @map("business_name")
@@ -208,6 +212,8 @@ model Shift {
   locationName  String?     @map("location_name")
   geoHash       String?     @map("geo_hash")
   status        ShiftStatus @default(POSTED)
+  // Hakken broadcast_id (S5-NEW-01). Set after publish; nulled on revoke.
+  hakkenBroadcastId String? @map("hakken_broadcast_id")
   clockInAt     DateTime?   @map("clock_in_at")
   clockInGeoHash String?    @map("clock_in_geo_hash")
   clockOutAt    DateTime?   @map("clock_out_at")

@@ -32,18 +32,38 @@
    JWT_EXPIRY=15m
    JWT_REFRESH_EXPIRY=7d
 
-   # Africa's Talking (for SMS OTP)
-   AT_API_KEY=<from africastalking.com>
-   AT_USERNAME=<your AT username>
-   AT_SENDER_ID=Klokd
+   # ─── KMV Platform Rails (per cardinal rules AD-K01/02/03) ───
+   # Klokd never holds Daraja/AT/WhatsApp creds. Those live behind KP / Todoku.
+   # See KMV_RAILS_INTEGRATION_GUIDE.md + .env.example for the canonical set.
 
-   # Daraja M-Pesa
-   DARAJA_CONSUMER_KEY=<from developer.safaricom.co.ke>
-   DARAJA_CONSUMER_SECRET=<from developer.safaricom.co.ke>
-   DARAJA_PASSKEY=<from Daraja>
-   DARAJA_SHORTCODE=<your paybill/till>
-   DARAJA_B2C_SECURITY_CREDENTIAL=<encrypted>
-   DARAJA_ENV=sandbox  # change to "production" when ready
+   # Identiti (account UUID, KYC, phone tokens, step-up)
+   IDENTITI_API_BASE=https://identiti-production.up.railway.app
+   IDENTITI_APP_ID=klokd_sandbox
+   IDENTITI_APP_SECRET=<hex-64, from Silvia>
+
+   # Todoku (OTP, SMS, WhatsApp delivery)
+   TODOKU_API_BASE=https://todoku-prod-production.up.railway.app
+   TODOKU_APP_ID=klokd_sandbox
+   TODOKU_APP_SECRET=<base64url-43, from Silvia>
+   TODOKU_WEBHOOK_SECRET=<base64url-43, from Silvia>
+
+   # Payment Rail (Kipkiren Pay → LipaStack at Phase 3)
+   # NEVER name these KIPKIREN_PAY_* — they don't survive LipaStack transcendence.
+   PAYMENT_RAIL_API_BASE=<from Silvia after KP-1-Ops Railway deploy>
+   PAYMENT_RAIL_APP_ID=klokd_sandbox
+   PAYMENT_RAIL_APP_SECRET=<base64url-43, from Silvia>
+   PAYMENT_RAIL_WEBHOOK_SECRET=<base64url-43, from Silvia>
+
+   # Helpan AI (agent runtime)
+   HELPAN_API_BASE=<from Helpan operator>
+   HELPAN_APP_ID=klokd   # literal slug, NOT klokd_sandbox
+   HELPAN_APP_SECRET=<hex-64>
+   HELPAN_WEBHOOK_SECRET=<hex-64>
+
+   # Hakken (discovery — Sprint 5)
+   HAKKEN_API_BASE=https://hakken-production.up.railway.app
+   HAKKEN_APP_KEY=klokd
+   HAKKEN_APP_SECRET=<from Silvia>
 
    # Supabase Storage
    SUPABASE_URL=https://nbtpkmjovgbwgwefsdjn.supabase.co

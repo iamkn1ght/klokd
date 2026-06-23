@@ -56,10 +56,16 @@ export const config = {
   },
 
   // Hakken — geo-indexed discovery (AD-K09)
-  // Phase 1: register entities only · Phase 3: query for shift feed + worker ranking
+  // Phase 1: register entities + broadcasts · Phase 3 (Sprint 8+): swap shift feed.
+  // PILOT AUTH (per HAKKEN_INTEGRATION_REFERENCE.md §2): three-header pair
+  //   Authorization: Bearer <identiti-customer-JWT>
+  //   X-Hakken-App-Key:    <app_slug; klokd>
+  //   X-Hakken-App-Secret: <per-app secret from Silvia>
+  // Full HMAC scheme (Hakken-HMAC-SHA256 t=…,v1=…) is post-pilot HK-9.
   hakken: {
-    baseUrl: process.env.HAKKEN_BASE_URL || '',
-    apiKey: process.env.HAKKEN_API_KEY || '',
+    baseUrl: process.env.HAKKEN_API_BASE || process.env.HAKKEN_BASE_URL || '',
+    appKey: process.env.HAKKEN_APP_KEY || 'klokd',
+    appSecret: process.env.HAKKEN_APP_SECRET || '',
   },
 
   // Helpan AI — agent runtime rail (per KMV_RAILS_INTEGRATION_GUIDE.md §7)
