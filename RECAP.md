@@ -3,18 +3,23 @@
 > Per-app sprint state, deployment state, test counts, blockers. Master cross-rail tracker at `C:\Projects\Platform Rails-instruction pack v1-reboot pack v1.2\RECAP.md`.
 
 **App:** Klokd Workplace Solutions Ltd · `klokd.co.ke` · Casual Labour Marketplace (Hospitality + Health)
-**Status:** 🟢 v3 rail-alignment SHIPPED — **2 rails LIVE** (Identiti, Todoku), **3 rails PROVISION-READY** (Payment Rail, Helpan AI, Hakken Phase 1) · client wire-correct end-to-end · Itafika **formally parked** (playbook §3.3, option d) · awaiting operator handovers for KP + Helpan + Hakken
+**Status:** 🟢 v3 rail-alignment SHIPPED + **unified product surface SHIPPED 24 Jun** — **2 rails LIVE** (Identiti, Todoku), **3 rails PROVISION-READY** (Payment Rail, Helpan AI, Hakken Phase 1) · client wire-correct end-to-end · Itafika **formally parked** (playbook §3.3, option d) · **3 personas now folded behind one web front door** (landing → persona-picker sign-in → Worker / Employer / Admin) · awaiting operator handovers for KP + Helpan + Hakken
 **Repo:** `iamkn1ght/klokd` (moved from `thhvvv/klokd`) · branch `main`
-**Latest commit:** `ca74640 docs(hakken): log Klokd-Itafika (d)None decision` · 23 June 2026
+**Latest commit:** `2801629 feat(web): unified web-app with landing + persona-picker sign-in` · 24 June 2026
 **Octopus API URL:** https://klokd-production.up.railway.app (Railway)
 **Supabase project:** `nbtpkmjovgbwgwefsdjn` · region locked **eu-west-1** (CHAMIA-REGION resolved per platform standard)
 **Domain:** `klokd.co.ke` (NEVER `.com` or `.app`) · handle `@klokdKE` (NEVER `@klokKE`)
+**Surface count:** 4 Expo bundles — `web-app` (unified front door, all 3 personas), `worker-app` + `employer-app` (native mobile, App Store / Play Store), `admin-app` (legacy stand-alone, retiring as `web-app` admin matures)
 
 ---
 
-## Headline — what shipped 9-23 June 2026
+## Headline — what shipped 9-24 June 2026
 
-Klokd went from "v1 MVP, no rail integration" to "wire-correct against all five applicable KMV rails" in two weeks. Discovered + documented ~20 wire-format errata across the operator packs and reference clients. Two LIVE end-to-end (Identiti, Todoku); three PROVISION-READY (KP, Helpan, Hakken) awaiting operator handovers; Itafika formally closed as N/A. Reference work memorialised in [KMV_RAILS_INTEGRATION_GUIDE.md](./KMV_RAILS_INTEGRATION_GUIDE.md), [HAKKEN_ITAFIKA_INTEGRATION_PLAYBOOK.md](./docs/HAKKEN_ITAFIKA_INTEGRATION_PLAYBOOK.md), [HAKKEN_INTEGRATION_REFERENCE.md](./docs/HAKKEN_INTEGRATION_REFERENCE.md), and per-rail integration result docs.
+Klokd went from "v1 MVP, no rail integration" to "wire-correct against all five applicable KMV rails" in two weeks (9-23 Jun). Discovered + documented ~20 wire-format errata across the operator packs and reference clients. Two LIVE end-to-end (Identiti, Todoku); three PROVISION-READY (KP, Helpan, Hakken) awaiting operator handovers; Itafika formally closed as N/A.
+
+**24 Jun product-surface day:** entire app surface unified behind one design backbone (the v5 employer Welcome — ambient electric orbs, glass cards, 520ms ease-out-quart motion) — 22 worker/employer screens migrated; a new `admin-app` shipped with 6 ops screens (Overview · Verification · Disputes · Payments · Audit · Users); and a unified `web-app` folded all three personas behind one landing + persona-picker sign-in (Stripe / Linear pattern; admin card hidden unless email ends `@klokd.co.ke`). Klokd is now **one product** on the web, **two role-specific apps** on mobile.
+
+Reference work memorialised in [KMV_RAILS_INTEGRATION_GUIDE.md](./KMV_RAILS_INTEGRATION_GUIDE.md), [HAKKEN_ITAFIKA_INTEGRATION_PLAYBOOK.md](./docs/HAKKEN_ITAFIKA_INTEGRATION_PLAYBOOK.md), [HAKKEN_INTEGRATION_REFERENCE.md](./docs/HAKKEN_INTEGRATION_REFERENCE.md), and per-rail integration result docs.
 
 | Commit | Date | What |
 |---|---|---|
@@ -30,6 +35,10 @@ Klokd went from "v1 MVP, no rail integration" to "wire-correct against all five 
 | `9572095` | 19 Jun | EAS project ownership switched mumbus → kmv209; both APKs re-built (worker `8ce0a4cb`, employer `b8842660`) |
 | `2c8dc8b` | 23 Jun | **Hakken Phase 1 integration** — entity registration + broadcast publishing as non-blocking background jobs (S5-NEW-01); 3-lens adversarial-verify workflow caught 2 critical + 4 major bugs, all fixed in same commit |
 | `ca74640` | 23 Jun | Klokd-Itafika decision logged — **option (d) None: parked** per playbook §3.3 |
+| `86b2b71` | 23 Jun | RECAP bump to v1.2 |
+| `202eb43` | 24 Jun | **Design backbone unified across worker + employer apps** — shared `KlokdLayout` primitives (ambient orbs, dot grid, glass cards, FadeUp motion, HoverCard, LiveDot); 22 screens migrated to the v5 visual language; one accent rule (electric `#00E5A0`) honoured throughout, volt reserved for per-app brand identifier |
+| `10ab737` | 24 Jun | **`admin-app/` scaffolded** — new third Expo project for ops/compliance/support · desktop-first side-rail nav · 6 screens shipped (Overview · Verification · Disputes · Payments · Audit · Users) · all using KlokdLayout backbone · Money Rule preserved (no amount mutations) |
+| `2801629` | 24 Jun | **`web-app/` unified front door** — single landing page (both audiences) → persona-picker sign-in (Worker / Employer / Admin, admin hidden unless `@klokd.co.ke`) → routes to the right shell (top-tab `ConsumerShell` for worker/employer, side-rail `AdminShell` for admin) · "Switch workspace" hops without re-auth · folds all three personas behind one URL |
 
 ---
 
@@ -56,7 +65,14 @@ Klokd went from "v1 MVP, no rail integration" to "wire-correct against all five 
 - H1 (project setup) · ⚪ Not started
 - H3 (KMPDC verification + 2 Health Todoku templates) · ⚪ Not started · Blocked on OI-09
 
-**Total delta:** +19 points across 23 sprints. Sprint 3 (the biggest) is **DONE**. Sprint 5 is **DONE from Klokd's side** as of 23 Jun. Sprints 16 + Helpan are PROVISION-READY (code complete, awaiting operator handovers).
+**Product surface sprint (new, 24 Jun):**
+- **SP-1** Design backbone unification across worker + employer apps · 🟢 **DONE 24 Jun** (`202eb43`) · 22 screens migrated
+- **SP-2** Admin app scaffold · 🟢 **DONE 24 Jun** (`10ab737`) · 6 screens shipped
+- **SP-3** Unified web-app (landing + persona-picker sign-in folding 3 personas) · 🟢 **DONE 24 Jun** (`2801629`) · Worker Home + Employer Dashboard + all 6 Admin screens live; remaining consumer tabs (Worker Shifts/Pay/Me, Employer Shifts/Pay/Team) show honest `PlaceholderTab` previews
+- **SP-4** Port remaining consumer tabs into web-app (Worker Shifts/Pay/Me, Employer Shifts/Pay/Team full screens) · 🟠 PENDING
+- **SP-5** Retire stand-alone `admin-app/` dev server once `web-app/admin/*` reaches parity · 🟠 PENDING (admin screens are byte-identical so this is a config flip, not a port)
+
+**Total delta:** +22 points across 23 sprints + 5 product-surface sprints. Sprint 3 (the biggest) is **DONE**. Sprint 5 is **DONE from Klokd's side** as of 23 Jun. Product-surface sprints SP-1..SP-3 **DONE 24 Jun**. Sprints 16 + Helpan are PROVISION-READY (code complete, awaiting operator handovers).
 
 ---
 
@@ -75,6 +91,10 @@ Klokd went from "v1 MVP, no rail integration" to "wire-correct against all five 
 | **Worker app EAS Build (kmv209)** | ✅ `8ce0a4cb-34a5-4ced-a6fd-38b57c9f914d` — APK live at `expo.dev/artifacts/eas/ex-Dfp1UJwGSfMtrLEH1zwqMlEuyKAmTdKGJm3BDInQ.apk` |
 | **Employer app EAS Build (kmv209)** | ✅ `b8842660-1297-4a79-bb4b-bf9755bc2c68` — APK live at `expo.dev/artifacts/eas/S_HY_j78DKOUp-zekPVG_mwQtQPa7a6jGbDJsAdBiMA.apk` |
 | Worker app iOS via Expo Go | ✅ LAN mode tunnel (no Apple Developer fee) |
+| **`admin-app/` dev server (web)** | ✅ http://localhost:8093 — 6 screens (Overview · Verification · Disputes · Payments · Audit · Users) on KlokdLayout backbone (24 Jun) |
+| **`web-app/` unified dev server (web)** | ✅ http://localhost:8094 — landing + persona-picker sign-in + all three workspace shells (24 Jun); production target `klokd.co.ke` |
+| Worker `worker-app/` web dev server | ✅ http://localhost:8091 — legacy stand-alone, retiring as `web-app` matures |
+| Employer `employer-app/` web dev server | ✅ http://localhost:8092 — legacy stand-alone, retiring as `web-app` matures |
 | Supabase Auth wired | 🗑️ REMOVED — replaced by Identiti customers + Klokd-side OTP via Todoku (cardinal rule AD-K02 + AD-K03) |
 | Direct Daraja integration | 🗑️ REMOVED — `daraja.service.ts` deleted, callbacks dropped, `DARAJA_*` env vars purged from Railway (AD-K01) |
 | Direct Africa's Talking integration | 🗑️ REMOVED — `AT_*` env vars purged from Railway (AD-K03) |
@@ -95,6 +115,29 @@ Klokd went from "v1 MVP, no rail integration" to "wire-correct against all five 
 | **Helpan AI** (agent runtime · briefings · authorities · action dispatch) | ✅ LIVE on Railway (Supabase `jvkhoveeayixbjnhmqxa`) · `helpan-klokd-v1` agent admitted with 3 scopes + `klokd.shift_search` matcher | ✅ **PROVISION-READY** — dual-role client + target-rail dispatch endpoint shipped 11 Jun per `73e27d6`; smoke at `scripts/smoke-helpan.ts` |
 | **Itafika** | LIVE on Railway dev | 🚫 **NOT APPLICABLE** — per advisory §2.6 + playbook §3.3 decision logged 23 Jun (option d: parked). No Klokd-Itafika joint exists; re-open via `OPERATOR_REQUEST_ITAFIKA.md` only if real demand surfaces |
 | LipaStack | Separate platform; not a rail | Phase 3 — `PAYMENT_RAIL_API_BASE` env-var flip when LipaStack designated (CHAMIA-WALLET deferred) |
+
+---
+
+## Product surface — 24 Jun unification
+
+Klokd is now one product on the web and two role-specific apps on mobile. The web surface is what unifies the brand; the mobile apps stay separate so they keep App Store / Play Store presence.
+
+| Surface | Tech | Personas hosted | Status |
+|---|---|---|---|
+| **`web-app/`** | Expo + RNW (port 8094) | Worker · Employer · Admin | 🟢 LIVE 24 Jun — single landing + persona-picker sign-in, full Worker Home + Employer Dashboard + all 6 Admin screens; Worker Shifts/Pay/Me + Employer Shifts/Pay/Team render honest `PlaceholderTab` previews (SP-4 pending) |
+| **`worker-app/`** | Expo (web + native) | Worker only | 🟢 LIVE; 14 screens on KlokdLayout backbone (24 Jun); native APK at `8ce0a4cb` |
+| **`employer-app/`** | Expo (web + native) | Employer only | 🟢 LIVE; 9 screens on KlokdLayout backbone (24 Jun); native APK at `b8842660` |
+| **`admin-app/`** | Expo + RNW (port 8093) | Admin only | 🟢 LIVE 24 Jun — 6 screens; **retiring** as `web-app/admin/*` reaches parity (screens are byte-identical copies, retirement is a config flip not a port) |
+
+**Shared design backbone** (locked 24 Jun, mirrored across all four apps): `KlokdLayout.tsx` exporting `KlokdScreen` (marketing wrapper), `AmbientOrbs` (drop-in background for mobile-shaped flows), `FadeUp` (520ms ease-out-quart cascade), `GlassCard`, `HoverCard`, `LiveDot`, `EASE` constant.
+
+**Design rules in force** (per `feedback_klokd_design_standards`):
+- Single primary accent: electric `#00E5A0`. Volt `#BCFF4E` demoted to per-app brand identifier only (FOR WORKERS / FOR EMPLOYERS badges; employer-side eyebrows in admin).
+- Reference quality bar: Linear, Stripe, Vercel, Arc, Raycast, Ramp.
+- Motion: 0.4–0.7s, ease-out-quart (`Easing.bezier(0.22, 1, 0.36, 1)`), fade-up + stagger.
+- Max content width 1180–1240px depending on shell.
+
+**Sign-in / persona model:** A single account can hold multiple personas. Admin persona is gated — the card is hidden in the picker unless the email already entered ends in `@klokd.co.ke`. "Switch workspace" in every shell returns to the picker without signing out, so a multi-role operator hops between without re-auth. **Money Rule preserved** — no amount mutations from any of the four web surfaces yet (all release / refund / split actions stub pending KP wire).
 
 ---
 
@@ -208,7 +251,10 @@ Plus historical D-XX locked decisions from `klokd_reboot_pack_v1.md` §11 (D-01.
 | Helpan integration | 11 Jun 2026 | — | `20260611120000_helpan_agent_runtime` | Railway auto-deploy `73e27d6` | Dual-role surface — consuming app + target rail per §A.11 |
 | EAS account switch | 19 Jun 2026 | — | — | — | mumbus → kmv209; both APKs re-built under new projects `0f6b66f6` (worker) + `f29c48de` (employer); commit `9572095` |
 | **Klokd-Itafika decision** | **23 Jun 2026** | — | — | — | Option (d) None — parked per playbook §3.3. `ca74640` |
-| S5, S7, S10-S22, S23, H1, H3 | — | — | — | — | NOT STARTED (S5 done — listed above) |
+| **SP-1 Design backbone unification** | **24 Jun 2026** | tsc clean across worker + employer | — | Dev only | `KlokdLayout` primitives + 22 screens migrated to v5 visual language. `202eb43` |
+| **SP-2 Admin app scaffold** | **24 Jun 2026** | tsc clean | — | http://localhost:8093 | 6 screens (Overview · Verification · Disputes · Payments · Audit · Users) on KlokdLayout backbone. Money Rule preserved. `10ab737` |
+| **SP-3 Unified web-app** | **24 Jun 2026** | tsc clean; Metro bundle clean (348 modules · 15s) | — | http://localhost:8094 | Single landing + persona-picker sign-in folding Worker / Employer / Admin behind one front door. Stripe/Linear pattern. Admin hidden unless `@klokd.co.ke`. `2801629` |
+| S7, S10-S22, S23, H1, H3, SP-4, SP-5 | — | — | — | — | NOT STARTED (S3 + S5 + SP-1..SP-3 done — listed above) |
 
 ---
 
@@ -241,8 +287,19 @@ Plus historical D-XX locked decisions from `klokd_reboot_pack_v1.md` §11 (D-01.
 
 - Worker app: `@kmv209/klokd-worker` (`0f6b66f6-460e-4704-9824-6b60b882f266`) — latest APK `8ce0a4cb-34a5-4ced-a6fd-38b57c9f914d` (19 Jun)
 - Employer app: `@kmv209/klokd-employer` (`f29c48de-8704-4c2f-a60a-7c53934e2676`) — latest APK `b8842660-1297-4a79-bb4b-bf9755bc2c68` (19 Jun)
+- Admin app: web-only at this stage; native EAS build deferred (operators work on desktop)
+- Web app: dev only at this stage; production target `klokd.co.ke` (build + deploy reserved for next sprint)
+
+### Web dev surfaces (24 Jun)
+
+| URL | App | Purpose |
+|---|---|---|
+| http://localhost:8094 | `web-app` | **Unified front door** — landing + persona-picker → Worker / Employer / Admin |
+| http://localhost:8091 | `worker-app` | Legacy worker-only (retiring) |
+| http://localhost:8092 | `employer-app` | Legacy employer-only (retiring) |
+| http://localhost:8093 | `admin-app` | Legacy admin-only (retiring as `web-app/admin/*` is byte-identical) |
 
 ---
 
-*Klokd v3 · RECAP v1.2 · 23 June 2026 · Confidential · Update at every sprint boundary.*
-*Major delta from v1.1: Sprint 5 closed with Hakken Phase 1 integration; 3-lens adversarial-verify workflow caught 2 critical + 4 major bugs (all fixed in same commit); Klokd-Itafika decision logged as (d) None — parked; EAS account switched mumbus → kmv209; OI-05 resolved via canonical reference doc; CHAMIA-ITAFIKA resolved.*
+*Klokd v3 · RECAP v1.3 · 24 June 2026 · Confidential · Update at every sprint boundary.*
+*Major delta from v1.2: Design backbone unified across worker + employer apps (22 screens migrated to the v5 visual language with shared `KlokdLayout` primitives — ambient orbs, glass cards, ease-out-quart motion); `admin-app/` scaffolded with 6 ops screens on the same backbone; `web-app/` unified front door shipped — single landing + persona-picker sign-in folding Worker / Employer / Admin behind one URL (Stripe/Linear pattern, admin hidden unless `@klokd.co.ke`). Klokd is now one product on the web, two role-specific apps on mobile. Money Rule preserved across all four surfaces.*
