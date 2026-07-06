@@ -6,7 +6,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Label } from '../../components/Primitives';
-import { AmbientOrbs } from '../../components/KlokdLayout';
+import { AmbientOrbs, SafeTop } from '../../components/KlokdLayout';
 import { EscrowMeter } from '../../components/EmployerPrimitives';
 import { Icons } from '../../components/Icons';
 import { colors, typography, gradients } from '../../theme';
@@ -39,6 +39,7 @@ export function PayScreen() {
   return (
     <View style={styles.screen}>
       <AmbientOrbs intensity="subtle" />
+      <SafeTop />
       <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
         <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
           <Text style={styles.title}>Pay</Text>

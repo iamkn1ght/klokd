@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { StatusPill } from '../../components/Primitives';
-import { AmbientOrbs } from '../../components/KlokdLayout';
+import { AmbientOrbs, SafeTop } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { colors, typography } from '../../theme';
 
@@ -44,6 +44,7 @@ export function ShiftsScreen() {
   return (
     <View style={styles.screen}>
       <AmbientOrbs intensity="subtle" />
+      <SafeTop />
       <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
         <Text style={styles.title}>Your shifts</Text>
         <View style={styles.tabs}>

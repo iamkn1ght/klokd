@@ -27,11 +27,59 @@ import {
   Easing,
   ViewStyle,
 } from 'react-native';
-import Svg, { Defs, Pattern, Rect, Circle, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
+import Svg, { Defs, Pattern, Rect, Circle, LinearGradient as SvgLinearGradient, RadialGradient as SvgRadialGradient, Stop } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, radius } from '../theme';
 
+/**
+ * Status-bar / notch spacer. Drop as the first visible child of any screen
+ * that manages its own header so content never renders under the notch.
+ */
+export function SafeTop({ extra = 4 }: { extra?: number }) {
+  const insets = useSafeAreaInsets();
+  return <View style={{ height: insets.top + extra }} />;
+}
+
 export const EASE = Easing.bezier(0.22, 1, 0.36, 1);
+
+/**
+ * Press feedback wrapper — scales to 0.97 on press-in (120ms ease-out),
+ * springs back on release. Wrap any tappable surface that should feel
+ * physically responsive: buttons, cards, list rows, tab items.
+ */
+export function PressScale({
+  onPress,
+  disabled,
+  style,
+  children,
+  scaleTo = 0.97,
+  hitSlop,
+}: {
+  onPress?: () => void;
+  disabled?: boolean;
+  style?: any;
+  children: React.ReactNode;
+  scaleTo?: number;
+  hitSlop?: number;
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const pressIn = () =>
+    Animated.timing(scale, { toValue: scaleTo, duration: 110, easing: EASE, useNativeDriver: true }).start();
+  const pressOut = () =>
+    Animated.spring(scale, { toValue: 1, stiffness: 320, damping: 22, mass: 0.7, useNativeDriver: true }).start();
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      onPressIn={pressIn}
+      onPressOut={pressOut}
+      hitSlop={hitSlop}
+    >
+      <Animated.View style={[style, { transform: [{ scale }] }]}>{children}</Animated.View>
+    </Pressable>
+  );
+}
 
 // ─── Ambient background ───────────────────────────────────
 
@@ -48,7 +96,33 @@ export const EASE = Easing.bezier(0.22, 1, 0.36, 1);
  *   </View>
  */
 export function AmbientOrbs({ intensity = 'default' }: { intensity?: 'default' | 'subtle' }) {
-  if (Platform.OS !== 'web') return null;
+  const aOpacity = intensity === 'subtle' ? 0.12 : 0.22;
+  const bOpacity = intensity === 'subtle' ? 0.05 : 0.10;
+
+  // Native: true radial orbs via SVG — soft glow with no hard edges,
+  // static and cheap (rendered once, no animation).
+  if (Platform.OS !== 'web') {
+    return (
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <Svg width="100%" height="100%">
+          <Defs>
+            <SvgRadialGradient id="korbA" cx="50%" cy="50%" r="50%">
+              <Stop offset="0" stopColor={colors.electric} stopOpacity={aOpacity} />
+              <Stop offset="0.7" stopColor={colors.electric} stopOpacity={aOpacity * 0.35} />
+              <Stop offset="1" stopColor={colors.electric} stopOpacity={0} />
+            </SvgRadialGradient>
+            <SvgRadialGradient id="korbB" cx="50%" cy="50%" r="50%">
+              <Stop offset="0" stopColor={colors.electric} stopOpacity={bOpacity} />
+              <Stop offset="1" stopColor={colors.electric} stopOpacity={0} />
+            </SvgRadialGradient>
+          </Defs>
+          <Circle cx="105%" cy="-6%" r="300" fill="url(#korbA)" />
+          <Circle cx="-15%" cy="46%" r="240" fill="url(#korbB)" />
+        </Svg>
+      </View>
+    );
+  }
+
   const aColors = intensity === 'subtle'
     ? ['rgba(0,229,160,0.12)', 'rgba(0,229,160,0)'] as const
     : ['rgba(0,229,160,0.22)', 'rgba(0,229,160,0)'] as const;

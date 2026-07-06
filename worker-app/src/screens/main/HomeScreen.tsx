@@ -7,7 +7,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-nati
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
 import { StatusPill, Label, VLine } from '../../components/Primitives';
-import { AmbientOrbs } from '../../components/KlokdLayout';
+import { AmbientOrbs, SafeTop, FadeUp } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { useApi } from '../../hooks/useApi';
 import { colors, typography } from '../../theme';
@@ -118,6 +118,7 @@ export function HomeScreen({ navigation }: Props) {
   return (
     <View style={styles.screen}>
       <AmbientOrbs intensity="subtle" />
+      <SafeTop />
       <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
         {/* Header */}
         <View style={styles.headerRow}>
@@ -134,7 +135,7 @@ export function HomeScreen({ navigation }: Props) {
         </View>
 
         {/* Ledger card */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 14 }}>
+        <FadeUp delay={60} style={{ paddingHorizontal: 20, paddingTop: 14 }}>
           <View style={styles.ledger}>
             <View style={styles.ledgerHead}>
               <Label color={colors.white40}>Your ledger · 47 shifts</Label>
@@ -148,7 +149,7 @@ export function HomeScreen({ navigation }: Props) {
               <Stat n="KES 84k" l="this month" color={colors.white} />
             </View>
           </View>
-        </View>
+        </FadeUp>
 
         {/* Shift feed */}
         <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
@@ -158,12 +159,13 @@ export function HomeScreen({ navigation }: Props) {
           </View>
           <View style={{ gap: 10 }}>
             {shifts.map((s, i) => (
-              <ShiftCard
-                key={s.id}
-                shift={s}
-                dim={i > 0 ? 0.06 * i : 0}
-                onPress={() => navigation.navigate('ShiftDetail', { shift: s })}
-              />
+              <FadeUp key={s.id} delay={140 + Math.min(i, 5) * 70}>
+                <ShiftCard
+                  shift={s}
+                  dim={i > 0 ? 0.06 * i : 0}
+                  onPress={() => navigation.navigate('ShiftDetail', { shift: s })}
+                />
+              </FadeUp>
             ))}
           </View>
         </View>
@@ -175,10 +177,10 @@ export function HomeScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ink },
   headerRow: { paddingHorizontal: 20, paddingTop: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  date: { fontSize: 11, color: colors.white45, marginBottom: 2 },
-  greeting: { fontSize: 22, fontWeight: '900', letterSpacing: -0.66, color: colors.white },
+  date: { fontSize: 12.5, color: colors.white45, marginBottom: 3, fontWeight: '600' },
+  greeting: { fontSize: 26, fontWeight: '900', letterSpacing: -0.9, color: colors.white },
   bellBtn: {
-    width: 38, height: 38, borderRadius: 19,
+    width: 44, height: 44, borderRadius: 22,
     backgroundColor: colors.white05,
     borderWidth: 0.5, borderColor: colors.white08,
     alignItems: 'center', justifyContent: 'center',

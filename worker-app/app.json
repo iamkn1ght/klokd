@@ -49,7 +49,9 @@
         {
           "photosPermission": "Klokd needs access to your photos to upload your ID and selfie for verification."
         }
-      ]
+      ],
+      "expo-font",
+      "expo-secure-store"
     ],
     "owner": "kmv209",
     "extra": {

@@ -7,7 +7,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-nati
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { GradientBtn, IconBtn, StatusPill, Label } from '../../components/Primitives';
-import { AmbientOrbs } from '../../components/KlokdLayout';
+import { AmbientOrbs, SafeTop } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { useApi } from '../../hooks/useApi';
 import { colors, typography } from '../../theme';
@@ -41,6 +41,7 @@ export function ActiveShiftScreen({ navigation, route }: Props) {
   return (
     <View style={styles.screen}>
       <AmbientOrbs intensity="subtle" />
+      <SafeTop />
       <View style={styles.header}>
         <IconBtn onPress={() => navigation.goBack()}>
           <Icons.back color={colors.white} size={14} />

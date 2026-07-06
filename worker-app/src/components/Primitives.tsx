@@ -6,6 +6,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, gradients, typography, radius } from '../theme';
+import { PressScale } from './KlokdLayout';
 import { Icons } from './Icons';
 
 // ═══ BUTTONS ═══
@@ -20,18 +21,21 @@ interface GradientBtnProps {
 }
 
 export function GradientBtn({ children, onPress, disabled, style, size = 'lg' }: GradientBtnProps) {
-  const padV = size === 'lg' ? 16 : size === 'md' ? 12 : 9;
+  // 54pt min height on lg keeps the primary CTA comfortably above the
+  // 44pt tap-target floor; text sits at 16 so it reads at arm's length.
+  const minH = size === 'lg' ? 54 : size === 'md' ? 48 : 40;
   const padH = size === 'lg' ? 24 : size === 'md' ? 20 : 16;
-  const fs = size === 'lg' ? 15 : size === 'md' ? 14 : 13;
+  const fs = size === 'lg' ? 16 : size === 'md' ? 14.5 : 13;
 
   if (disabled) {
     return (
       <View style={[{ width: '100%' }, style]}>
         <View style={{
-          width: '100%', paddingVertical: padV, paddingHorizontal: padH,
-          borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center',
+          width: '100%', minHeight: minH, paddingHorizontal: padH,
+          borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.06)',
+          alignItems: 'center', justifyContent: 'center',
         }}>
-          <Text style={{ color: 'rgba(255,255,255,0.25)', fontSize: fs, fontWeight: '800', letterSpacing: -0.15 }}>
+          <Text style={{ color: 'rgba(255,255,255,0.25)', fontSize: fs, fontWeight: '800', letterSpacing: -0.2 }}>
             {typeof children === 'string' ? children : <>{children}</>}
           </Text>
         </View>
@@ -41,58 +45,58 @@ export function GradientBtn({ children, onPress, disabled, style, size = 'lg' }:
 
   return (
     <View style={[{ width: '100%' }, style]}>
-      <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
+      <PressScale onPress={onPress}>
         <LinearGradient
           colors={[gradients.cta[0], gradients.cta[1]]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={{
-            width: '100%', paddingVertical: padV, paddingHorizontal: padH,
-            borderRadius: 14, alignItems: 'center',
+            width: '100%', minHeight: minH, paddingHorizontal: padH,
+            borderRadius: 16, alignItems: 'center', justifyContent: 'center',
           }}
         >
-          <Text style={{ color: colors.ink, fontSize: fs, fontWeight: '800', letterSpacing: -0.15 }}>
+          <Text style={{ color: colors.ink, fontSize: fs, fontWeight: '800', letterSpacing: -0.2 }}>
             {typeof children === 'string' ? children : <>{children}</>}
           </Text>
         </LinearGradient>
-      </TouchableOpacity>
+      </PressScale>
     </View>
   );
 }
 
 export function GhostBtn({ children, onPress, dark = true, style }: { children: React.ReactNode; onPress?: () => void; dark?: boolean; style?: ViewStyle }) {
   return (
-    <TouchableOpacity
+    <PressScale
       onPress={onPress}
-      activeOpacity={0.7}
       style={[{
-        width: '100%', paddingVertical: 14, paddingHorizontal: 20, borderRadius: 14,
+        width: '100%', minHeight: 50, paddingHorizontal: 20, borderRadius: 16,
         backgroundColor: 'transparent',
-        borderWidth: 1, borderColor: dark ? 'rgba(255,255,255,0.1)' : colors.soft,
-        alignItems: 'center',
+        borderWidth: 1, borderColor: dark ? 'rgba(255,255,255,0.12)' : colors.soft,
+        alignItems: 'center', justifyContent: 'center',
       }, style]}
     >
-      <Text style={{ color: dark ? colors.white70 : colors.mid, fontSize: 14, fontWeight: '600' }}>
+      <Text style={{ color: dark ? colors.white70 : colors.mid, fontSize: 15, fontWeight: '700', letterSpacing: -0.2 }}>
         {typeof children === 'string' ? children : <>{children}</>}
       </Text>
-    </TouchableOpacity>
+    </PressScale>
   );
 }
 
 export function IconBtn({ children, onPress, dark = true }: { children: React.ReactNode; onPress?: () => void; dark?: boolean }) {
   return (
-    <TouchableOpacity
+    <PressScale
       onPress={onPress}
-      activeOpacity={0.7}
+      scaleTo={0.92}
+      hitSlop={4}
       style={{
-        width: 38, height: 38, borderRadius: 19,
+        width: 44, height: 44, borderRadius: 22,
         backgroundColor: dark ? colors.white06 : colors.white,
         borderWidth: 0.5, borderColor: dark ? colors.white10 : colors.soft,
         alignItems: 'center', justifyContent: 'center',
       }}
     >
       {children}
-    </TouchableOpacity>
+    </PressScale>
   );
 }
 
@@ -133,36 +137,38 @@ export function Chip({ children, active, onPress, color, variant = 'dark' }: Chi
 
   if (active) {
     return (
-      <TouchableOpacity
+      <PressScale
         onPress={onPress}
-        activeOpacity={0.7}
+        scaleTo={0.95}
         style={{
-          paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999,
+          paddingHorizontal: 16, minHeight: 40, borderRadius: 999,
           borderWidth: 1.5, borderColor: accent,
           backgroundColor: `${accent}1a`,
+          alignItems: 'center', justifyContent: 'center',
         }}
       >
-        <Text style={{ fontSize: 12.5, fontWeight: '700', color: accent }}>
+        <Text style={{ fontSize: 13.5, fontWeight: '700', color: accent }}>
           {children}
         </Text>
-      </TouchableOpacity>
+      </PressScale>
     );
   }
 
   return (
-    <TouchableOpacity
+    <PressScale
       onPress={onPress}
-      activeOpacity={0.7}
+      scaleTo={0.95}
       style={{
-        paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999,
+        paddingHorizontal: 16, minHeight: 40, borderRadius: 999,
         borderWidth: 1.5, borderColor: dark ? colors.white08 : colors.soft,
         backgroundColor: dark ? colors.white03 : colors.white,
+        alignItems: 'center', justifyContent: 'center',
       }}
     >
-      <Text style={{ fontSize: 12.5, fontWeight: '600', color: dark ? colors.white55 : colors.mid }}>
+      <Text style={{ fontSize: 13.5, fontWeight: '600', color: dark ? colors.white55 : colors.mid }}>
         {children}
       </Text>
-    </TouchableOpacity>
+    </PressScale>
   );
 }
 

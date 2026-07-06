@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Logo, GradientBtn, Eyebrow, Label } from '../../components/Primitives';
-import { AmbientOrbs, FadeUp } from '../../components/KlokdLayout';
+import { AmbientOrbs, FadeUp, SafeTop } from '../../components/KlokdLayout';
 import { colors, spacing, radius, typography } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
 
@@ -90,6 +90,7 @@ export function RailsLoginScreen({ navigation }: Props) {
   return (
     <View style={styles.screen}>
       <AmbientOrbs />
+      <SafeTop />
       <ScrollView contentContainerStyle={styles.scroll}>
         <FadeUp delay={0} style={styles.head}>
           <Logo size={28} />

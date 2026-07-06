@@ -7,7 +7,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-nati
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GradientBtn, Chip, Eyebrow, StepProgress } from '../../components/Primitives';
 import { EmpInput } from '../../components/EmployerPrimitives';
-import { AmbientOrbs, FadeUp } from '../../components/KlokdLayout';
+import { AmbientOrbs, FadeUp, SafeTop } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { IE } from '../../components/IconsEmployer';
 import { colors } from '../../theme';
@@ -41,6 +41,7 @@ export function BusinessVerifyScreen({ navigation }: Props) {
   return (
     <View style={styles.screen}>
       <AmbientOrbs intensity="subtle" />
+      <SafeTop />
       <EmpOnbHeader step={0} onBack={() => navigation.goBack()} />
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 22, paddingBottom: 120 }}>
@@ -121,8 +122,8 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 18, paddingTop: 12, flexDirection: 'row', alignItems: 'center', gap: 14 },
   backBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: 0.5, borderColor: colors.white12, backgroundColor: colors.white04, alignItems: 'center', justifyContent: 'center' },
 
-  h1: { fontSize: 26, fontWeight: '900', letterSpacing: -1.04, lineHeight: 28.6, color: colors.white, marginBottom: 8 },
-  sub: { fontSize: 13, color: colors.white55, lineHeight: 19.5, marginBottom: 22 },
+  h1: { fontSize: 28, fontWeight: '900', letterSpacing: -1.1, lineHeight: 32, color: colors.white, marginBottom: 8 },
+  sub: { fontSize: 14, color: colors.white55, lineHeight: 21, marginBottom: 22 },
 
   industryLabel: { fontSize: 10, color: colors.white55, letterSpacing: 1.2, textTransform: 'uppercase', fontWeight: '700', marginBottom: 8 },
 

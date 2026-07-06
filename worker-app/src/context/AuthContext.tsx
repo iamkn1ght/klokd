@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import * as SecureStore from 'expo-secure-store';
+import { storage } from '../services/storage';
 import { api } from '../services/api';
 
 interface User {
@@ -30,9 +30,22 @@ interface AuthState {
   profile: WorkerProfile | null;
 }
 
+interface RequestOtpProfile {
+  nameFirst: string;
+  nameLast: string;
+  dpaConsent: boolean;
+  kycConsent: boolean;
+}
+
+interface RequestOtpResult {
+  challengeId: string;
+  /** Echoed by the API in dev mode for testing convenience. */
+  sandboxOtp?: string;
+}
+
 interface AuthContextType extends AuthState {
-  requestOtp: (phone: string) => Promise<void>;
-  verifyOtp: (phone: string, code: string) => Promise<{ isNewUser: boolean }>;
+  requestOtp: (phone: string, profile?: RequestOtpProfile) => Promise<RequestOtpResult>;
+  verifyOtp: (phone: string, challengeId: string, code: string) => Promise<{ isNewUser: boolean }>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   getToken: () => Promise<string | null>;
@@ -61,8 +74,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadStoredAuth = async () => {
     try {
-      const token = await SecureStore.getItemAsync(TOKEN_KEY);
-      const userJson = await SecureStore.getItemAsync(USER_KEY);
+      const token = await storage.getItem(TOKEN_KEY);
+      const userJson = await storage.getItem(USER_KEY);
 
       if (token && userJson) {
         const user = JSON.parse(userJson) as User;
@@ -82,18 +95,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const requestOtp = async (phone: string) => {
-    await api('/auth/otp/request', { method: 'POST', body: { phone } });
+  const requestOtp = async (phone: string, profile?: RequestOtpProfile): Promise<RequestOtpResult> => {
+    const result = await api<{ challengeId: string; sandboxOtp?: string }>('/auth/otp/request', {
+      method: 'POST',
+      body: { phone, profile },
+    });
+    return { challengeId: result.challengeId, sandboxOtp: result.sandboxOtp };
   };
 
-  const verifyOtp = async (phone: string, code: string) => {
+  const verifyOtp = async (phone: string, challengeId: string, code: string) => {
     const result = await api<{
       accessToken: string;
       refreshToken: string;
       isNewUser: boolean;
     }>('/auth/otp/verify', {
       method: 'POST',
-      body: { phone, code, role: 'WORKER' },
+      body: { phone, challengeId, code, role: 'WORKER' },
     });
 
     const user: User = {
@@ -103,9 +120,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isNewUser: result.isNewUser,
     };
 
-    await SecureStore.setItemAsync(TOKEN_KEY, result.accessToken);
-    await SecureStore.setItemAsync(REFRESH_KEY, result.refreshToken);
-    await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user));
+    await storage.setItem(TOKEN_KEY, result.accessToken);
+    await storage.setItem(REFRESH_KEY, result.refreshToken);
+    await storage.setItem(USER_KEY, JSON.stringify(user));
 
     setState(prev => ({
       ...prev,
@@ -120,7 +137,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      const refreshToken = await SecureStore.getItemAsync(REFRESH_KEY);
+      const refreshToken = await storage.getItem(REFRESH_KEY);
       if (refreshToken && state.accessToken) {
         await api('/auth/logout', {
           method: 'POST',
@@ -129,9 +146,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }).catch(() => {}); // Don't block logout on API failure
       }
     } finally {
-      await SecureStore.deleteItemAsync(TOKEN_KEY);
-      await SecureStore.deleteItemAsync(REFRESH_KEY);
-      await SecureStore.deleteItemAsync(USER_KEY);
+      await storage.deleteItem(TOKEN_KEY);
+      await storage.deleteItem(REFRESH_KEY);
+      await storage.deleteItem(USER_KEY);
       setState({
         isLoading: false,
         isAuthenticated: false,
@@ -145,7 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const getToken = useCallback(async (): Promise<string | null> => {
     if (state.accessToken) return state.accessToken;
-    return SecureStore.getItemAsync(TOKEN_KEY);
+    return storage.getItem(TOKEN_KEY);
   }, [state.accessToken]);
 
   const refreshProfile = async () => {

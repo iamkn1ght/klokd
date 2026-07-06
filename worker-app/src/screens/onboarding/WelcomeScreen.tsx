@@ -15,10 +15,12 @@ import {
   Animated,
   Platform,
 } from 'react-native';
+import { ScrollView } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Logo, GradientBtn, Eyebrow, Label } from '../../components/Primitives';
-import { KlokdScreen, FadeUp, GlassCard, HoverCard, LiveDot, EASE } from '../../components/KlokdLayout';
+import { KlokdScreen, FadeUp, GlassCard, HoverCard, LiveDot, AmbientOrbs, PressScale, EASE } from '../../components/KlokdLayout';
 import { colors, spacing, radius } from '../../theme';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
@@ -144,9 +146,182 @@ function FeatIcon({ name, size = 18 }: { name: string; size?: number }) {
   return null;
 }
 
+// ─── Mobile welcome (native) ──────────────────────────────
+//
+// Phones get a purpose-built single-viewport welcome: hero pitch up top,
+// swipeable proof metrics mid-screen, primary CTA pinned in the thumb
+// zone. None of the desktop marketing sections — that page lives on web.
+
+const M_METRICS = [
+  { k: '16,412', l: 'shifts paid' },
+  { k: '18 min', l: 'clock-out → M-Pesa' },
+  { k: 'KES 1,823', l: 'avg pay / shift' },
+  { k: '94.2%', l: 'show-up rate' },
+];
+
+function MobileWelcome({ navigation }: Props) {
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={m.root}>
+      <AmbientOrbs />
+
+      {/* Top bar */}
+      <FadeUp delay={0} style={[m.top, { paddingTop: insets.top + 14 }]}>
+        <Logo size={30} />
+        <View style={m.forBadge}>
+          <Text style={m.forBadgeText}>FOR WORKERS</Text>
+        </View>
+      </FadeUp>
+
+      <View style={m.heroSpace} />
+
+      {/* Hero */}
+      <View style={m.hero}>
+        <FadeUp delay={90}>
+          <View style={m.livePill}>
+            <LiveDot />
+            <Text style={m.livePillText}>284 SHIFTS OPEN IN NAIROBI</Text>
+          </View>
+        </FadeUp>
+
+        <FadeUp delay={160}>
+          <Text style={m.h1}>
+            Find a shift.{'\n'}
+            <Text style={m.h1Accent}>Get paid by{'\n'}clock-out.</Text>
+          </Text>
+        </FadeUp>
+
+        <FadeUp delay={240}>
+          <Text style={m.sub}>
+            Verified once, trusted by every employer. M-Pesa lands within
+            18 minutes of clock-out — no chasing.
+          </Text>
+        </FadeUp>
+      </View>
+
+      {/* Proof metrics — swipeable */}
+      <FadeUp delay={320}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={m.metricsRow}
+          decelerationRate="fast"
+          snapToInterval={148}
+        >
+          {M_METRICS.map((s, i) => (
+            <View key={i} style={m.metric}>
+              <Text style={m.metricK}>{s.k}</Text>
+              <Text style={m.metricL}>{s.l}</Text>
+            </View>
+          ))}
+        </ScrollView>
+      </FadeUp>
+
+      {/* Trust strip */}
+      <FadeUp delay={390} style={m.trustRow}>
+        <View style={m.avatars}>
+          {['#0FBD83', '#00E5A0', '#88E364', '#BCFF4E'].map((c, i) => (
+            <View key={i} style={[m.avatar, { backgroundColor: c, marginLeft: i === 0 ? 0 : -9, zIndex: 4 - i }]} />
+          ))}
+        </View>
+        <Text style={m.trustText}>2,847 verified workers already earning</Text>
+      </FadeUp>
+
+      {/* CTA block — thumb zone */}
+      <FadeUp delay={460} style={[m.ctaBlock, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
+        <GradientBtn onPress={() => navigation.navigate('RailsLogin')}>Find shifts</GradientBtn>
+        <PressScale onPress={() => navigation.navigate('RailsLogin')} style={m.signInBtn}>
+          <Text style={m.signInText}>
+            Already verified? <Text style={m.signInAccent}>Sign in</Text>
+          </Text>
+        </PressScale>
+      </FadeUp>
+    </View>
+  );
+}
+
+const m = StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.ink },
+  top: {
+    paddingHorizontal: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  forBadge: {
+    paddingHorizontal: 12,
+    minHeight: 30,
+    justifyContent: 'center',
+    borderRadius: 999,
+    backgroundColor: 'rgba(188,255,78,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(188,255,78,0.28)',
+  },
+  forBadgeText: { color: colors.volt, fontSize: 11, fontWeight: '900', letterSpacing: 1.1 },
+
+  heroSpace: { flex: 1 },
+
+  hero: { paddingHorizontal: 24 },
+  livePill: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingLeft: 10,
+    paddingRight: 14,
+    minHeight: 32,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,229,160,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,229,160,0.22)',
+    marginBottom: 18,
+  },
+  livePillText: { color: colors.electric, fontSize: 11, fontWeight: '800', letterSpacing: 0.9 },
+  h1: { fontSize: 42, fontWeight: '900', letterSpacing: -1.7, lineHeight: 46, color: colors.white, marginBottom: 14 },
+  h1Accent: { color: colors.electric },
+  sub: { fontSize: 15.5, color: colors.white65, lineHeight: 23, marginBottom: 26, maxWidth: 330 },
+
+  metricsRow: { paddingHorizontal: 24, gap: 10, paddingBottom: 4 },
+  metric: {
+    width: 138,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    backgroundColor: colors.white03,
+    borderWidth: 1,
+    borderColor: colors.white08,
+  },
+  metricK: { color: colors.white, fontSize: 19, fontWeight: '900', letterSpacing: -0.6 },
+  metricL: { color: colors.white50, fontSize: 11, fontWeight: '600', marginTop: 4, lineHeight: 14 },
+
+  trustRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 24,
+    marginTop: 18,
+    marginBottom: 20,
+  },
+  avatars: { flexDirection: 'row', alignItems: 'center' },
+  avatar: { width: 26, height: 26, borderRadius: 999, borderWidth: 2, borderColor: colors.ink },
+  trustText: { color: colors.white60, fontSize: 12.5, fontWeight: '600', flex: 1 },
+
+  ctaBlock: { paddingHorizontal: 24, gap: 4 },
+  signInBtn: { minHeight: 46, alignItems: 'center', justifyContent: 'center' },
+  signInText: { color: colors.white50, fontSize: 14 },
+  signInAccent: { color: colors.electric, fontWeight: '800' },
+});
+
 // ─── Screen ───────────────────────────────────────────────
 
 export function WelcomeScreen({ navigation }: Props) {
+  if (Platform.OS !== 'web') {
+    return <MobileWelcome navigation={navigation} />;
+  }
+  return <DesktopWelcome navigation={navigation} />;
+}
+
+function DesktopWelcome({ navigation }: Props) {
   // Sticky CTA — appears past hero
   const [stickyVisible, setStickyVisible] = useState(false);
   const stickyAnim = useRef(new Animated.Value(0)).current;

@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Chip, GradientBtn, Eyebrow, Label, StepProgress } from '../../components/Primitives';
-import { AmbientOrbs, FadeUp } from '../../components/KlokdLayout';
+import { AmbientOrbs, FadeUp, SafeTop } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { useApi } from '../../hooks/useApi';
 import { colors } from '../../theme';
@@ -64,6 +64,7 @@ export function SkillsScreen({ navigation }: Props) {
   return (
     <View style={styles.screen}>
       <AmbientOrbs intensity="subtle" />
+      <SafeTop />
       <OnbHeader step={3} onBack={() => navigation.goBack()} />
 
       <FadeUp delay={0} style={styles.titleBlock}>
@@ -117,8 +118,8 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 18, paddingTop: 12, flexDirection: 'row', alignItems: 'center', gap: 14 },
   backBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: 0.5, borderColor: colors.white12, backgroundColor: colors.white04, alignItems: 'center', justifyContent: 'center' },
   titleBlock: { paddingHorizontal: 22, paddingTop: 20 },
-  h2: { fontSize: 22, fontWeight: '900', letterSpacing: -0.66, lineHeight: 24, color: colors.white, marginBottom: 8 },
-  sub: { fontSize: 12, color: colors.white50, lineHeight: 18.6 },
+  h2: { fontSize: 25, fontWeight: '900', letterSpacing: -0.8, lineHeight: 29, color: colors.white, marginBottom: 8 },
+  sub: { fontSize: 13.5, color: colors.white50, lineHeight: 20 },
 
   scrollContent: { paddingHorizontal: 22, paddingTop: 18, paddingBottom: 20 },
 

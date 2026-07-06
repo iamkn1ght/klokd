@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GradientBtn, Eyebrow, StepProgress } from '../../components/Primitives';
-import { AmbientOrbs, FadeUp } from '../../components/KlokdLayout';
+import { AmbientOrbs, FadeUp, SafeTop } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { colors } from '../../theme';
 
@@ -58,6 +58,7 @@ export function ConsentScreen({ navigation }: Props) {
   return (
     <View style={styles.screen}>
       <AmbientOrbs intensity="subtle" />
+      <SafeTop />
       <OnbHeader step={1} onBack={() => navigation.goBack()} />
       <FadeUp delay={0} style={styles.titleBlock}>
         <Eyebrow color={colors.white40} style={{ marginBottom: 8 }}>Step 2 of 5 · Your data</Eyebrow>
@@ -126,8 +127,8 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   titleBlock: { paddingHorizontal: 22, paddingTop: 20 },
-  h2: { fontSize: 22, fontWeight: '900', letterSpacing: -0.66, lineHeight: 24, color: colors.white, marginBottom: 8 },
-  sub: { fontSize: 12, color: colors.white50, lineHeight: 18.6 },
+  h2: { fontSize: 25, fontWeight: '900', letterSpacing: -0.8, lineHeight: 29, color: colors.white, marginBottom: 8 },
+  sub: { fontSize: 13.5, color: colors.white50, lineHeight: 20 },
 
   scrollContent: { paddingHorizontal: 22, paddingTop: 18, paddingBottom: 20 },
 

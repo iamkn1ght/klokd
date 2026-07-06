@@ -7,7 +7,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'rea
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../context/AuthContext';
 import { Label, VLine } from '../../components/Primitives';
-import { AmbientOrbs } from '../../components/KlokdLayout';
+import { AmbientOrbs, SafeTop } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { colors } from '../../theme';
 
@@ -61,6 +61,7 @@ export function ProfileScreen() {
   return (
     <View style={styles.screen}>
       <AmbientOrbs intensity="subtle" />
+      <SafeTop />
       <ScrollView contentContainerStyle={{ paddingBottom: 30 }}>
         {/* Profile hero */}
         <View style={styles.hero}>
