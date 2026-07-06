@@ -79,7 +79,12 @@ export function RailsLoginScreen({ navigation }: Props) {
       const r = await verifyOtp(phone, challengeId, otpCode);
       push({ rail: 'Klokd', label: `User activated · JWT + refresh token minted · isNewUser=${r.isNewUser}`, tone: 'ok' });
       setStep('done');
-      setTimeout(() => navigation.reset({ index: 0, routes: [{ name: 'Main' }] }), 1200);
+      // Returning users: RootNavigator swaps to Main automatically the
+      // moment isAuthenticated flips (state-driven routing). New users
+      // continue through the onboarding chain.
+      if (r.isNewUser) {
+        setTimeout(() => navigation.navigate('Consent'), 900);
+      }
     } catch (e) {
       push({ rail: 'Klokd', label: `Error: ${(e as Error).message}`, tone: 'err' });
     } finally {

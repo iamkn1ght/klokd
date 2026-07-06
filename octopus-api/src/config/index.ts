@@ -107,4 +107,10 @@ export const config = {
   },
 
   defaultTenantId: 'klokd-ke-default',
+
+  // Sandbox-only escape hatch. When the Identiti rail is unreachable,
+  // requestOtp mints a local placeholder account_uuid (acc_local_*) so the
+  // auth flow stays testable end-to-end. Defaults OFF; never enable in
+  // production — placeholder accounts cannot pass KYC or receive payouts.
+  railFallbackLocal: process.env.RAIL_FALLBACK_LOCAL === 'true',
 } as const;

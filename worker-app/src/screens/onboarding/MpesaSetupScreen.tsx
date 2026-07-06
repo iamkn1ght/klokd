@@ -9,6 +9,7 @@ import { GradientBtn, Eyebrow, Label, StepProgress } from '../../components/Prim
 import { AmbientOrbs, FadeUp, SafeTop } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { useApi } from '../../hooks/useApi';
+import { useAuth } from '../../context/AuthContext';
 import { colors, typography } from '../../theme';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
@@ -53,6 +54,7 @@ function OnbHeader({ step, onBack }: { step: number; onBack?: () => void }) {
 
 export function MpesaSetupScreen({ navigation }: Props) {
   const { put } = useApi();
+  const { completeOnboarding } = useAuth();
   const [num, setNum] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -70,7 +72,9 @@ export function MpesaSetupScreen({ navigation }: Props) {
       await put('/identity/workers/mpesa', { mpesaNumber: num });
     } catch {}
     setLoading(false);
-    navigation.getParent()?.navigate('Main');
+    // Flips isNewUser — RootNavigator swaps the onboarding stack out for
+    // Main automatically (state-driven routing; no manual cross-stack nav).
+    completeOnboarding();
   };
 
   return (

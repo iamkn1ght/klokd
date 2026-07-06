@@ -46,6 +46,8 @@ interface RequestOtpResult {
 interface AuthContextType extends AuthState {
   requestOtp: (phone: string, profile?: RequestOtpProfile) => Promise<RequestOtpResult>;
   verifyOtp: (phone: string, challengeId: string, code: string) => Promise<{ isNewUser: boolean }>;
+  /** Marks onboarding finished — flips isNewUser so the root navigator swaps to Main. */
+  completeOnboarding: () => void;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   getToken: () => Promise<string | null>;
@@ -135,6 +137,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { isNewUser: result.isNewUser };
   };
 
+  const completeOnboarding = () => {
+    setState(prev => ({ ...prev, isNewUser: false }));
+  };
+
   const logout = async () => {
     try {
       const refreshToken = await storage.getItem(REFRESH_KEY);
@@ -175,6 +181,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ...state,
       requestOtp,
       verifyOtp,
+      completeOnboarding,
       logout,
       refreshProfile,
       getToken,

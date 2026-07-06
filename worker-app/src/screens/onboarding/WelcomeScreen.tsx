@@ -154,8 +154,8 @@ function FeatIcon({ name, size = 18 }: { name: string; size?: number }) {
 
 const M_METRICS = [
   { k: '16,412', l: 'shifts paid' },
-  { k: '18 min', l: 'clock-out → M-Pesa' },
-  { k: 'KES 1,823', l: 'avg pay / shift' },
+  { k: '18 min', l: 'avg payout time' },
+  { k: 'KES 1,823', l: 'avg pay per shift' },
   { k: '94.2%', l: 'show-up rate' },
 ];
 
@@ -165,9 +165,9 @@ function MobileWelcome({ navigation }: Props) {
     <View style={m.root}>
       <AmbientOrbs />
 
-      {/* Top bar */}
-      <FadeUp delay={0} style={[m.top, { paddingTop: insets.top + 14 }]}>
-        <Logo size={30} />
+      {/* Top bar — brand leads */}
+      <FadeUp delay={0} style={[m.top, { paddingTop: insets.top + 16 }]}>
+        <Logo size={38} />
         <View style={m.forBadge}>
           <Text style={m.forBadgeText}>FOR WORKERS</Text>
         </View>
@@ -199,22 +199,18 @@ function MobileWelcome({ navigation }: Props) {
         </FadeUp>
       </View>
 
-      {/* Proof metrics — swipeable */}
-      <FadeUp delay={320}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={m.metricsRow}
-          decelerationRate="fast"
-          snapToInterval={148}
-        >
-          {M_METRICS.map((s, i) => (
-            <View key={i} style={m.metric}>
-              <Text style={m.metricK}>{s.k}</Text>
-              <Text style={m.metricL}>{s.l}</Text>
-            </View>
-          ))}
-        </ScrollView>
+      {/* Proof metrics — 2×2 grid, always fits the viewport */}
+      <FadeUp delay={320} style={m.metricsGrid}>
+        {M_METRICS.map((s, i) => (
+          <View key={i} style={m.metric}>
+            <Text style={m.metricK} numberOfLines={1} adjustsFontSizeToFit>
+              {s.k}
+            </Text>
+            <Text style={m.metricL} numberOfLines={1}>
+              {s.l}
+            </Text>
+          </View>
+        ))}
       </FadeUp>
 
       {/* Trust strip */}
@@ -281,18 +277,24 @@ const m = StyleSheet.create({
   h1Accent: { color: colors.electric },
   sub: { fontSize: 15.5, color: colors.white65, lineHeight: 23, marginBottom: 26, maxWidth: 330 },
 
-  metricsRow: { paddingHorizontal: 24, gap: 10, paddingBottom: 4 },
+  metricsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 24,
+    gap: 10,
+  },
   metric: {
-    width: 138,
-    paddingVertical: 14,
+    flexBasis: '46%',
+    flexGrow: 1,
+    paddingVertical: 15,
     paddingHorizontal: 16,
-    borderRadius: 16,
-    backgroundColor: colors.white03,
+    borderRadius: 18,
+    backgroundColor: colors.white04,
     borderWidth: 1,
     borderColor: colors.white08,
   },
-  metricK: { color: colors.white, fontSize: 19, fontWeight: '900', letterSpacing: -0.6 },
-  metricL: { color: colors.white50, fontSize: 11, fontWeight: '600', marginTop: 4, lineHeight: 14 },
+  metricK: { color: colors.white, fontSize: 21, fontWeight: '900', letterSpacing: -0.7 },
+  metricL: { color: colors.white50, fontSize: 12, fontWeight: '600', marginTop: 5, letterSpacing: -0.1 },
 
   trustRow: {
     flexDirection: 'row',

@@ -36,21 +36,29 @@ export function RootNavigator() {
   const demoMode = process.env.EXPO_PUBLIC_DEMO_MODE === 'true';
   const showOnboarding = demoMode ? false : (!isAuthenticated || isNewUser);
 
+  // State-driven auth routing (canonical react-navigation pattern):
+  // when isAuthenticated / isNewUser change, the rendered screen set
+  // changes and the navigator transitions automatically. No manual
+  // resets from inside child stacks.
   return (
     <Stack.Navigator
-      initialRouteName={showOnboarding ? 'Onboarding' : 'Main'}
       screenOptions={{
         headerShown: false,
         animation: 'slide_from_right',
         contentStyle: { backgroundColor: colors.ink },
       }}
     >
-      <Stack.Screen name="Onboarding" component={OnboardingNavigator} />
-      <Stack.Screen name="Main" component={MainTabNavigator} />
-      <Stack.Screen name="ShiftDetail" component={ShiftDetailScreen} />
-      <Stack.Screen name="ClockIn" component={ClockInScreen} />
-      <Stack.Screen name="ActiveShift" component={ActiveShiftScreen} />
-      <Stack.Screen name="PaymentConfirmed" component={PaymentConfirmedScreen} />
+      {showOnboarding ? (
+        <Stack.Screen name="Onboarding" component={OnboardingNavigator} />
+      ) : (
+        <>
+          <Stack.Screen name="Main" component={MainTabNavigator} />
+          <Stack.Screen name="ShiftDetail" component={ShiftDetailScreen} />
+          <Stack.Screen name="ClockIn" component={ClockInScreen} />
+          <Stack.Screen name="ActiveShift" component={ActiveShiftScreen} />
+          <Stack.Screen name="PaymentConfirmed" component={PaymentConfirmedScreen} />
+        </>
+      )}
     </Stack.Navigator>
   );
 }

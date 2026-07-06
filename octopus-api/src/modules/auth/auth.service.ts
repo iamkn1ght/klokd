@@ -83,19 +83,35 @@ export class AuthService {
           'Profile required for new account: nameFirst, nameLast, dpaConsent, kycConsent'
         );
       }
-      const created = await identityRailClient.createCustomer({
-        phone: normalized,
-        nameFirst: profile.nameFirst,
-        nameLast: profile.nameLast,
-        appCorrelation: `klokd_phone_${normalized}`,
-        consent: {
-          dpa_consent: profile.dpaConsent,
-          kyc_consent: profile.kycConsent,
-          marketing_consent: profile.marketingConsent ?? false,
-          captured_at: new Date().toISOString(),
-          captured_via: 'app_onboarding',
-        },
-      });
+      let created: { accountUuid: IdentitiAccountUuid; tier: IdentitiTier };
+      try {
+        created = await identityRailClient.createCustomer({
+          phone: normalized,
+          nameFirst: profile.nameFirst,
+          nameLast: profile.nameLast,
+          appCorrelation: `klokd_phone_${normalized}`,
+          consent: {
+            dpa_consent: profile.dpaConsent,
+            kyc_consent: profile.kycConsent,
+            marketing_consent: profile.marketingConsent ?? false,
+            captured_at: new Date().toISOString(),
+            captured_via: 'app_onboarding',
+          },
+        });
+      } catch (err) {
+        // Sandbox-only: keep auth testable while the Identiti rail is down.
+        // Placeholder accounts are tier_0 and clearly marked acc_local_*;
+        // they can never pass KYC or receive payouts.
+        if (!config.railFallbackLocal) throw err;
+        console.warn(
+          '[AUTH] Identiti createCustomer failed — RAIL_FALLBACK_LOCAL minting placeholder:',
+          (err as Error).message
+        );
+        created = {
+          accountUuid: `acc_local_${crypto.randomUUID()}` as IdentitiAccountUuid,
+          tier: 'tier_0' as IdentitiTier,
+        };
+      }
       accountUuid = created.accountUuid;
 
       // Persist immediately so retries skip createCustomer.

@@ -1,16 +1,18 @@
 /**
  * API client for Klokd backend.
- * Dev: localhost:3000 on web, 10.0.2.2:3000 on Android emulator.
- * Prod: Railway.
+ *
+ * Base URL resolution:
+ *   1. EXPO_PUBLIC_API_URL (origin, no path) — set when pointing at a local
+ *      or tunnelled API during development.
+ *   2. Deployed Railway API — the default everywhere. A physical phone can
+ *      never reach the dev machine's localhost, so the deployed API is the
+ *      only safe default for real devices.
  */
-import { Platform } from 'react-native';
+const API_ORIGIN =
+  process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') ||
+  'https://klokd-production.up.railway.app';
 
-const DEV_BASE =
-  Platform.OS === 'web' || Platform.OS === 'ios'
-    ? 'http://localhost:3000/api/v1'
-    : 'http://10.0.2.2:3000/api/v1';
-
-const BASE_URL = __DEV__ ? DEV_BASE : 'https://klokd-production.up.railway.app/api/v1';
+const BASE_URL = `${API_ORIGIN}/api/v1`;
 
 interface ApiOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
