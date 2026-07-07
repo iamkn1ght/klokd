@@ -5,7 +5,8 @@
 **App:** Klokd Workplace Solutions Ltd · `klokd.co.ke` · Casual Labour Marketplace (Hospitality + Health)
 **Status:** 🟢 v3 rail-alignment SHIPPED + **unified product surface SHIPPED 24 Jun** — **2 rails LIVE** (Identiti, Todoku), **3 rails PROVISION-READY** (Payment Rail, Helpan AI, Hakken Phase 1) · client wire-correct end-to-end · Itafika **formally parked** (playbook §3.3, option d) · **3 personas now folded behind one web front door** (landing → persona-picker sign-in → Worker / Employer / Admin) · awaiting operator handovers for KP + Helpan + Hakken
 **Repo:** `iamkn1ght/klokd` (moved from `thhvvv/klokd`) · branch `main`
-**Latest commit:** `2801629 feat(web): unified web-app with landing + persona-picker sign-in` · 24 June 2026
+**Latest commit:** `3cfb47f feat(auth): sandbox OTP echo follows RAIL_FALLBACK_LOCAL` · 07 July 2026
+**Investor build:** 🟢 **APKs LIVE 07 Jul** (worker `4abd2fa8`, employer `e18e9fc7`) — mobile-first redesign + root-caused worker sign-in; cold-phone auth verified end-to-end against Railway with `RAIL_FALLBACK_LOCAL=true`
 **Octopus API URL:** https://klokd-production.up.railway.app (Railway)
 **Supabase project:** `nbtpkmjovgbwgwefsdjn` · region locked **eu-west-1** (CHAMIA-REGION resolved per platform standard)
 **Domain:** `klokd.co.ke` (NEVER `.com` or `.app`) · handle `@klokdKE` (NEVER `@klokKE`)
@@ -33,6 +34,10 @@ Reference work memorialised in [KMV_RAILS_INTEGRATION_GUIDE.md](./KMV_RAILS_INTE
 | `219b162` | 11 Jun | Fix: ship demo module + Klokd-side OTP flow rewrite (Identiti step-up requires `active` state; Klokd does local OTP via Todoku) |
 | `7f723d2` | 11 Jun | RECAP bump to v1.1 |
 | `9572095` | 19 Jun | EAS project ownership switched mumbus → kmv209; both APKs re-built (worker `8ce0a4cb`, employer `b8842660`) |
+| `5dfe526` | 24 Jun | RECAP bump to v1.3 |
+| `2ecc56b` | 07 Jul | **Mobile-first redesign** across worker + employer — native ambient orbs (SVG radial), `PressScale` feedback, `KlokdTabBar` custom bottom bar, `SafeTop` notch handling on 21 screens, mobile-only Welcome screens, 54pt CTAs / 44pt tap-target floor, type-scale bumps, staggered reveals |
+| `155526a` | 07 Jul | **Root-caused worker sign-in** (4 stacked causes) + landing polish — see Sign-in fix box below |
+| `3cfb47f` | 07 Jul | Sandbox OTP echo follows `RAIL_FALLBACK_LOCAL` (one flag now controls full sandbox auth) |
 | `2c8dc8b` | 23 Jun | **Hakken Phase 1 integration** — entity registration + broadcast publishing as non-blocking background jobs (S5-NEW-01); 3-lens adversarial-verify workflow caught 2 critical + 4 major bugs, all fixed in same commit |
 | `ca74640` | 23 Jun | Klokd-Itafika decision logged — **option (d) None: parked** per playbook §3.3 |
 | `86b2b71` | 23 Jun | RECAP bump to v1.2 |
@@ -285,10 +290,20 @@ Plus historical D-XX locked decisions from `klokd_reboot_pack_v1.md` §11 (D-01.
 
 ### Mobile builds (EAS · kmv209 account)
 
-- Worker app: `@kmv209/klokd-worker` (`0f6b66f6-460e-4704-9824-6b60b882f266`) — latest APK `8ce0a4cb-34a5-4ced-a6fd-38b57c9f914d` (19 Jun)
-- Employer app: `@kmv209/klokd-employer` (`f29c48de-8704-4c2f-a60a-7c53934e2676`) — latest APK `b8842660-1297-4a79-bb4b-bf9755bc2c68` (19 Jun)
+- Worker app: `@kmv209/klokd-worker` (`0f6b66f6-460e-4704-9824-6b60b882f266`) — **latest APK `4abd2fa8-b5af-419c-bc76-0ac0d67a8e13` (07 Jul, investor build)** — `expo.dev/artifacts/eas/8f3gqataowaym1lNExYdg9m1w30CIJjj9tZmLvunTwo.apk`
+- Employer app: `@kmv209/klokd-employer` (`f29c48de-8704-4c2f-a60a-7c53934e2676`) — **latest APK `e18e9fc7-ad15-40d9-b84b-840b643eab83` (07 Jul, investor build)** — `expo.dev/artifacts/eas/I_GI44wKNR9N9dtcMCrblzNxm2ZB72yi_zMpRCNu_8s.apk`
+- EAS Update: both apps published to `preview` branch (runtime `exposdk:54.0.0`) — worker group `a108fc83`, employer `b46c616c`. This is also the iOS demo path (Expo Go; standalone iOS + TestFlight deferred until Apple Developer account).
 - Admin app: web-only at this stage; native EAS build deferred (operators work on desktop)
 - Web app: dev only at this stage; production target `klokd.co.ke` (build + deploy reserved for next sprint)
+
+### Worker sign-in fix (07 Jul) — 4 stacked root causes
+
+Sign-in was fully broken on device; each cause was fixed at the root, not patched:
+
+1. **API base URL** — client sent physical iOS devices to `http://localhost:3000` (which on the phone is the phone). `api.ts` now resolves `EXPO_PUBLIC_API_URL` first, else the deployed Railway API — the only safe default for a real device.
+2. **Navigation architecture** — `RailsLogin` did `navigation.reset` to a `Main` route absent from the onboarding stack (redbox), and `RootNavigator` used `initialRouteName` (read once at mount, so auth-state flips never switched stacks). Now the canonical state-driven pattern: the rendered screen set changes with `isAuthenticated`/`isNewUser`, no manual cross-stack resets.
+3. **`isNewUser` never cleared** — a new user could finish onboarding and stay locked out of Main. `AuthContext.completeOnboarding()` added; `MpesaSetup` calls it as the final step.
+4. **Identiti rail outage** — `POST /v1/customers` 500s upstream for every new registration (Silvia's side, unresolved — needs `SILVIA_ESCALATIONS.md` entry). Klokd API gains **`RAIL_FALLBACK_LOCAL`** (default OFF, sandbox-only): when the rail is unreachable it mints a clearly-marked `acc_local_*` tier-0 placeholder so auth stays testable. **Set `true` on Railway for the investor demo; flip OFF before real traffic** — placeholders cannot pass KYC or receive payouts. Verified end-to-end 07 Jul: cold phone → OTP → verify → JWT issued against live Railway.
 
 ### Web dev surfaces (24 Jun)
 
@@ -301,5 +316,5 @@ Plus historical D-XX locked decisions from `klokd_reboot_pack_v1.md` §11 (D-01.
 
 ---
 
-*Klokd v3 · RECAP v1.3 · 24 June 2026 · Confidential · Update at every sprint boundary.*
-*Major delta from v1.2: Design backbone unified across worker + employer apps (22 screens migrated to the v5 visual language with shared `KlokdLayout` primitives — ambient orbs, glass cards, ease-out-quart motion); `admin-app/` scaffolded with 6 ops screens on the same backbone; `web-app/` unified front door shipped — single landing + persona-picker sign-in folding Worker / Employer / Admin behind one URL (Stripe/Linear pattern, admin hidden unless `@klokd.co.ke`). Klokd is now one product on the web, two role-specific apps on mobile. Money Rule preserved across all four surfaces.*
+*Klokd v3 · RECAP v1.4 · 07 July 2026 · Confidential · Update at every sprint boundary.*
+*Major delta from v1.3: Mobile-first redesign across worker + employer native apps (native ambient orbs, press feedback, custom bottom tab bar, notch-safe layout, mobile-only Welcome screens); worker sign-in root-caused and fixed end-to-end (4 stacked causes — API base, navigation architecture, isNewUser lifecycle, Identiti-outage fallback); fresh investor APKs built for both apps (worker `4abd2fa8`, employer `e18e9fc7`) with cold-phone auth verified against live Railway under `RAIL_FALLBACK_LOCAL=true`. iOS demo path = Expo Go via EAS Update (standalone iOS deferred until Apple Developer account). Open blocker: Identiti `POST /v1/customers` 500s upstream — flag is a sandbox bridge, not a fix.*

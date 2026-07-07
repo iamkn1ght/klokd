@@ -8,6 +8,12 @@
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "scheme": "klokd",
+    "updates": {
+      "url": "https://u.expo.dev/0f6b66f6-460e-4704-9824-6b60b882f266"
+    },
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
