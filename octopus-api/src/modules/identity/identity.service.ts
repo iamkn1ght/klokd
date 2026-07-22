@@ -7,6 +7,14 @@ import { identityRailClient } from '../rails';
 // All National ID images, biometrics, and KYC documents flow to Identiti (AD-K02).
 // Klokd retains only: account_uuid + kyc_tier + verificationStatus signal.
 
+/** Identiti returns tier as a slug; Klokd persists kyc_tier as an Int. */
+const TIER_TO_INT: Record<string, number> = {
+  tier_0: 0,
+  tier_1: 1,
+  tier_2: 2,
+  tier_3: 3,
+};
+
 export class IdentityService {
   async upsertWorkerProfile(
     userId: string,
@@ -37,28 +45,96 @@ export class IdentityService {
   }
 
   /**
-   * Submit National ID for IPRS verification via Identiti.
+   * Submit National ID details for IPRS verification via Identiti.
    *
-   * NOTE: per Identiti live contract, KYC is IPRS-based (data lookup against
-   * government registry), NOT image-based. Inputs: national_id + name_first +
-   * name_last + date_of_birth. Images are NOT sent. This is a UX simplification
-   * from the advisory's id_front/id_back/selfie model.
+   * Identiti KYC is an IPRS data lookup against the national register, NOT an
+   * image upload — inputs are national_id + name_first + name_last +
+   * date_of_birth. No document image ever reaches Klokd (AD-K02); we persist
+   * only the resulting tier + verification signal.
    *
-   * Implementation pending: the live /v1/customers/{uuid}/kyc/iprs endpoint
-   * schema needs to be confirmed against the sandbox (probe in next turn),
-   * and the mobile apps need to switch from photo upload to a typed-data form.
+   * Rail side-effects on full_match: tier_0 -> tier_1, emits KYC_APPROVED +
+   * TIER_CHANGED. Verification does NOT activate the account — activation is a
+   * separate Identiti endpoint and the two are independent.
+   *
+   * Wire contract verified against Identiti 0.1.2 (22 Jul 2026).
    */
   async submitIdVerification(
-    _workerId: string,
-    _tenantId: string,
-    _data: { idFrontBase64: string; idBackBase64: string; selfieBase64: string }
-  ): Promise<never> {
-    void identityRailClient;
-    throw new AppError(
-      501,
-      'identity.submitIdVerification: pending /v1/customers/{uuid}/kyc/iprs wire confirmation. ' +
-        'Identiti KYC is IPRS data lookup, not image upload — mobile apps must collect national_id + DOB instead.'
-    );
+    workerId: string,
+    tenantId: string,
+    data: { nationalId: string; nameFirst: string; nameLast: string; dateOfBirth: string }
+  ): Promise<{ state: string; tier: number | null; alreadyVerified: boolean }> {
+    const worker = await prisma.worker.findUnique({ where: { id: workerId } });
+    if (!worker) throw new AppError(404, 'Worker profile not found');
+
+    const accountUuid = worker.accountUuid;
+    if (!accountUuid) {
+      throw new AppError(409, 'Worker has no Identiti account_uuid — complete sign-in first');
+    }
+
+    try {
+      const res = await identityRailClient.submitIprsKyc(accountUuid as `acc_${string}`, {
+        nationalId: data.nationalId,
+        nameFirst: data.nameFirst,
+        nameLast: data.nameLast,
+        dateOfBirth: data.dateOfBirth,
+      });
+
+      const tierInt = res.tierPromotedTo ? TIER_TO_INT[res.tierPromotedTo] : null;
+      const verified = res.state === 'verified';
+
+      // Persist only the signal — never the National ID itself (AD-K02).
+      if (verified || tierInt !== null) {
+        await prisma.$transaction([
+          prisma.worker.update({
+            where: { id: worker.id },
+            data: {
+              ...(tierInt !== null ? { kycTier: tierInt } : {}),
+              ...(verified ? { verificationStatus: 'APPROVED' as const } : {}),
+            },
+          }),
+          ...(tierInt !== null
+            ? [prisma.user.update({ where: { id: worker.userId }, data: { kycTier: tierInt } })]
+            : []),
+        ]);
+      }
+
+      await logAudit({
+        tenantId,
+        actorId: worker.userId,
+        action: 'identity.kyc.iprs_submitted',
+        resource: 'worker',
+        resourceId: worker.id,
+        metadata: {
+          artefactId: res.artefactId,
+          state: res.state,
+          match: res.iprsSummary?.match,
+          tierPromotedTo: res.tierPromotedTo ?? null,
+        },
+      });
+
+      return { state: res.state, tier: tierInt, alreadyVerified: false };
+    } catch (err) {
+      const e = err as AppError;
+      switch (e.railCode) {
+        // Already submitted is a success from the worker's point of view.
+        case 'kyc_artefact_already_submitted':
+          await prisma.worker.update({
+            where: { id: worker.id },
+            data: { verificationStatus: 'APPROVED' as const },
+          });
+          return { state: 'verified', tier: null, alreadyVerified: true };
+        case 'kyc_iprs_document_mismatch':
+          throw new AppError(400, 'Those details do not match the national register. Check your names and date of birth.');
+        case 'kyc_iprs_no_match':
+          throw new AppError(400, 'We could not verify that National ID. Check the number and try again.');
+        case 'upstream_iprs_unavailable':
+          throw new AppError(503, 'ID verification is temporarily unavailable. Please try again shortly.');
+        case 'customer_not_found':
+          throw new AppError(409, 'Identiti account not found for this worker.');
+        default:
+          throw err;
+      }
+    }
   }
 
   async recordConsent(

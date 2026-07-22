@@ -58,6 +58,44 @@ export interface IdentitiPhoneTokenResponse {
   expiresAt: string;
 }
 
+// ─── KYC (IPRS) ──────────────────────────────────────────
+//
+// Identiti KYC is an IPRS data lookup against the national register — it is NOT
+// an image/document upload. Klokd sends typed fields only; no National ID image
+// ever leaves the device or touches Klokd storage (AD-K02).
+//
+// Contract verified against Identiti `src/schemas/kyc.ts` (0.1.2, 22 Jul 2026):
+// additionalProperties: false, all four fields required.
+
+export interface IdentitiIprsKycRequest {
+  /** 7-9 digits, no letters or spaces (rail regex ^[0-9]{7,9}$). */
+  nationalId: string;
+  nameFirst: string;
+  nameLast: string;
+  /** YYYY-MM-DD. A full date-time (…T00:00:00Z) is rejected by the rail. */
+  dateOfBirth: string;
+}
+
+export type IdentitiKycArtefactState =
+  | 'pending'
+  | 'verified'
+  | 'failed'
+  | 'expired'
+  | 'revoked';
+
+export interface IdentitiIprsKycResponse {
+  artefactId: string;
+  state: IdentitiKycArtefactState;
+  iprsSummary?: {
+    match: 'full_match' | 'partial_match' | 'no_match';
+    confidenceBand: 'high' | 'medium' | 'low';
+    verifiedAt?: string;
+    expiresAt?: string;
+  };
+  /** Present only when this verification unlocked a tier promotion. */
+  tierPromotedTo?: IdentitiTier;
+}
+
 export type IdentitiStepUpFactor = 'phone_otp' | 'webauthn' | 'biometric';
 export type IdentitiStepUpRiskTier = 'low' | 'medium' | 'high';
 

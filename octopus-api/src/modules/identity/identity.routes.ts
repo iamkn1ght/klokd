@@ -44,10 +44,14 @@ router.post('/workers/consent', authenticate, authorize('WORKER'), async (req: R
 });
 
 router.post('/workers/verify-id', authenticate, authorize('WORKER'), async (req: Request, res: Response) => {
+  // Identiti KYC is an IPRS data lookup, not an image upload (AD-K02: no
+  // National ID image ever reaches Klokd). Constraints mirror the rail schema:
+  // national_id ^[0-9]{7,9}$, date_of_birth YYYY-MM-DD (not a full date-time).
   const schema = z.object({
-    idFrontBase64: z.string().min(1),
-    idBackBase64: z.string().min(1),
-    selfieBase64: z.string().min(1),
+    nationalId: z.string().regex(/^[0-9]{7,9}$/, 'National ID must be 7-9 digits'),
+    nameFirst: z.string().min(1).max(100),
+    nameLast: z.string().min(1).max(100),
+    dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date of birth must be YYYY-MM-DD'),
   });
   const data = schema.parse(req.body);
 

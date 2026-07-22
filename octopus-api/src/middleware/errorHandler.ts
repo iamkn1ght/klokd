@@ -5,7 +5,13 @@ export class AppError extends Error {
   constructor(
     public statusCode: number,
     message: string,
-    public isOperational = true
+    public isOperational = true,
+    /**
+     * Upstream rail error code (e.g. Identiti `kyc_iprs_no_match`). Set when the
+     * error originates from a rail envelope so callers can branch on the code
+     * instead of substring-matching the message.
+     */
+    public railCode?: string
   ) {
     super(message);
     Object.setPrototypeOf(this, AppError.prototype);

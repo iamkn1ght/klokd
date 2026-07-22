@@ -5,6 +5,10 @@ import type {
   IdentitiCreateCustomerRequest,
   IdentitiCreateCustomerResponse,
   IdentitiTierResponse,
+  IdentitiIprsKycRequest,
+  IdentitiIprsKycResponse,
+  IdentitiKycArtefactState,
+  IdentitiTier,
   IdentitiPhoneTokenRequest,
   IdentitiPhoneTokenResponse,
   IdentitiStepUpChallengeRequest,
@@ -119,7 +123,15 @@ class IdentityRailClient {
     if (!res.ok) {
       const code = envelope?.error?.code ?? 'unknown';
       const message = envelope?.error?.message ?? `Identiti HTTP ${res.status}`;
-      throw new AppError(res.status === 401 ? 401 : 502, `Identiti ${method} ${path} failed: ${code} — ${message}`);
+      // railCode is carried through so callers can branch on the Identiti error
+      // code (e.g. kyc_iprs_no_match vs kyc_artefact_already_submitted) rather
+      // than substring-matching the composed message.
+      throw new AppError(
+        res.status === 401 ? 401 : 502,
+        `Identiti ${method} ${path} failed: ${code} — ${message}`,
+        true,
+        code
+      );
     }
 
     if (!envelope || envelope.ok === false) {
@@ -162,6 +174,46 @@ class IdentityRailClient {
   }
 
   // ─── Phone tokens (per-call freshness; never cache > 15 min) ─
+
+  // ─── KYC (IPRS) ──────────────────────────────────────
+  //
+  // POST /v1/customers/{uuid}/kyc/iprs — IPRS data lookup, not image upload.
+  // Side effects rail-side: tier_0 -> tier_1 on full_match, emits KYC_APPROVED
+  // + TIER_CHANGED. Does NOT activate the account (activation is a separate
+  // endpoint) — the two are independent, do not couple them.
+  async submitIprsKyc(
+    accountUuid: IdentitiAccountUuid,
+    req: IdentitiIprsKycRequest
+  ): Promise<IdentitiIprsKycResponse> {
+    const raw = await this.request<{
+      artefact_id: string;
+      state: IdentitiKycArtefactState;
+      iprs_summary?: {
+        match: 'full_match' | 'partial_match' | 'no_match';
+        confidence_band: 'high' | 'medium' | 'low';
+        verified_at?: string;
+        expires_at?: string;
+      };
+      tier_promoted_to?: IdentitiTier;
+    }>('POST', `/v1/customers/${encodeURIComponent(accountUuid)}/kyc/iprs`, {
+      national_id: req.nationalId,
+      name_first: req.nameFirst,
+      name_last: req.nameLast,
+      date_of_birth: req.dateOfBirth,
+    });
+
+    return {
+      artefactId: raw.artefact_id,
+      state: raw.state,
+      iprsSummary: raw.iprs_summary && {
+        match: raw.iprs_summary.match,
+        confidenceBand: raw.iprs_summary.confidence_band,
+        verifiedAt: raw.iprs_summary.verified_at,
+        expiresAt: raw.iprs_summary.expires_at,
+      },
+      tierPromotedTo: raw.tier_promoted_to,
+    };
+  }
 
   async issuePhoneToken(req: IdentitiPhoneTokenRequest): Promise<IdentitiPhoneTokenResponse> {
     const raw = await this.request<{
