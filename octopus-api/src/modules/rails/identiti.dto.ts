@@ -58,6 +58,21 @@ export interface IdentitiPhoneTokenResponse {
   expiresAt: string;
 }
 
+// ─── Activation ──────────────────────────────────────────
+//
+// Fresh Identiti accounts are `pending_onboarding`. KYC verification does NOT
+// activate them — activation is a separate, independent call. Step-up requires
+// an active account, so a customer must be activated before any high-value
+// payout authorisation can succeed.
+
+export interface IdentitiActivateResponse {
+  accountUuid: IdentitiAccountUuid;
+  state: IdentitiCustomerState;
+  previousState?: IdentitiCustomerState;
+  /** True when the account was already active (idempotent re-activation). */
+  alreadyActive?: boolean;
+}
+
 // ─── KYC (IPRS) ──────────────────────────────────────────
 //
 // Identiti KYC is an IPRS data lookup against the national register — it is NOT

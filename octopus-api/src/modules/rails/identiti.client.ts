@@ -8,6 +8,8 @@ import type {
   IdentitiIprsKycRequest,
   IdentitiIprsKycResponse,
   IdentitiKycArtefactState,
+  IdentitiActivateResponse,
+  IdentitiCustomerState,
   IdentitiTier,
   IdentitiPhoneTokenRequest,
   IdentitiPhoneTokenResponse,
@@ -174,6 +176,28 @@ class IdentityRailClient {
   }
 
   // ─── Phone tokens (per-call freshness; never cache > 15 min) ─
+
+  // ─── Activation ──────────────────────────────────────
+  //
+  // POST /v1/customers/{uuid}/activate — pending_onboarding -> active.
+  // Idempotent: an already-active account returns 200 with already_active,
+  // never an error. Step-up requires an active account, so this must run
+  // before any high-value payout authorisation. Independent of KYC.
+  async activateCustomer(accountUuid: IdentitiAccountUuid): Promise<IdentitiActivateResponse> {
+    const raw = await this.request<{
+      account_uuid: IdentitiAccountUuid;
+      state: IdentitiCustomerState;
+      previous_state?: IdentitiCustomerState;
+      already_active?: boolean;
+    }>('POST', `/v1/customers/${encodeURIComponent(accountUuid)}/activate`, {});
+
+    return {
+      accountUuid: raw.account_uuid,
+      state: raw.state,
+      previousState: raw.previous_state,
+      alreadyActive: raw.already_active,
+    };
+  }
 
   // ─── KYC (IPRS) ──────────────────────────────────────
   //

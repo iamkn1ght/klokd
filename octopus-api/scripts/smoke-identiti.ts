@@ -39,17 +39,25 @@ async function main() {
 
   // Step-up will fail (klokd.login not in operation_kind enum) — surface that.
   try {
+    // Step-up requires an active account — fresh accounts are
+    // pending_onboarding, and activation is independent of KYC.
+    const activated = await identityRailClient.activateCustomer(customer.accountUuid);
+    console.log('✓ activateCustomer ->', activated);
+
+    // operation_kind must be one of Identiti's registered enum values.
+    // `klokd.login` is NOT registered; `klokd.payout_high_value` is (and is what
+    // the payout path uses). operation_audience must be URI-formatted.
     const challenge = await identityRailClient.createStepUpChallenge({
       accountUuid: customer.accountUuid,
-      operationAudience: 'https://api.klokd.co.ke',
-      operationKind: 'klokd.login',
-      operationRiskTier: 'low',
+      operationAudience: 'https://klokd.co.ke',
+      operationKind: 'klokd.payout_high_value',
+      operationRiskTier: 'high',
       factor: 'phone_otp',
     });
     console.log('✓ createStepUpChallenge ->', challenge);
   } catch (err) {
     const e = err as Error;
-    console.log('✗ createStepUpChallenge (expected — Silvia must register klokd.* operation_kind):');
+    console.log('✗ createStepUpChallenge:');
     console.log('  ', e.message);
   }
 }

@@ -121,10 +121,15 @@ export class PaymentService {
     let stepUpToken: string | undefined;
     if (deductions.netKes > PAYOUT_STEP_UP_THRESHOLD_KES) {
       const accountUuid = shift.worker.accountUuid as `acc_${string}`;
+      // operation_audience must be a URI (rail schema: format=uri) — a bare
+      // slug is rejected. operation_kind must be one of Identiti's registered
+      // enum values; `kipkiren_pay.payout.initiate` is NOT registered, whereas
+      // `klokd.payout_high_value` was registered for exactly this path.
+      // Both verified live against Identiti 0.1.2 on 22 Jul 2026.
       const challenge = await identityRailClient.createStepUpChallenge({
         accountUuid,
-        operationAudience: 'kipkiren_pay',
-        operationKind: 'kipkiren_pay.payout.initiate',
+        operationAudience: 'https://klokd.co.ke',
+        operationKind: 'klokd.payout_high_value',
         operationRiskTier: 'high',
         factor: 'phone_otp',
       });

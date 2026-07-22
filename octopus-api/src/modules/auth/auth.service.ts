@@ -210,6 +210,19 @@ export class AuthService {
       });
     }
 
+    // Mirror activation to Identiti. Fresh Identiti accounts sit in
+    // `pending_onboarding`, and step-up (required for high-value payouts)
+    // rejects non-active accounts. OTP success proves phone ownership, so this
+    // is the correct moment. Idempotent rail-side; non-blocking here because a
+    // rail hiccup must never cost the user their sign-in.
+    if (justActivated && user.accountUuid) {
+      void identityRailClient
+        .activateCustomer(user.accountUuid as IdentitiAccountUuid)
+        .catch((err: Error) =>
+          console.warn('[AUTH] Identiti activation deferred (non-fatal):', err.message)
+        );
+    }
+
     const payload: JwtPayload = {
       userId: user.id,
       role: user.role,
