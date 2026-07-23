@@ -3,9 +3,9 @@
 > Per-app sprint state, deployment state, test counts, blockers. Master cross-rail tracker at `C:\Projects\Platform Rails-instruction pack v1-reboot pack v1.2\RECAP.md`.
 
 **App:** Klokd Workplace Solutions Ltd · `klokd.co.ke` · Casual Labour Marketplace (Hospitality + Health)
-**Status:** 🟢 v3 rail-alignment SHIPPED + **unified product surface SHIPPED 24 Jun** — **2 rails LIVE** (Identiti, Todoku), **3 rails PROVISION-READY** (Payment Rail, Helpan AI, Hakken Phase 1) · client wire-correct end-to-end · Itafika **formally parked** (playbook §3.3, option d) · **3 personas now folded behind one web front door** (landing → persona-picker sign-in → Worker / Employer / Admin) · awaiting operator handovers for KP + Helpan + Hakken
+**Status:** 🟢 v3 rail-alignment SHIPPED + **unified product surface SHIPPED 24 Jun** — **3 rails LIVE** (Identiti, Todoku, **Hakken Phase 1 — go-live 23 Jul, verified 31/31 against the live rail**), **2 rails PROVISION-READY** (Payment Rail, Helpan AI) · client wire-correct end-to-end · Itafika **formally parked** (playbook §3.3, option d) · **3 personas now folded behind one web front door** (landing → persona-picker sign-in → Worker / Employer / Admin) · awaiting operator handovers for KP + Helpan
 **Repo:** `iamkn1ght/klokd` (moved from `thhvvv/klokd`) · branch `main`
-**Latest commit:** `0e54cc6 docs(recap): bump to v1.4 — investor APKs, mobile redesign, sign-in fix` · 07 July 2026
+**Latest commit:** `05fe5a4 fix(hakken): stop the PII guard from blocking employer business-name registration` · 23 July 2026 (Hakken go-live)
 **Investor build:** 🟢 **APKs LIVE 08 Jul** (worker `57c3da93`, employer `e6de9740`) — mobile-first redesign + root-caused worker sign-in + expo-updates/OTA; cold-phone auth verified end-to-end against Railway with `RAIL_FALLBACK_LOCAL=true`. Supersedes the 07 Jul APKs (`4abd2fa8` / `e18e9fc7`) which predated the expo-updates config.
 **iOS review:** User is iPhone-only (no APK sideload). Day-to-day path = **dev-server over Cloudflare tunnel** (`exp://<host>.trycloudflare.com` → Expo Go; no login, not persistent — dies when dev machine sleeps). Persistent path = published EAS Update (`exp://u.expo.dev/<projectId>?channel-name=preview`) but 403'd because projects are private + owned by `kmv209` while the user's phone Expo Go is signed in as **`mumbus`**. **Decision 08 Jul: transfer both projects `kmv209 → mumbus`** (dashboard, preserves project IDs/URLs/APKs, stays private) so mumbus-signed Expo Go loads them with no 403 and no dev machine. Transfer in progress (user-side dashboard action).
 **Octopus API URL:** https://klokd-production.up.railway.app (Railway)
@@ -48,6 +48,30 @@ Reference work memorialised in [KMV_RAILS_INTEGRATION_GUIDE.md](./KMV_RAILS_INTE
 
 ---
 
+## Headline — Hakken go-live (23 July 2026)
+
+**Hakken is LIVE end-to-end.** The two blockers that held Phase 1 at PROVISION-READY since 23 Jun both cleared, and the full integration was verified against **deployed** Hakken (`hakken-production.up.railway.app`) through Klokd's real service + client code with real Identiti-minted tokens — **31/31 functionality checks, no mocks**.
+
+- **Identiti `aud=hakken` customer JWT** shipped at Identiti `0.1.3` (`POST /v1/customers/{uuid}/tokens`), operator-gated behind a new `identiti:token:issue` scope. Silvia granted it to `klokd_sandbox` (run in Identiti's **Supabase** SQL editor); verified from Klokd's side (pre-grant `403 AUTH_SCOPE_INSUFFICIENT` → gone). `getHakkenJwt` now mints a real RS256 token (iss `https://api.id.identiti.co.ke`, aud `https://hakken.co.ke`, sub `account_uuid`, kid `lrnn8c8kQzc0GJsU` in JWKS) and caches per account at ~80% TTL.
+- **`HAKKEN_APP_SECRET` + `HAKKEN_API_BASE`** set in Klokd's Railway env — base `https://hakken-production.up.railway.app` (the `hakken.co.ke` custom domain does not resolve yet), secret `hak_sk…a9c4` (71 chars, plaintext-compared). Hakken `klokd` app row = `provisioning` (auth-accepted).
+- **Hakken verifier config fixed** — deployed Hakken's `IDENTITI_JWKS_URL` + `IDENTITI_JWT_ISSUER` were pointed at the non-resolving `identiti.co.ke`; corrected to the live Railway JWKS + `https://api.id.identiti.co.ke`. Proven: a real token now passes Hakken's JWT layer (fails only on a deliberately-wrong secret → `APP_AUTH_INVALID`).
+- **Bug caught + fixed by the smoke** (`05fe5a4`): Klokd's local PII guard rejected any two-word capitalised `display_name`, blocking employer registration for essentially every real business name ("Java House", "Sarova Stanley"). The rail itself accepts business names (verified 201, not `PII_DETECTED`); guard relaxed for `display_name` only — phone/email detection there + all metadata checks retained.
+
+**Verified functionalities (31/31, live rail):** employer + worker registration, shift publish/revoke, entity retire, idempotency (register + publish), `patchEntity`, 3-header auth (+ invalid-token + wrong-secret negatives), consent_scope `single_app` (R8), whole-KES `pay_rate_kes`, banned-key (§10.7) + PII (§5) walls, TTL bounds (>168h rejected), §A.11 traceparent + business_op_id on audit rows, ranking correctly absent (Phase-1 deferred), and the **D2 deferral-retry sweep** replaying a stranded `hakken.*.deferred` row to a live publish.
+
+| Commit | Date | What |
+|---|---|---|
+| `532c4fa` | 23 Jul | Persist §A.11 traceparent + business_op_id on Hakken audit rows; R8 consent_scope → `single_app`; fixed a latent FK bug that was silently swallowing every deferral audit row |
+| `b9ac159` | 23 Jul | docs: formal Identiti request for the `aud=hakken` JWT (answered + shipped as 0.1.3) |
+| `393d124` | 23 Jul | **D2 deferral-retry sweep** — replays `hakken.*.deferred` audit rows; probe-gated + exponential backoff (Hakken R7) |
+| `883be64` | 23 Jul | Real `aud=hakken` mint via Identiti 0.1.3 + per-account token cache + scope-gate probe |
+| `489d427` | 23 Jul | Keep deferrals retryable until BOTH prerequisites (Identiti scope + Hakken creds) land, not just one |
+| `05fe5a4` | 23 Jul | Fix PII guard blocking employer business-name registration (caught by the full smoke) |
+
+**Still open (non-blocking):** Hakken `klokd` app is `provisioning` — Silvia may flip to `active` for formal go-live. Two Identiti *smoke* accounts remain from testing (`acc_a91e2d68…`, `acc_44cbfc00…`; no hard-delete). Ranking client stays Phase-3 (Sprint 8+).
+
+---
+
 ## Sprint state — v4 backlog + June 2026 delta
 
 | Sprint | Title | Status | Delta items | Notes |
@@ -56,7 +80,7 @@ Reference work memorialised in [KMV_RAILS_INTEGRATION_GUIDE.md](./KMV_RAILS_INTE
 | S1–S2 | Pre-rail (schema, auth scaffold, mobile shells) | 🟢 DONE Apr 2026 | — | — |
 | **S3** | Authentication + Identity foundation | 🟢 DONE Jun 2026 | C1 ✓ + C2 ✓ + 3 NEW ✓ (Identiti SDK · Todoku client · PaymentRailClient) | Shipped 9-11 Jun across `0e24e6d`, `ee2f48f`, `2d0222c`, `c71d72a`. Klokd-side OTP flow per `219b162` (Identiti step-up requires `active` state; gap escalated to Silvia) |
 | S4 | Worker/employer onboarding flows | 🟠 PARTIAL | S4-NEW-01 KP wallet creation | Wallet client wired; activates when KP-1-Ops lands |
-| **S5** | Shift posting + matching | 🟢 **DONE** **23 Jun** (Klokd side) | S5-NEW-01 Hakken shift entity registration | `2c8dc8b` — Phase 1 client + service + schema + non-blocking triggers. Activates when HAKKEN_APP_SECRET + Identiti customer-JWT (aud=hakken) land |
+| **S5** | Shift posting + matching | 🟢 **DONE + LIVE 23 Jul** | S5-NEW-01 Hakken shift entity registration | `2c8dc8b` client/service/schema + `883be64`/`05fe5a4` go-live. **LIVE** — shift publish/revoke verified end-to-end against deployed Hakken (31/31). Blockers cleared 23 Jul |
 | S6 | Notifications + GPS + clock-in | 🟠 PARTIAL | C3 ✓ (S6-04 revised — WhatsApp via Todoku, FCM unchanged) | Notification flow refactored; FCM direct (AD-K05); Todoku WA fallback wired |
 | S7 | Compliance Engine (Layer 1 service per D-16) | ⚪ NOT STARTED | (no rail delta) | — |
 | **S8** | Worker app MVP | 🟠 PARTIAL | S8-NEW-01 Hakken worker entity registration | Worker upsert on KYC_TIER_CHANGED webhook wired (`2c8dc8b`); RailsLoginScreen shipped 11 Jun |
@@ -117,7 +141,7 @@ Reference work memorialised in [KMV_RAILS_INTEGRATION_GUIDE.md](./KMV_RAILS_INTE
 | **Identiti** (account_uuid + KYC docs + phone tokens + step-up) | ✅ Live · 14/17 sprints closed | ✅ **LIVE** — 3/4 endpoints verified end-to-end (`POST /v1/customers`, `GET tier`, `POST /v1/phone-tokens`); step-up blocked on `klokd.*` `operation_kind` registration. Customer-JWT issuance (aud=hakken) is the new escalation surfaced 23 Jun |
 | **Todoku** (OTP + 8 templates + SMS + WhatsApp + SIMjacker defence) | ✅ Live on Railway · klokd_sandbox provisioned 10 Jun | ✅ **LIVE** — `POST /v1/messages/send` 201 confirmed; 8 templates with ULID constants in `rails/templates.ts` |
 | **Payment Rail (Kipkiren Pay)** | 🟠 Sandbox stack ready · KP-1-Ops Railway deploy pending | ✅ **PROVISION-READY** — `PaymentRailClient` wire-correct per 10 Jun handover (holds vocab, KES minor, step-up threshold 10K, kipkiren_pay audience); smoke script parks at `scripts/smoke-payment-rail.ts` |
-| **Hakken** (cross-app discovery — `klokd_two_sided_v1` plugin) | ✅ HK-1..HK-7 closed + HK-8 PARTIAL · `klokd_two_sided_v1` plugin shipped | ✅ **PROVISION-READY** (Phase 1 — 23 Jun, `2c8dc8b`) — three-header pilot auth, banned-key + PII guards (incl. `source_payment` + capitalised-name pattern found by adversarial verify), idempotency-required, non-blocking service triggers wired into ShiftService + KYC_TIER_CHANGED webhook. Smoke at `scripts/smoke-hakken.ts`. Hard blockers: HAKKEN_APP_SECRET for klokd + Identiti customer-JWT (aud=hakken) endpoint |
+| **Hakken** (cross-app discovery — `klokd_two_sided_v1` plugin) | ✅ HK-1..HK-7 closed + HK-8 PARTIAL · `klokd_two_sided_v1` plugin shipped | ✅ **LIVE (Phase 1 — go-live 23 Jul)** — verified 31/31 end-to-end against deployed Hakken with real Identiti tokens: register (employer + worker) · publish/revoke shift broadcasts · retire · idempotency · patch · 3-header auth · consent_scope `single_app` · whole-KES pay_rate · banned-key + PII walls · TTL bounds · §A.11 trace propagation · D2 deferral-retry sweep. Real `aud=hakken` JWT mint (`883be64`) + guard fix (`05fe5a4`, employer business names). Both hard blockers (HAKKEN_APP_SECRET + Identiti aud=hakken JWT) **RESOLVED**. Ranking stays Phase 3 |
 | **Helpan AI** (agent runtime · briefings · authorities · action dispatch) | ✅ LIVE on Railway (Supabase `jvkhoveeayixbjnhmqxa`) · `helpan-klokd-v1` agent admitted with 3 scopes + `klokd.shift_search` matcher | ✅ **PROVISION-READY** — dual-role client + target-rail dispatch endpoint shipped 11 Jun per `73e27d6`; smoke at `scripts/smoke-helpan.ts` |
 | **Itafika** | LIVE on Railway dev | 🚫 **NOT APPLICABLE** — per advisory §2.6 + playbook §3.3 decision logged 23 Jun (option d: parked). No Klokd-Itafika joint exists; re-open via `OPERATOR_REQUEST_ITAFIKA.md` only if real demand surfaces |
 | LipaStack | Separate platform; not a rail | Phase 3 — `PAYMENT_RAIL_API_BASE` env-var flip when LipaStack designated (CHAMIA-WALLET deferred) |
@@ -155,7 +179,7 @@ Klokd is now one product on the web and two role-specific apps on mobile. The we
 |---|---|---|
 | `klokd.*` operation_kind enum not registered | ⏳ Pending Silvia | Klokd does Klokd-side OTP via Todoku for first-login (Identiti step-up reserved for high-value payouts on `active` customers) |
 | Customer state `pending_onboarding` → `active` activation path | ⏳ No endpoint exists | Klokd-side OTP flow makes this non-blocking; step-up only after Identiti's activation path exists |
-| **NEW (23 Jun): Customer-JWT issuance endpoint for `aud=hakken`** | ⏳ Pending Silvia | Klokd's `IdentityRailClient` mints phone tokens (aud=todoku) only. Hakken needs a CUSTOMER JWT (RS256, JWKS-verifiable). Until endpoint shape confirmed, `getHakkenJwt` throws 503; all Hakken triggers write `audit_log.action='hakken.deferred.*'` rows for observability + replay |
+| **NEW (23 Jun): Customer-JWT issuance endpoint for `aud=hakken`** | ✅ **RESOLVED 23 Jul** | Shipped as Identiti `0.1.3` `POST /v1/customers/{uuid}/tokens`, scope-gated (`identiti:token:issue`, granted to `klokd_sandbox`). `getHakkenJwt` mints + caches real RS256 tokens (`883be64`). Verified end-to-end |
 | Operator pack §4 says hex sig; live rail uses base64 | 📋 Documented in `KMV_RAILS_INTEGRATION_GUIDE.md` | Klokd uses base64 (correct) |
 | `/v1/customers/{uuid}/kyc/iprs` wire schema | ⏸ Untested | VerifyID flow stub — Identiti KYC is IPRS data lookup (national_id + DOB), not image upload |
 | Webhook HTTP signing | ⏸ Deferred to ID-14 Phase 2 (Kafka today) | Handler built but inert until secret lands |
@@ -167,14 +191,17 @@ Klokd is now one product on the web and two role-specific apps on mobile. The we
 | Webhook URL registration (`https://klokd-production.up.railway.app/api/v1/webhooks/rails/todoku`) | ⏳ Pending Silvia operator-console config |
 | Cross-rail sandbox token mismatch (Identiti issues real JWTs; Todoku sandbox needs `SANDBOX_TOKEN_DELIVER_OK_*`) | ⏳ Pending coordination; prod unaffected |
 
-### Hakken escalations (new — 23 Jun, per `docs/HAKKEN_INTEGRATION_RESULT.md`)
+### Hakken escalations (23 Jun · OD-9 dev-handoff closed Klokd-side 08 Jul, see `HAKKEN_OD9_ANSWERS.md`)
+
+**OD-9 status (08 Jul):** dev = **Mumbua Makau, starts 23 Jul** (parallel Lunch Drop `lunch_drop` sprint → ~2wk @ 50% → Phase 1 lands early Aug). POC matrix collapsed — Klokd has no separate DevOps/SRE; dev + Cornelius own Railway env + auth; Ivy owns product. Both blockers below escalated to Silvia, target land by **22 Jul**.
 
 | Issue | Status |
 |---|---|
-| `HAKKEN_APP_SECRET` for `app_slug=klokd` | ⏳ Pending out-of-band delivery from Silvia |
-| Identiti customer-JWT endpoint for `aud=hakken` (cross-listed above) | ⏳ Pending Silvia — bigger of the two blockers |
-| `pay_rate_kes` units ambiguity (reference says "integer, minor units" but example shows `800` matching whole KES) | ⏳ Conservative interpretation in code (whole KES); awaits Silvia confirmation |
+| `HAKKEN_APP_SECRET` for `app_slug=klokd` | ⏳ Pending Silvia. Transport: Bitwarden Send / onetimesecret / live-call paste (Klokd not on 1Password) → Railway env; receiver = dev/Cornelius. |
+| Identiti customer-JWT endpoint for `aud=hakken` (cross-listed above) | ✅ **RESOLVED 23 Jul** — shipped as Identiti `0.1.3` `POST /v1/customers/{uuid}/tokens` (scope `identiti:token:issue`, granted). `HAKKEN_APP_SECRET` + base URL also landed. Hakken LIVE, verified 31/31. |
+| `pay_rate_kes` units | ✅ **RESOLVED 08 Jul** — whole KES confirmed both sides (Hakken corrected ref `fbe1040`; Klokd code `hakken.service.ts:229` already correct). Hakken doesn't touch money. |
 | Hakken-emitted Todoku outbox events (`hakken.entity.created`, `hakken.shift_opening`, `hakken.tier_changed`) — Klokd's Todoku consumer not yet subscribed | 📋 Documented gap; Sprint 5 follow-up |
+| Klokd dev-owed items still with Ivy: §5 pilot KPI targets + deactivation trigger (Klokd recommends retire-on-`ACCOUNT_DEACTIVATED`-webhook) | ⏳ Pending Ivy |
 
 ### Helpan escalations (per `OPERATOR_REQUEST_HELPAN.md`)
 
