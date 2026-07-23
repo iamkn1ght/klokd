@@ -66,6 +66,12 @@ export const config = {
     baseUrl: process.env.HAKKEN_API_BASE || process.env.HAKKEN_BASE_URL || '',
     appKey: process.env.HAKKEN_APP_KEY || 'klokd',
     appSecret: process.env.HAKKEN_APP_SECRET || '',
+    // Bearer for Hakken = an Identiti-minted RS256 customer JWT scoped to this
+    // audience (the URL, not the slug — Hakken 23 Jul). Minted via
+    // identityRailClient.issueCustomerJwt and cached per account_uuid until ~80%
+    // of TTL. Live once Silvia grants Klokd the `identiti:token:issue` scope.
+    jwtAudience: process.env.HAKKEN_JWT_AUDIENCE || 'https://hakken.co.ke',
+    jwtTtlSeconds: parseInt(process.env.HAKKEN_JWT_TTL_SECONDS || '900', 10),
   },
 
   // Hakken deferral-retry sweep (D2). Replays `hakken.*.deferred` audit rows —

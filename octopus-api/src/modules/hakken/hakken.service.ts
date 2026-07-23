@@ -3,12 +3,13 @@ import prisma from '../../config/database';
 import { config } from '../../config';
 import { AppError } from '../../middleware/errorHandler';
 import { logAudit } from '../../utils/auditLogger';
-import { hakkenRailClient } from '../rails';
+import { hakkenRailClient, identityRailClient } from '../rails';
 import type {
   KlokdEmployerEntityMetadata,
   KlokdWorkerEntityMetadata,
   KlokdShiftOpenPayload,
 } from '../rails/hakken.dto';
+import type { IdentitiAccountUuid } from '../rails/identiti.dto';
 
 // Klokd v3 — Hakken integration service (Sprint 5 / S5-NEW-01)
 //
@@ -37,38 +38,71 @@ import type {
 // attribute them to the AFFECTED user (employer/worker whose entity is being
 // synced); the subject is still pinned precisely by resourceId + business_op_id.
 //
-// IDENTITI JWT GAP (the load-bearing blocker): Hakken requires
-// Authorization: Bearer <Identiti RS256 JWT, aud=https://hakken.co.ke>. Klokd's
-// Identiti client mints phone tokens (aud=todoku) only; the aud=hakken mint
-// endpoint is pending Silvia (B1a). Until then getHakkenJwt() throws 503 and
-// every trigger records a `deferred` audit row (now with a replay target).
+// IDENTITI JWT (the load-bearing blocker): Hakken requires
+// Authorization: Bearer <Identiti RS256 JWT, aud=https://hakken.co.ke>. Identiti
+// shipped the mint at 0.1.3 — POST /v1/customers/{uuid}/tokens — but it is
+// operator-gated: Klokd gets 403 AUTH_SCOPE_INSUFFICIENT until Silvia grants the
+// `identiti:token:issue` scope. Until then every trigger records a `deferred`
+// audit row (with a replay target) and the D2 sweep waits; the moment the scope
+// lands the sweep drains the backlog with zero code change.
 
-async function getHakkenJwt(_accountUuid: string): Promise<string> {
-  // PENDING Silvia confirmation of the Identiti customer-JWT issuance endpoint
-  // for aud=hakken. Once available, this delegates to identityRailClient.
-  // Note (Hakken 23 Jul): the audience is the URL `https://hakken.co.ke`
-  // (HAKKEN_JWT_AUDIENCE), NOT the literal slug `hakken`.
+interface CachedHakkenJwt {
+  token: string;
+  refreshAt: number; // epoch ms; re-mint once past this (≈80% of TTL, R-ID-4)
+}
+const hakkenJwtCache = new Map<string, CachedHakkenJwt>();
+
+// Well-formed but non-existent account used only to probe the scope gate — the
+// scope check fires before the account lookup, so an ungranted caller gets 403
+// AUTH_SCOPE_INSUFFICIENT and a granted one gets a (harmless) 404.
+const HAKKEN_JWT_PROBE_ACCOUNT = 'acc_00000000-0000-0000-0000-000000000000' as IdentitiAccountUuid;
+
+async function getHakkenJwt(accountUuid: string): Promise<string> {
+  // Dev/CI smoke: a static token bypasses the rail entirely.
   if (process.env.HAKKEN_IDENTITY_JWT_STUB && config.nodeEnv !== 'production') {
     return process.env.HAKKEN_IDENTITY_JWT_STUB;
   }
-  throw new AppError(
-    503,
-    'HAKKEN_JWT_PENDING: Identiti customer-JWT issuance (aud=hakken) not yet wired. ' +
-      'See OPERATOR_REQUEST_HAKKEN.md. Set HAKKEN_IDENTITY_JWT_STUB env for dev smoke.'
-  );
+  const cached = hakkenJwtCache.get(accountUuid);
+  if (cached && Date.now() < cached.refreshAt) return cached.token;
+
+  const res = await identityRailClient.issueCustomerJwt(accountUuid as IdentitiAccountUuid, {
+    audience: config.hakken.jwtAudience,
+    ttlSeconds: config.hakken.jwtTtlSeconds,
+  });
+  // Re-mint at ~80% of the token's own lifetime (Identiti R-ID-4), so a call
+  // never rides a nearly-expired token. Unparseable expiry → no caching.
+  const lifetimeMs = Math.max(0, new Date(res.expiresAt).getTime() - Date.now());
+  hakkenJwtCache.set(accountUuid, {
+    token: res.token,
+    refreshAt: Date.now() + Math.floor(lifetimeMs * 0.8),
+  });
+  return res.token;
 }
 
 /**
  * Cheap probe used by the D2 deferral sweep to decide whether replaying is
- * worthwhile at all. Returns false while the aud=hakken JWT is unavailable (the
- * systemic blocker), so the sweep can no-op instead of churning the backlog.
+ * worthwhile at all. Returns false while minting is systemically unavailable —
+ * the operator scope not yet granted (403 AUTH_SCOPE_INSUFFICIENT), the rail
+ * down/misconfigured (5xx / no creds), or unreachable — so the sweep no-ops
+ * instead of churning the backlog and burning each op's retry budget. Any other
+ * outcome (the sentinel account 404s, a 400, or an unexpected 200) means the
+ * scope IS granted and the endpoint is reachable → available.
  */
 export async function hakkenJwtAvailable(): Promise<boolean> {
+  if (process.env.HAKKEN_IDENTITY_JWT_STUB && config.nodeEnv !== 'production') return true;
+  if (!config.identiti.baseUrl || !config.identiti.appId || !config.identiti.appSecret) return false;
   try {
-    await getHakkenJwt('probe');
+    await identityRailClient.issueCustomerJwt(HAKKEN_JWT_PROBE_ACCOUNT, {
+      audience: config.hakken.jwtAudience,
+      ttlSeconds: 60,
+    });
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    const e = err as AppError;
+    if (e.railCode === 'AUTH_SCOPE_INSUFFICIENT') return false; // operator gate
+    if (typeof e.statusCode !== 'number') return false; // network/unknown → treat as down
+    if (e.statusCode >= 500) return false; // rail down / misconfigured
+    return true; // 404/400/etc. → scope granted + endpoint reachable
   }
 }
 

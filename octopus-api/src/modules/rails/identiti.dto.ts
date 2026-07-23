@@ -58,6 +58,26 @@ export interface IdentitiPhoneTokenResponse {
   expiresAt: string;
 }
 
+// ─── Cross-rail audience token (Identiti 0.1.3) ──────────
+//
+// POST /v1/customers/{uuid}/tokens — an RS256 customer JWT scoped to a single
+// downstream-rail audience (e.g. https://hakken.co.ke). Distinct from the
+// opaque phone token and from the login JWT: no session/scope/tier, so it can
+// only assert "known active customer for this audience". Requires the account
+// to be `active` and the caller to hold the `identiti:token:issue` scope
+// (operator-granted per app — until then every call is 403 AUTH_SCOPE_INSUFFICIENT).
+export interface IdentitiAudienceTokenRequest {
+  audience: string; // must be on Identiti's cross-rail whitelist
+  ttlSeconds?: number; // clamped [60, 3600], default 900
+}
+
+export interface IdentitiAudienceTokenResponse {
+  token: string; // RS256 JWT: iss=api.id.identiti.co.ke, aud=[audience], sub=account_uuid
+  jti: string;
+  audience: string;
+  expiresAt: string; // RFC 3339
+}
+
 // ─── Activation ──────────────────────────────────────────
 //
 // Fresh Identiti accounts are `pending_onboarding`. KYC verification does NOT

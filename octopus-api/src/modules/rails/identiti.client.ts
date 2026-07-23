@@ -14,6 +14,8 @@ import type {
   IdentitiTier,
   IdentitiPhoneTokenRequest,
   IdentitiPhoneTokenResponse,
+  IdentitiAudienceTokenRequest,
+  IdentitiAudienceTokenResponse,
   IdentitiStepUpChallengeRequest,
   IdentitiStepUpChallengeResponse,
   IdentitiStepUpVerifyRequest,
@@ -253,6 +255,34 @@ class IdentityRailClient {
     });
     return {
       phoneToken: raw.phone_token,
+      jti: raw.jti,
+      audience: raw.audience,
+      expiresAt: raw.expires_at,
+    };
+  }
+
+  // ─── Cross-rail audience token (0.1.3) ───────────────
+  //
+  // POST /v1/customers/{uuid}/tokens — mint an RS256 customer JWT for a single
+  // downstream rail (e.g. aud=https://hakken.co.ke). Preconditions rail-side:
+  // account is `active` (else 409 state_invalid_for_action) and the caller holds
+  // `identiti:token:issue` (else 403 AUTH_SCOPE_INSUFFICIENT — the operator gate).
+  // Caller should cache per account_uuid until ~80% of TTL (see getHakkenJwt).
+  async issueCustomerJwt(
+    accountUuid: IdentitiAccountUuid,
+    req: IdentitiAudienceTokenRequest
+  ): Promise<IdentitiAudienceTokenResponse> {
+    const raw = await this.request<{
+      token: string;
+      jti: string;
+      audience: string;
+      expires_at: string;
+    }>('POST', `/v1/customers/${encodeURIComponent(accountUuid)}/tokens`, {
+      audience: req.audience,
+      ttl_seconds: req.ttlSeconds,
+    });
+    return {
+      token: raw.token,
       jti: raw.jti,
       audience: raw.audience,
       expiresAt: raw.expires_at,
