@@ -162,7 +162,16 @@ function inspectForViolations(value: unknown, path: string[] = []): string[] {
       out.push(...inspectForViolations(v, [...path, k]));
     }
   } else if (typeof value === 'string') {
+    // A business `display_name` legitimately looks like a two-word capitalised
+    // name ("Java House Ltd", "Sarova Stanley") — the Hakken rail accepts these
+    // (verified 23 Jul: 201, not PII_DETECTED), and Klokd's worker display_names
+    // are opaque by construction, so the `capitalised_name` heuristic only ever
+    // false-positives on this field and was blocking employer registration
+    // entirely. Skip it for display_name; a phone/email there is still a real
+    // leak, so keep msisdn/email — and every check still applies to metadata.
+    const isDisplayName = path[path.length - 1] === 'displayName';
     for (const { name, test } of PII_PATTERNS) {
+      if (isDisplayName && name === 'capitalised_name') continue;
       if (test(value)) {
         out.push(`PII pattern "${name}" detected in ${path.join('.') || '<root>'} (Hakken §5)`);
       }
