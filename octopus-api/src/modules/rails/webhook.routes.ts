@@ -223,10 +223,12 @@ router.post(
 );
 
 // ─── Helpan AI ───────────────────────────────────────────
-// Webhook canonical is UNIQUE — different from request signing:
-//   {TIMESTAMP}\n{PATH}\n{SHA256_HEX(body)}
-// (no method, no content type). Base64 HMAC.
-// Headers: X-Helpan-Webhook-Signature + X-Helpan-Webhook-Timestamp.
+// The inbound MATCH webhook canonical is UNIQUE — and it is NOT the request HMAC
+// (§20.1's 5-line) nor the earlier assumed 3-line. Per §20.6 (confirmed by Helpan
+// 24 Jul), the `webhookDelivery` signer uses a 2-line canonical:
+//   {x-helpan-timestamp}\n{SHA256_HEX(rawBody)}      (no method, no path, no CT)
+// HMAC-SHA256, HEX-encoded. Headers: `x-helpan-signature: sha256=<hex>` (strip the
+// `sha256=` prefix) + `x-helpan-timestamp` — NOT `X-Helpan-Webhook-*`.
 
 function verifyHelpanWebhook(req: Request, _res: Response, next: NextFunction): void {
   const secret = config.helpan.webhookSecret;
@@ -234,21 +236,23 @@ function verifyHelpanWebhook(req: Request, _res: Response, next: NextFunction): 
     return next(new AppError(503, 'Helpan webhook secret not configured'));
   }
 
-  const signature = req.header('X-Helpan-Webhook-Signature') || '';
-  const timestamp = req.header('X-Helpan-Webhook-Timestamp') || '';
-  if (!signature || !timestamp) {
+  const sigHeader = req.header('x-helpan-signature') || '';
+  const timestamp = req.header('x-helpan-timestamp') || '';
+  if (!sigHeader || !timestamp) {
     return next(new AppError(401, 'Missing Helpan webhook signature or timestamp'));
   }
+  // Signature header is `sha256=<hex>` — strip the scheme prefix.
+  const signature = sigHeader.startsWith('sha256=') ? sigHeader.slice('sha256='.length) : sigHeader;
 
   const raw = (req.body as Buffer) ?? Buffer.alloc(0);
   const bodyHash = crypto.createHash('sha256').update(raw).digest('hex');
-  const canonical = [timestamp, req.path, bodyHash].join('\n');
-  const expected = crypto.createHmac('sha256', secret).update(canonical, 'utf8').digest('base64');
+  const canonical = [timestamp, bodyHash].join('\n');
+  const expected = crypto.createHmac('sha256', secret).update(canonical, 'utf8').digest('hex');
 
-  const ok =
-    signature.length === expected.length &&
-    crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
-
+  // Constant-time compare on the decoded HMAC bytes (32 each when both valid hex).
+  const sigBuf = Buffer.from(signature, 'hex');
+  const expBuf = Buffer.from(expected, 'hex');
+  const ok = sigBuf.length === expBuf.length && crypto.timingSafeEqual(sigBuf, expBuf);
   if (!ok) {
     return next(new AppError(401, 'Invalid Helpan webhook signature'));
   }
@@ -267,46 +271,45 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const payload = getParsed<HelpanWebhookPayload>(req);
-      switch (payload.type) {
-        case 'BRIEFING_MATCHED': {
-          // Worker's standing briefing matched a new shift event. Decide
-          // whether to auto-apply via dispatchAction (will be wired through
-          // an agent decision module — for now log + persist).
+      // §20.6: this webhook delivers only BRIEFING_MATCHED (flat envelope;
+      // matcher output nested under `match_detail`, confidence top-level).
+      if (payload.event_type === 'BRIEFING_MATCHED') {
+        // Worker's standing briefing matched a new shift event. Audit + persist
+        // the signal; the auto-apply decision (dispatchAction) is wired through
+        // the agent-decision module later. audit_log.actor_id is a FK to
+        // users.id, so attribute to the affected worker (resolved from
+        // account_uuid) — a literal 'helpan-ai' would FK-violate and 500 the
+        // webhook. Ack (no persist) if the account is unknown to Klokd.
+        const worker = await prisma.user.findUnique({
+          where: { accountUuid: payload.account_uuid },
+          select: { id: true, tenantId: true },
+        });
+        if (worker) {
           await logAudit({
-            tenantId: config.defaultTenantId,
-            actorId: 'helpan-ai',
+            tenantId: worker.tenantId,
+            actorId: worker.id,
             action: 'briefing.matched',
             resource: 'briefing',
-            resourceId: payload.data.briefingId,
+            resourceId: payload.briefing_id,
             metadata: {
-              accountUuid: payload.data.accountUuid,
-              eventId: payload.data.eventId,
-              confidence: payload.data.confidence,
-              matchKind: payload.data.detail.matchKind,
-              shiftId: payload.data.detail.shiftId,
-              reasons: payload.data.detail.reasons,
+              accountUuid: payload.account_uuid,
+              sourceEventId: payload.source_event_id,
+              confidence: payload.match_confidence,
+              matchKind: payload.match_detail.match_kind,
+              shiftId: payload.match_detail.shift_id,
+              reasons: payload.match_detail.reasons,
+              traceparent: payload.traceparent,
             },
           });
-          break;
+        } else {
+          console.warn(`[HELPAN-WEBHOOK] BRIEFING_MATCHED for account ${payload.account_uuid} unknown to Klokd — acking without audit`);
         }
-        case 'AUTHORITY_REVOKED': {
-          await prisma.delegatedAuthority.updateMany({
-            where: { authorityJti: payload.data.authorityId },
-            data: { status: 'REVOKED', revokedAt: new Date(payload.occurredAt) },
-          });
-          break;
-        }
-        case 'ACTION_COMPLETED':
-        case 'ACTION_FAILED': {
-          await prisma.agentAction.updateMany({
-            where: { helpanActionId: payload.data.actionId },
-            data: {
-              status: payload.type === 'ACTION_COMPLETED' ? 'COMPLETED' : 'FAILED',
-              completedAt: new Date(payload.occurredAt),
-            },
-          });
-          break;
-        }
+      } else {
+        // Authority/action lifecycle events don't arrive here (they're Kafka
+        // stream events, §20.2). Ack anything unexpected without processing.
+        console.warn(
+          `[HELPAN-WEBHOOK] unexpected event_type "${(payload as { event_type?: string }).event_type}" — the webhook delivers only BRIEFING_MATCHED (§20.6)`
+        );
       }
       res.json({ received: true });
     } catch (err) {

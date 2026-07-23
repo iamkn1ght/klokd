@@ -91,7 +91,9 @@ export const config = {
   // Klokd has dual role: consuming app (issues authorities, dispatches actions)
   // AND target rail (receives forwarded dispatches at /agents/dispatch/*).
   // App ID is LITERAL 'klokd' (NOT klokd_sandbox — Helpan keys on app slug).
-  // Webhook canonical is unique: {TIMESTAMP}\n{PATH}\n{SHA256_HEX(body)}
+  // Inbound match-webhook canonical (§20.6): {x-helpan-timestamp}\n{SHA256_HEX(body)}
+  // — 2 lines, HEX HMAC, header `x-helpan-signature: sha256=<hex>`. Distinct from
+  // request signing (5-line, base64). Confirmed by Helpan 24 Jul.
   helpan: {
     baseUrl: process.env.HELPAN_API_BASE || '',
     appId: process.env.HELPAN_APP_ID || 'klokd',

@@ -182,66 +182,41 @@ export interface HelpanIngestEventResponse {
   matchedBriefings: string[];
 }
 
-// ─── Inbound webhook payloads (Helpan → Klokd) ────────────
-
-export type HelpanWebhookTopic =
-  | 'helpan.briefing.events'
-  | 'helpan.authority.events'
-  | 'helpan.action.events';
-
-export interface HelpanBriefingMatchedEvent {
-  topic: 'helpan.briefing.events';
-  type: 'BRIEFING_MATCHED';
-  occurredAt: string;
-  data: {
-    briefingId: string;
-    accountUuid: `acc_${string}`;
-    eventId: string;
-    confidence: 'low' | 'medium' | 'high';
-    detail: {
-      matchKind: string;
-      briefingType: HelpanBriefingType;
-      eventType: string;
-      reasons: string[];
-      distanceKm?: number;
-      shiftId?: string;
-      [key: string]: unknown;
-    };
+// ─── Inbound match webhook (Helpan → Klokd) — §20.6 ───────
+//
+// The HTTP webhook at POST /api/v1/webhooks/rails/helpan delivers EXACTLY ONE
+// event: BRIEFING_MATCHED (confirmed by Helpan 24 Jul). Its body is a flat
+// ENVELOPE — the matcher output is nested under `match_detail`, and the
+// confidence is a TOP-LEVEL `match_confidence` (NOT `detail.confidence`). Field
+// names are snake_case; the discriminator is `event_type` (NOT `type`).
+//
+// Authority-revocation and action-lifecycle events (AUTHORITY_REVOKED, ACTION_*)
+// do NOT arrive on this webhook — they propagate via Helpan's Kafka authority /
+// action event streams (§20.2, 5s SLA). A stream consumer is pending Kafka
+// wiring (Helpan gap #7); until then Klokd reconciles those via its own flows.
+export interface HelpanBriefingMatchedWebhook {
+  event_id: string;
+  event_type: 'BRIEFING_MATCHED';
+  schema_version: string;
+  occurred_at: string;
+  account_uuid: `acc_${string}`;
+  app_id: string;
+  briefing_id: string;
+  source_event_id: string;
+  match_confidence: 'low' | 'medium' | 'high';
+  match_detail: {
+    match_kind: string;
+    briefing_type: HelpanBriefingType;
+    event_type: string;
+    reasons: string[];
+    distance_km?: number;
+    shift_id?: string;
+    [key: string]: unknown;
   };
+  traceparent?: string;
 }
 
-export interface HelpanAuthorityRevokedEvent {
-  topic: 'helpan.authority.events';
-  type: 'AUTHORITY_REVOKED';
-  occurredAt: string;
-  data: {
-    authorityId: string;
-    accountUuid: `acc_${string}`;
-    agentId: string;
-    reason: HelpanRevokeReason;
-  };
-}
-
-export interface HelpanActionCompletedEvent {
-  topic: 'helpan.action.events';
-  type: 'ACTION_COMPLETED' | 'ACTION_FAILED';
-  occurredAt: string;
-  data: {
-    actionId: string;
-    accountUuid: `acc_${string}`;
-    agentId: string;
-    delegatedAuthorityJti: string;
-    targetRail: string;
-    targetOperation: string;
-    businessOpId: string;
-    traceparent: string;
-  };
-}
-
-export type HelpanWebhookPayload =
-  | HelpanBriefingMatchedEvent
-  | HelpanAuthorityRevokedEvent
-  | HelpanActionCompletedEvent;
+export type HelpanWebhookPayload = HelpanBriefingMatchedWebhook;
 
 // ─── Inbound dispatch (Helpan → Klokd as target rail) ─────
 // Per §A.11 — request shape Klokd receives at
