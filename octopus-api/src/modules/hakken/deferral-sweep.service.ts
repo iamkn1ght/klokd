@@ -3,7 +3,7 @@ import { config } from '../../config';
 import { logAudit } from '../../utils/auditLogger';
 import {
   hakkenIntegrationService,
-  hakkenJwtAvailable,
+  hakkenReplayReady,
   HAKKEN_REPLAYABLE_OPERATIONS,
   type HakkenReplayableOperation,
 } from './hakken.service';
@@ -41,7 +41,7 @@ interface PendingDeferral {
 }
 
 export interface SweepResult {
-  skippedReason?: 'jwt_unavailable' | 'disabled';
+  skippedReason?: 'not_ready' | 'disabled';
   pending: number;
   replayed: number;
   resolved: number;
@@ -188,10 +188,11 @@ export class HakkenDeferralSweepService {
       const pending = await this.findPendingDeferrals();
       if (pending.length === 0) return { ...zero({}), pending: 0 };
 
-      // Probe-gate: nothing can succeed without the JWT, so don't burn attempts.
-      if (!(await hakkenJwtAvailable())) {
-        console.log(`[HAKKEN-SWEEP] ${pending.length} deferral(s) waiting on aud=hakken JWT — skipping replay`);
-        return { ...zero({ skippedReason: 'jwt_unavailable' }), pending: pending.length };
+      // Probe-gate: nothing can succeed until both prerequisites are in place
+      // (Hakken creds wired + Identiti minting authorized), so don't burn attempts.
+      if (!(await hakkenReplayReady())) {
+        console.log(`[HAKKEN-SWEEP] ${pending.length} deferral(s) waiting on Hakken prerequisites (Identiti scope grant / Hakken creds) — skipping replay`);
+        return { ...zero({ skippedReason: 'not_ready' }), pending: pending.length };
       }
 
       let replayed = 0;

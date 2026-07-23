@@ -58,6 +58,14 @@ const hakkenJwtCache = new Map<string, CachedHakkenJwt>();
 const HAKKEN_JWT_PROBE_ACCOUNT = 'acc_00000000-0000-0000-0000-000000000000' as IdentitiAccountUuid;
 
 async function getHakkenJwt(accountUuid: string): Promise<string> {
+  // No point minting a bearer if the Hakken endpoint itself isn't wired yet
+  // (HAKKEN_APP_SECRET / base URL pending — Hakken R2). Defer here rather than
+  // mint-then-fail in the client, so the op stays a replayable `deferred` (the
+  // sweep retries it) instead of collapsing to a non-retried `error` and being
+  // silently lost to Hakken the moment the Identiti scope lands first.
+  if (!config.hakken.baseUrl || !config.hakken.appSecret) {
+    throw new AppError(503, 'HAKKEN_NOT_CONFIGURED: set HAKKEN_API_BASE + HAKKEN_APP_SECRET (R2)');
+  }
   // Dev/CI smoke: a static token bypasses the rail entirely.
   if (process.env.HAKKEN_IDENTITY_JWT_STUB && config.nodeEnv !== 'production') {
     return process.env.HAKKEN_IDENTITY_JWT_STUB;
@@ -81,14 +89,16 @@ async function getHakkenJwt(accountUuid: string): Promise<string> {
 
 /**
  * Cheap probe used by the D2 deferral sweep to decide whether replaying is
- * worthwhile at all. Returns false while minting is systemically unavailable —
- * the operator scope not yet granted (403 AUTH_SCOPE_INSUFFICIENT), the rail
- * down/misconfigured (5xx / no creds), or unreachable — so the sweep no-ops
- * instead of churning the backlog and burning each op's retry budget. Any other
- * outcome (the sentinel account 404s, a 400, or an unexpected 200) means the
- * scope IS granted and the endpoint is reachable → available.
+ * worthwhile at all — i.e. whether BOTH systemic prerequisites are in place:
+ * Hakken creds wired (R2) AND Identiti minting authorized. Returns false while
+ * either is missing — Hakken not configured, the operator scope not yet granted
+ * (403 AUTH_SCOPE_INSUFFICIENT), the rail down/misconfigured (5xx / no creds),
+ * or unreachable — so the sweep no-ops instead of churning the backlog and
+ * burning each op's retry budget. Any other outcome (the sentinel account 404s,
+ * a 400, or an unexpected 200) means minting is authorized and reachable → ready.
  */
-export async function hakkenJwtAvailable(): Promise<boolean> {
+export async function hakkenReplayReady(): Promise<boolean> {
+  if (!config.hakken.baseUrl || !config.hakken.appSecret) return false; // Hakken creds pending (R2)
   if (process.env.HAKKEN_IDENTITY_JWT_STUB && config.nodeEnv !== 'production') return true;
   if (!config.identiti.baseUrl || !config.identiti.appId || !config.identiti.appSecret) return false;
   try {
