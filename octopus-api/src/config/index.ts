@@ -68,6 +68,19 @@ export const config = {
     appSecret: process.env.HAKKEN_APP_SECRET || '',
   },
 
+  // Hakken deferral-retry sweep (D2). Replays `hakken.*.deferred` audit rows —
+  // the ones stranded while the aud=hakken JWT is unavailable. Probe-gated so it
+  // does nothing (beyond one cheap JWT check) during the systemic outage, then
+  // drains the backlog once the token lands. Backoff is exponential per op:
+  // wait = backoffBaseMs * 2^(attempts-1), capped at maxAttempts (Hakken R7).
+  hakkenSweep: {
+    enabled: process.env.HAKKEN_SWEEP_ENABLED !== 'false',
+    intervalMs: parseInt(process.env.HAKKEN_SWEEP_INTERVAL_MS || '300000', 10), // 5 min
+    maxAttempts: parseInt(process.env.HAKKEN_SWEEP_MAX_ATTEMPTS || '5', 10),
+    backoffBaseMs: parseInt(process.env.HAKKEN_SWEEP_BACKOFF_BASE_MS || '60000', 10), // 1 min
+    lookbackDays: parseInt(process.env.HAKKEN_SWEEP_LOOKBACK_DAYS || '30', 10),
+  },
+
   // Helpan AI — agent runtime rail (per KMV_RAILS_INTEGRATION_GUIDE.md §7)
   // Klokd has dual role: consuming app (issues authorities, dispatches actions)
   // AND target rail (receives forwarded dispatches at /agents/dispatch/*).

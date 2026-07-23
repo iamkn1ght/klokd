@@ -58,6 +58,31 @@ async function getHakkenJwt(_accountUuid: string): Promise<string> {
   );
 }
 
+/**
+ * Cheap probe used by the D2 deferral sweep to decide whether replaying is
+ * worthwhile at all. Returns false while the aud=hakken JWT is unavailable (the
+ * systemic blocker), so the sweep can no-op instead of churning the backlog.
+ */
+export async function hakkenJwtAvailable(): Promise<boolean> {
+  try {
+    await getHakkenJwt('probe');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Operations that the deferral sweep knows how to replay, and the outcome
+// suffixes it recognises on the audit action `hakken.<operation>.<outcome>`.
+export const HAKKEN_REPLAYABLE_OPERATIONS = [
+  'employer_register',
+  'worker_register',
+  'shift_publish',
+  'shift_revoke',
+  'entity_retire',
+] as const;
+export type HakkenReplayableOperation = (typeof HAKKEN_REPLAYABLE_OPERATIONS)[number];
+
 type HakkenOutcome = 'success' | 'deferred' | 'error' | 'skipped';
 
 export class HakkenIntegrationService {
@@ -428,6 +453,35 @@ export class HakkenIntegrationService {
           businessOpId: opts.accountUuid, traceparent, detail: { reason: (err as Error).message },
         });
       }
+    }
+  }
+
+  /**
+   * Re-run a previously-deferred operation. Called only by the D2 sweep; routes
+   * a `hakken.<operation>.deferred` audit row back to the method that produces
+   * it. Each target method is idempotent (deterministic Hakken idempotency keys)
+   * and non-blocking, so a replay either resolves the op (writes a fresh
+   * `.success` row, dropping it from the pending set) or re-defers it.
+   *   - entity_retire needs the accountUuid, which the deferred row carried as
+   *     business_op_id; the other operations key purely off resourceId.
+   */
+  async replayDeferred(
+    operation: HakkenReplayableOperation,
+    resourceId: string,
+    businessOpId: string | null
+  ): Promise<void> {
+    switch (operation) {
+      case 'employer_register':
+        return this.upsertEmployerEntity(resourceId);
+      case 'worker_register':
+        return this.upsertWorkerEntity(resourceId);
+      case 'shift_publish':
+        return this.publishShiftOpen(resourceId);
+      case 'shift_revoke':
+        return this.revokeShiftBroadcast(resourceId);
+      case 'entity_retire':
+        if (!businessOpId) return; // accountUuid unknown — cannot replay a retire
+        return this.retireEntity({ entityId: resourceId, accountUuid: businessOpId });
     }
   }
 }

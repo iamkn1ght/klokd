@@ -1,5 +1,6 @@
 import app from './app';
 import { config } from './config';
+import { hakkenDeferralSweepService } from './modules/hakken/deferral-sweep.service';
 
 console.log('[startup] Booting Klokd Octopus API...');
 console.log(`[startup] Node version: ${process.version}`);
@@ -18,6 +19,11 @@ const server = app.listen(config.port, '0.0.0.0', () => {
   ║  klokd.co.ke · @klokdKE                  ║
   ╚═══════════════════════════════════════════╝
   `);
+
+  // D2: replay Hakken deferrals stranded while the aud=hakken JWT is pending.
+  // Probe-gated, so today it just logs the waiting backlog each interval and
+  // drains it automatically once the token lands.
+  hakkenDeferralSweepService.start();
 });
 
 server.on('error', (err) => {
@@ -28,11 +34,13 @@ server.on('error', (err) => {
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM received. Shutting down gracefully...');
+  hakkenDeferralSweepService.stop();
   server.close(() => process.exit(0));
 });
 
 process.on('SIGINT', () => {
   console.log('SIGINT received. Shutting down gracefully...');
+  hakkenDeferralSweepService.stop();
   server.close(() => process.exit(0));
 });
 
