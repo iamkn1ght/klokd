@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import prisma from '../../config/database';
 import { config } from '../../config';
 import { AppError } from '../../middleware/errorHandler';
@@ -20,25 +21,33 @@ import type {
 //
 // CONTRACT (per playbook §6.1 + advisory §2.4):
 //   1. NON-BLOCKING — every call wrapped in try/catch; upstream Klokd flow
-//      completes regardless. Failures logged to audit_log for retry by a
-//      background sweep (not implemented in this pass; see §3 below).
+//      completes regardless.
 //   2. IDEMPOTENT — Idempotency-Key = deterministic per business operation
 //      (employer_id / worker_account_uuid / shift_id) so retries collapse.
-//   3. §A.11 propagation — traceparent + business_op_id (Klokd-side IDs) on
-//      every audit_log entry.
+//   3. §A.11 propagation — EVERY audit row (success, deferred, error) carries
+//      `traceparent` + `business_op_id` + a `resourceId` so (a) the trace can
+//      be correlated end-to-end and (b) the deferral-replay sweep (D2) has a
+//      concrete target to re-run. Stored in audit_log.metadata (+ resourceId
+//      column); promote to indexed columns if §A.11 sign-off requires it.
 //
-// IDENTITI JWT GAP (the second hard blocker — see playbook §8 + KMV_RAILS_
-// INTEGRATION_GUIDE.md): Hakken requires Authorization: Bearer <Identiti RS256
-// JWT, aud=hakken>. Klokd's current Identiti integration mints phone tokens
-// (audience=todoku) but does NOT yet expose a customer-JWT issuance endpoint
-// for arbitrary audiences. Until Silvia confirms the endpoint (open question
-// in OPERATOR_REQUEST_HAKKEN.md), getHakkenJwt() throws 503. Callers catch
-// + log + move on; the integration is structurally complete.
+// AUDIT ACTOR: audit_logs.actor_id is a required FK to users.id, so a literal
+// 'system' actor violates the constraint (and its insert was previously being
+// swallowed by the audit catch — the deferral trail never persisted). These
+// rows are system-triggered background syncs with no human actor, so we
+// attribute them to the AFFECTED user (employer/worker whose entity is being
+// synced); the subject is still pinned precisely by resourceId + business_op_id.
+//
+// IDENTITI JWT GAP (the load-bearing blocker): Hakken requires
+// Authorization: Bearer <Identiti RS256 JWT, aud=https://hakken.co.ke>. Klokd's
+// Identiti client mints phone tokens (aud=todoku) only; the aud=hakken mint
+// endpoint is pending Silvia (B1a). Until then getHakkenJwt() throws 503 and
+// every trigger records a `deferred` audit row (now with a replay target).
 
 async function getHakkenJwt(_accountUuid: string): Promise<string> {
   // PENDING Silvia confirmation of the Identiti customer-JWT issuance endpoint
-  // for audience=hakken. Once available, this delegates to identityRailClient.
-  // See OPERATOR_REQUEST_HAKKEN.md §0 (or open one if not yet created).
+  // for aud=hakken. Once available, this delegates to identityRailClient.
+  // Note (Hakken 23 Jul): the audience is the URL `https://hakken.co.ke`
+  // (HAKKEN_JWT_AUDIENCE), NOT the literal slug `hakken`.
   if (process.env.HAKKEN_IDENTITY_JWT_STUB && config.nodeEnv !== 'production') {
     return process.env.HAKKEN_IDENTITY_JWT_STUB;
   }
@@ -49,44 +58,78 @@ async function getHakkenJwt(_accountUuid: string): Promise<string> {
   );
 }
 
+type HakkenOutcome = 'success' | 'deferred' | 'error' | 'skipped';
+
 export class HakkenIntegrationService {
+  /** W3C traceparent (`00-<32hex>-<16hex>-01`) — one per business operation. */
+  private newTrace(): string {
+    const traceId = crypto.randomBytes(16).toString('hex');
+    const spanId = crypto.randomBytes(8).toString('hex');
+    return `00-${traceId}-${spanId}-01`;
+  }
+
   /**
-   * Audit-log every JWT-pending deferral so the integration-pending state is
-   * queryable. A future background sweep replays these once Identiti's
-   * customer-JWT endpoint lands.
+   * §A.11 audit row for a Hakken operation. Every outcome — success, deferred,
+   * error, skipped — writes one, carrying `traceparent` + `business_op_id` so a
+   * later sweep can replay deferrals against a concrete target and so
+   * trace-propagation is measurable (rows-with-traceparent ÷ total).
    */
-  private async recordDeferral(operation: string, reason: string): Promise<void> {
+  private async audit(params: {
+    actorId: string;
+    operation: string;
+    outcome: HakkenOutcome;
+    resourceId?: string;
+    businessOpId?: string;
+    traceparent: string;
+    detail?: Record<string, unknown>;
+  }): Promise<void> {
     try {
       await logAudit({
         tenantId: config.defaultTenantId,
-        actorId: 'system',
-        action: `hakken.deferred.${operation}`,
+        actorId: params.actorId,
+        action: `hakken.${params.operation}.${params.outcome}`,
         resource: 'hakken_integration',
-        metadata: { reason, deferredAt: new Date().toISOString() },
+        resourceId: params.resourceId,
+        metadata: {
+          traceparent: params.traceparent,
+          business_op_id: params.businessOpId ?? null,
+          ...params.detail,
+          at: new Date().toISOString(),
+        },
       });
     } catch {
-      // never let audit failure cascade
+      // never let audit failure cascade into the upstream flow
     }
   }
-
 
   /**
    * Upsert a Klokd employer as a Hakken entity. Called on:
    *   - employer profile completion (post-WIBA)
-   *   - KYC_TIER_CHANGED webhook (tier increase)
+   *   - KYC tier increase (tier ≥ 1)
    */
   async upsertEmployerEntity(employerId: string): Promise<void> {
+    const traceparent = this.newTrace();
     const employer = await prisma.employer.findUnique({ where: { id: employerId } });
-    if (!employer?.accountUuid) {
-      console.warn(`[HAKKEN] employer ${employerId} has no accountUuid — skipping entity upsert`);
+    if (!employer) return; // unknown id — nothing to sync or attribute an audit to
+    const actorId = employer.userId;
+
+    if (!employer.accountUuid) {
+      await this.audit({
+        actorId, operation: 'employer_register', outcome: 'skipped', resourceId: employer.id,
+        businessOpId: employer.id, traceparent, detail: { reason: 'employer_has_no_account_uuid' },
+      });
       return;
     }
 
+    const businessOpId = employer.accountUuid;
     let jwt: string;
     try {
       jwt = await getHakkenJwt(employer.accountUuid);
     } catch (err) {
-      await this.recordDeferral('entity_upsert', (err as Error).message);
+      await this.audit({
+        actorId, operation: 'employer_register', outcome: 'deferred', resourceId: employer.id,
+        businessOpId, traceparent, detail: { target: 'employer', reason: (err as Error).message },
+      });
       return;
     }
 
@@ -98,7 +141,7 @@ export class HakkenIntegrationService {
         await hakkenRailClient.patchEntity(jwt, employer.hakkenEntityId, {
           displayName: employer.businessName,
           metadata: metadata as unknown as Record<string, unknown>,
-        });
+        }, { traceparent });
       } else {
         const entity = await hakkenRailClient.createEntity<KlokdEmployerEntityMetadata>(
           jwt,
@@ -107,42 +150,60 @@ export class HakkenIntegrationService {
             displayName: employer.businessName,
             roleFlags: ['publisher', 'employer'],
             // No raw GPS on employer entities at v3 (locations come at shift-post time).
-            // Use Nairobi CBD centroid as a placeholder — playbook §7 forbids raw GPS
-            // exfiltration of employer addresses.
+            // Nairobi CBD centroid placeholder — playbook §7 forbids raw GPS exfil.
             geo: { lat: -1.2841, lng: 36.8225 },
             geoLabel: 'CBD',
             metadata,
             externalRef,
           },
-          { idempotencyKey: externalRef }
+          { idempotencyKey: externalRef, traceparent }
         );
         await prisma.employer.update({
           where: { id: employer.id },
           data: { hakkenEntityId: entity.entityId },
         });
       }
+      await this.audit({
+        actorId, operation: 'employer_register', outcome: 'success', resourceId: employer.id,
+        businessOpId, traceparent, detail: { target: 'employer', entityId: employer.hakkenEntityId ?? undefined },
+      });
     } catch (err) {
       console.error('[HAKKEN] upsertEmployerEntity failed (non-fatal):', (err as Error).message);
+      await this.audit({
+        actorId, operation: 'employer_register', outcome: 'error', resourceId: employer.id,
+        businessOpId, traceparent, detail: { target: 'employer', reason: (err as Error).message },
+      });
     }
   }
 
   /**
    * Upsert a Klokd worker as a Hakken entity. Called on:
-   *   - KYC_TIER_CHANGED webhook (tier ≥ 1 unlocks shift applications)
+   *   - KYC tier ≥ 1 (unlocks shift applications)
    *   - rating aggregate update
    */
   async upsertWorkerEntity(workerId: string): Promise<void> {
+    const traceparent = this.newTrace();
     const worker = await prisma.worker.findUnique({ where: { id: workerId } });
-    if (!worker?.accountUuid) {
-      console.warn(`[HAKKEN] worker ${workerId} has no accountUuid — skipping entity upsert`);
+    if (!worker) return; // unknown id — nothing to sync or attribute an audit to
+    const actorId = worker.userId;
+
+    if (!worker.accountUuid) {
+      await this.audit({
+        actorId, operation: 'worker_register', outcome: 'skipped', resourceId: worker.id,
+        businessOpId: worker.id, traceparent, detail: { reason: 'worker_has_no_account_uuid' },
+      });
       return;
     }
 
+    const businessOpId = worker.accountUuid;
     let jwt: string;
     try {
       jwt = await getHakkenJwt(worker.accountUuid);
     } catch (err) {
-      await this.recordDeferral('entity_upsert', (err as Error).message);
+      await this.audit({
+        actorId, operation: 'worker_register', outcome: 'deferred', resourceId: worker.id,
+        businessOpId, traceparent, detail: { target: 'worker', reason: (err as Error).message },
+      });
       return;
     }
 
@@ -150,18 +211,15 @@ export class HakkenIntegrationService {
     const tier = Math.max(0, Math.min(3, worker.kycTier)) as 0 | 1 | 2 | 3;
 
     // §5 PII wall: Hakken rejects literal name fields. display_name MUST be opaque.
-    // We use the FIRST 8 chars of accountUuid (post-acc_ prefix) as the public label.
+    // First 8 chars of accountUuid (post-acc_ prefix) as the public label.
     const opaqueLabel = `worker-${worker.accountUuid.replace(/^acc_/, '').slice(0, 8)}`;
-    const metadata: KlokdWorkerEntityMetadata = {
-      sector: 'hospitality',
-      kyc_tier: tier,
-    };
+    const metadata: KlokdWorkerEntityMetadata = { sector: 'hospitality', kyc_tier: tier };
 
     try {
       if (worker.hakkenEntityId) {
         await hakkenRailClient.patchEntity(jwt, worker.hakkenEntityId, {
           metadata: metadata as unknown as Record<string, unknown>,
-        });
+        }, { traceparent });
       } else {
         const entity = await hakkenRailClient.createEntity<KlokdWorkerEntityMetadata>(
           jwt,
@@ -170,22 +228,29 @@ export class HakkenIntegrationService {
             displayName: opaqueLabel,
             roleFlags: ['worker'],
             // Worker location comes at clock-in via geoHash; entity-level geo is
-            // the CBD centroid placeholder — Klokd-side privacy: never resolve
-            // home address to Hakken.
+            // the CBD centroid placeholder — never resolve home address to Hakken.
             geo: { lat: -1.2841, lng: 36.8225 },
             geoLabel: 'CBD',
             metadata,
             externalRef,
           },
-          { idempotencyKey: externalRef }
+          { idempotencyKey: externalRef, traceparent }
         );
         await prisma.worker.update({
           where: { id: worker.id },
           data: { hakkenEntityId: entity.entityId },
         });
       }
+      await this.audit({
+        actorId, operation: 'worker_register', outcome: 'success', resourceId: worker.id,
+        businessOpId, traceparent, detail: { target: 'worker', kycTier: tier },
+      });
     } catch (err) {
       console.error('[HAKKEN] upsertWorkerEntity failed (non-fatal):', (err as Error).message);
+      await this.audit({
+        actorId, operation: 'worker_register', outcome: 'error', resourceId: worker.id,
+        businessOpId, traceparent, detail: { target: 'worker', reason: (err as Error).message },
+      });
     }
   }
 
@@ -194,17 +259,28 @@ export class HakkenIntegrationService {
    * after the shift row commits. Non-blocking.
    */
   async publishShiftOpen(shiftId: string): Promise<void> {
+    const traceparent = this.newTrace();
     const shift = await prisma.shift.findUnique({
       where: { id: shiftId },
       include: { employer: true },
     });
-    if (!shift) return;
-    if (!shift.employer?.accountUuid) {
-      console.warn(`[HAKKEN] shift ${shiftId} employer has no accountUuid — skipping broadcast`);
+    if (!shift?.employer) return;
+    const actorId = shift.employer.userId;
+
+    if (!shift.employer.accountUuid) {
+      await this.audit({
+        actorId, operation: 'shift_publish', outcome: 'skipped', resourceId: shift.id,
+        businessOpId: shift.id, traceparent, detail: { reason: 'employer_has_no_account_uuid' },
+      });
       return;
     }
     if (!shift.employer.hakkenEntityId) {
-      console.warn(`[HAKKEN] shift ${shiftId} employer not yet registered with Hakken — skipping`);
+      // Employer not yet registered with Hakken — the shift can't publish until
+      // it is. Recorded so the sweep can retry once the employer entity lands.
+      await this.audit({
+        actorId, operation: 'shift_publish', outcome: 'skipped', resourceId: shift.id,
+        businessOpId: shift.id, traceparent, detail: { reason: 'employer_not_registered_with_hakken' },
+      });
       return;
     }
 
@@ -212,7 +288,10 @@ export class HakkenIntegrationService {
     try {
       jwt = await getHakkenJwt(shift.employer.accountUuid);
     } catch (err) {
-      await this.recordDeferral('broadcast_publish', (err as Error).message);
+      await this.audit({
+        actorId, operation: 'shift_publish', outcome: 'deferred', resourceId: shift.id,
+        businessOpId: shift.id, traceparent, detail: { reason: (err as Error).message },
+      });
       return;
     }
 
@@ -222,19 +301,15 @@ export class HakkenIntegrationService {
       role: shift.role,
       shift_start_at: shift.startTime.toISOString(),
       shift_end_at: shift.endTime.toISOString(),
-      // pay_rate_kes — reference §4 says "integer, minor units" but §6.2 example
-      // shows 800 which matches Klokd's whole-KES domain (a shift paying KES 800).
-      // shift.rateKes is whole KES in Klokd's schema. AMBIGUITY pending Silvia
-      // confirmation (escalation tracked in HAKKEN_INTEGRATION_RESULT.md).
+      // pay_rate_kes is WHOLE KES (Hakken doesn't touch money; confirmed fbe1040).
       pay_rate_kes: shift.rateKes,
       sector: 'hospitality',
       headcount: 1,
     };
 
-    // TTL = shift start. Reference §6.2 + §8 TTL_TOO_FAR: `ttl_at > now + 168h`
-    // is rejected — the boundary is inclusive at 168h. Use absolute timestamp
-    // capping to avoid float-rounding drift around the boundary.
-    const maxTtlMs = Date.now() + 168 * 3600_000 - 60_000; // 1-min slack
+    // TTL = shift start, capped at now+168h (inclusive boundary; absolute-timestamp
+    // math avoids float drift around TTL_TOO_FAR).
+    const maxTtlMs = Date.now() + 168 * 3600_000 - 60_000;
     const ttlAtMs = Math.min(shift.startTime.getTime(), maxTtlMs);
     const ttlAt = new Date(ttlAtMs).toISOString();
 
@@ -247,17 +322,29 @@ export class HakkenIntegrationService {
           payload,
           geo: { lat: shift.locationLat, lng: shift.locationLng },
           geoLabel: shift.locationName ?? undefined,
-          consentScope: 'cross_app_optional',
+          // consent_scope: single_app is the DPA-2019-safer default (Hakken R8,
+          // 23 Jul). Klokd's onboarding does not yet capture cross-app discovery
+          // consent, so we must not assert cross_app_optional. Upgrade to
+          // cross_app_optional only once the consent-capture UI ships.
+          consentScope: 'single_app',
           ttlAt,
         },
-        { idempotencyKey }
+        { idempotencyKey, traceparent }
       );
       await prisma.shift.update({
         where: { id: shift.id },
         data: { hakkenBroadcastId: broadcast.broadcastId },
       });
+      await this.audit({
+        actorId, operation: 'shift_publish', outcome: 'success', resourceId: shift.id,
+        businessOpId: shift.id, traceparent, detail: { broadcastId: broadcast.broadcastId },
+      });
     } catch (err) {
       console.error('[HAKKEN] publishShiftOpen failed (non-fatal):', (err as Error).message);
+      await this.audit({
+        actorId, operation: 'shift_publish', outcome: 'error', resourceId: shift.id,
+        businessOpId: shift.id, traceparent, detail: { reason: (err as Error).message },
+      });
     }
   }
 
@@ -266,44 +353,81 @@ export class HakkenIntegrationService {
    * Non-blocking.
    */
   async revokeShiftBroadcast(shiftId: string): Promise<void> {
+    const traceparent = this.newTrace();
     const shift = await prisma.shift.findUnique({
       where: { id: shiftId },
       include: { employer: true },
     });
     if (!shift?.hakkenBroadcastId || !shift.employer?.accountUuid) return;
+    const actorId = shift.employer.userId;
 
     let jwt: string;
     try {
       jwt = await getHakkenJwt(shift.employer.accountUuid);
     } catch (err) {
-      await this.recordDeferral('broadcast_revoke', (err as Error).message);
+      await this.audit({
+        actorId, operation: 'shift_revoke', outcome: 'deferred', resourceId: shift.id,
+        businessOpId: shift.id, traceparent, detail: { reason: (err as Error).message, broadcastId: shift.hakkenBroadcastId },
+      });
       return;
     }
 
     try {
-      await hakkenRailClient.revokeBroadcast(jwt, shift.hakkenBroadcastId);
+      await hakkenRailClient.revokeBroadcast(jwt, shift.hakkenBroadcastId, { traceparent });
       await prisma.shift.update({
         where: { id: shift.id },
         data: { hakkenBroadcastId: null },
       });
+      await this.audit({
+        actorId, operation: 'shift_revoke', outcome: 'success', resourceId: shift.id,
+        businessOpId: shift.id, traceparent,
+      });
     } catch (err) {
       console.error('[HAKKEN] revokeShiftBroadcast failed (non-fatal):', (err as Error).message);
+      await this.audit({
+        actorId, operation: 'shift_revoke', outcome: 'error', resourceId: shift.id,
+        businessOpId: shift.id, traceparent, detail: { reason: (err as Error).message },
+      });
     }
   }
 
   /** Mark an entity retired (offboarding). Non-blocking. */
   async retireEntity(opts: { entityId: string; accountUuid: string }): Promise<void> {
+    const traceparent = this.newTrace();
+    // Resolve the owning user for audit attribution (actor_id FK). If we can't,
+    // the operation still runs but is un-attributable — skip the audit row
+    // rather than throw an FK violation into the swallow.
+    const owner = await prisma.user.findUnique({ where: { accountUuid: opts.accountUuid } });
+    const actorId = owner?.id;
+
     let jwt: string;
     try {
       jwt = await getHakkenJwt(opts.accountUuid);
     } catch (err) {
-      await this.recordDeferral('entity_retire', (err as Error).message);
+      if (actorId) {
+        await this.audit({
+          actorId, operation: 'entity_retire', outcome: 'deferred', resourceId: opts.entityId,
+          businessOpId: opts.accountUuid, traceparent, detail: { reason: (err as Error).message },
+        });
+      }
       return;
     }
     try {
-      await hakkenRailClient.patchEntity(jwt, opts.entityId, { status: 'retired' });
+      await hakkenRailClient.patchEntity(jwt, opts.entityId, { status: 'retired' }, { traceparent });
+      if (actorId) {
+        await this.audit({
+          actorId, operation: 'entity_retire', outcome: 'success', resourceId: opts.entityId,
+          businessOpId: opts.accountUuid, traceparent,
+        });
+      }
     } catch (err) {
       console.error('[HAKKEN] retireEntity failed (non-fatal):', (err as Error).message);
+      if (actorId) {
+        await this.audit({
+          actorId, operation: 'entity_retire', outcome: 'error', resourceId: opts.entityId,
+          businessOpId: opts.accountUuid, traceparent, detail: { reason: (err as Error).message },
+        });
+      }
     }
   }
 }
