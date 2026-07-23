@@ -113,4 +113,11 @@ export const config = {
   // auth flow stays testable end-to-end. Defaults OFF; never enable in
   // production — placeholder accounts cannot pass KYC or receive payouts.
   railFallbackLocal: process.env.RAIL_FALLBACK_LOCAL === 'true',
+
+  // Echo the OTP back in the request response (the `sandboxOtp` field), so a
+  // tester/investor can sign in without receiving a real SMS. Decoupled from
+  // railFallbackLocal so the deployed app can use REAL Identiti while still
+  // echoing the OTP for demos — the two are orthogonal concerns. Turn OFF for
+  // real users once Todoku SMS delivery is confirmed.
+  otpSandboxEcho: process.env.OTP_SANDBOX_ECHO === 'true',
 } as const;

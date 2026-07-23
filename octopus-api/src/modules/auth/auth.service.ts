@@ -163,10 +163,14 @@ export class AuthService {
       console.log(`[DEV] OTP for ${normalized}: ${code} (challenge ${challengeId})`);
     }
 
-    // Echo the OTP in dev, and also whenever the rail fallback is active —
-    // sandbox Todoku cannot deliver real SMS, so without the echo the flow
-    // is untestable. RAIL_FALLBACK_LOCAL therefore implies sandbox mode.
-    const echoOtp = config.nodeEnv !== 'production' || config.railFallbackLocal;
+    // Echo the OTP whenever any sandbox affordance is active:
+    //   - non-production runtime, OR
+    //   - rail fallback on (implies sandbox — placeholder accounts), OR
+    //   - explicit OTP_SANDBOX_ECHO (lets the deployed app use REAL Identiti
+    //     while still echoing for demos, so the two are not coupled).
+    // Turn OTP_SANDBOX_ECHO off for real users once Todoku SMS is confirmed.
+    const echoOtp =
+      config.nodeEnv !== 'production' || config.railFallbackLocal || config.otpSandboxEcho;
     return {
       challengeId,
       message: 'OTP sent',
