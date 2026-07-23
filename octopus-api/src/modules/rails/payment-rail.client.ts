@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { config } from '../../config';
 import { AppError } from '../../middleware/errorHandler';
+import { railStatusToAppStatus } from './rail-error';
 import {
   toKpMinor,
   fromKpMinor,
@@ -103,7 +104,7 @@ class PaymentRailClient {
     if (!res.ok) {
       const code = envelope?.error?.code ?? 'unknown';
       const msg = envelope?.error?.message ?? `Payment Rail HTTP ${res.status}`;
-      throw new AppError(res.status === 401 ? 401 : 502, `Payment Rail ${method} ${path} failed: ${code} — ${msg}`);
+      throw new AppError(railStatusToAppStatus(res.status), `Payment Rail ${method} ${path} failed: ${code} — ${msg}`);
     }
     if (!envelope || envelope.ok === false || envelope.data === undefined) {
       throw new AppError(502, `Payment Rail ${method} ${path} returned invalid envelope`);

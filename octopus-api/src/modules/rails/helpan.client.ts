@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { config } from '../../config';
 import { AppError } from '../../middleware/errorHandler';
+import { railStatusToAppStatus } from './rail-error';
 import {
   HELPAN_KLOKD_AGENT_ID,
   type HelpanIssueAuthorityRequest,
@@ -115,7 +116,7 @@ class HelpanRailClient {
     if (!res.ok) {
       const code = envelope?.error?.code ?? 'unknown';
       const msg = envelope?.error?.message ?? `Helpan HTTP ${res.status}`;
-      throw new AppError(res.status === 401 ? 401 : 502, `Helpan ${method} ${path} failed: ${code} — ${msg}`);
+      throw new AppError(railStatusToAppStatus(res.status), `Helpan ${method} ${path} failed: ${code} — ${msg}`);
     }
     if (!envelope || envelope.ok === false || envelope.data === undefined) {
       throw new AppError(502, `Helpan ${method} ${path} returned invalid envelope`);

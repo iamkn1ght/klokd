@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { config } from '../../config';
 import { AppError } from '../../middleware/errorHandler';
+import { railStatusToAppStatus } from './rail-error';
 import { identityRailClient } from './identiti.client';
 import { TODOKU_TEMPLATES } from './templates';
 import type { TodokuSendResponse, TodokuChannel } from './todoku.dto';
@@ -111,7 +112,7 @@ class CommsRailClient {
     if (!res.ok) {
       const code = envelope?.error?.code ?? 'unknown';
       const message = envelope?.error?.message ?? `Todoku HTTP ${res.status}`;
-      throw new AppError(res.status === 401 ? 401 : 502, `Todoku ${method} ${path} failed: ${code} — ${message}`);
+      throw new AppError(railStatusToAppStatus(res.status), `Todoku ${method} ${path} failed: ${code} — ${message}`);
     }
 
     if (!envelope || envelope.ok === false) {

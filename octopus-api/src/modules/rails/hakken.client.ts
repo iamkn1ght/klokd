@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { config } from '../../config';
 import { AppError } from '../../middleware/errorHandler';
+import { railStatusToAppStatus } from './rail-error';
 import {
   assertNoBannedKeysOrPii,
   type HakkenCreateEntityRequest,
@@ -112,7 +113,7 @@ class HakkenRailClient {
     if (!res.ok) {
       const code = envelope?.error?.code ?? 'unknown';
       const msg = envelope?.error?.message ?? `Hakken HTTP ${res.status}`;
-      throw new AppError(res.status === 401 ? 401 : 502, `Hakken ${method} ${path} failed: ${code} — ${msg}`);
+      throw new AppError(railStatusToAppStatus(res.status), `Hakken ${method} ${path} failed: ${code} — ${msg}`);
     }
     if (!envelope || envelope.ok === false || envelope.data === undefined) {
       throw new AppError(502, `Hakken ${method} ${path} returned invalid envelope`);

@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { config } from '../../config';
 import { AppError } from '../../middleware/errorHandler';
+import { railStatusToAppStatus } from './rail-error';
 import type {
   IdentitiCreateCustomerRequest,
   IdentitiCreateCustomerResponse,
@@ -129,7 +130,7 @@ class IdentityRailClient {
       // code (e.g. kyc_iprs_no_match vs kyc_artefact_already_submitted) rather
       // than substring-matching the composed message.
       throw new AppError(
-        res.status === 401 ? 401 : 502,
+        railStatusToAppStatus(res.status),
         `Identiti ${method} ${path} failed: ${code} — ${message}`,
         true,
         code
