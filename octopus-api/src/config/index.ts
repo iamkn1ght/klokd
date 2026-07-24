@@ -99,6 +99,12 @@ export const config = {
     appId: process.env.HELPAN_APP_ID || 'klokd',
     appSecret: process.env.HELPAN_APP_SECRET || '',
     webhookSecret: process.env.HELPAN_WEBHOOK_SECRET || '',
+    // Customer JWT for /v1/briefings + Console = an Identiti-minted RS256 token
+    // scoped to Helpan's audience (the URL, session-shaped: scope/tier/
+    // session_kind/jti). Minted via identityRailClient.issueCustomerJwt and
+    // cached per account_uuid to ~80% of TTL. Live at Identiti 0.1.4.
+    jwtAudience: process.env.HELPAN_JWT_AUDIENCE || 'https://api.helpan.co.ke',
+    jwtTtlSeconds: parseInt(process.env.HELPAN_JWT_TTL_SECONDS || '900', 10),
   },
 
   // ─── Klokd-Owned Infrastructure ─────────────────────────

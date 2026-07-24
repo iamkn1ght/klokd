@@ -4,6 +4,7 @@ import prisma from '../../config/database';
 import { authenticate, authorize } from '../../middleware/auth';
 import { AppError } from '../../middleware/errorHandler';
 import { helpanRailClient, HELPAN_KLOKD_AGENT_ID } from '../rails';
+import { getHelpanCustomerJwt } from '../rails/helpan.client';
 import { HELPAN_KLOKD_SCOPES } from '../rails/helpan.dto';
 import { logAudit } from '../../utils/auditLogger';
 
@@ -139,10 +140,10 @@ router.post('/briefings', authenticate, authorize('WORKER'), async (req: Request
   const user = await prisma.user.findUnique({ where: { id: req.user!.userId } });
   if (!user?.accountUuid) throw new AppError(422, 'User has no Identiti account');
 
-  // FIXME: Helpan briefings require a CUSTOMER JWT from Identiti, not Klokd's
-  // own JWT. Klokd needs to either mint customer JWTs via Identiti or wait for
-  // Helpan to add HMAC-app-acting-for-customer flow. Escalation noted.
-  const customerJwt = req.header('Authorization')?.replace(/^Bearer\s+/i, '') ?? '';
+  // Helpan briefings are customer-JWT-only — an Identiti-minted RS256 token
+  // scoped to Helpan's audience (session-shaped: scope/tier/session_kind/jti),
+  // NOT Klokd's own JWT. Minted server-side + cached via Identiti 0.1.4.
+  const customerJwt = await getHelpanCustomerJwt(user.accountUuid as `acc_${string}`);
 
   const briefing = await helpanRailClient.createBriefing(customerJwt, {
     briefingType: data.briefingType,

@@ -2,6 +2,8 @@ import crypto from 'crypto';
 import { config } from '../../config';
 import { AppError } from '../../middleware/errorHandler';
 import { railStatusToAppStatus } from './rail-error';
+import { identityRailClient } from './identiti.client';
+import type { IdentitiAccountUuid } from './identiti.dto';
 import {
   HELPAN_KLOKD_AGENT_ID,
   type HelpanIssueAuthorityRequest,
@@ -343,3 +345,35 @@ class HelpanRailClient {
 
 export const helpanRailClient = new HelpanRailClient();
 export { HELPAN_KLOKD_AGENT_ID };
+
+// ─── Helpan customer JWT (for /v1/briefings + Console) ────
+//
+// Briefings + the Console are customer-JWT-only (§20.11). The token is an
+// Identiti-minted RS256 JWT scoped to Helpan's audience — session-shaped
+// (scope/tier/session_kind/jti), which Helpan's customer-JWT verifier requires
+// (401 AUTH_JWT_INVALID without them). Minted server-side via Identiti 0.1.4's
+// audience-aware POST /v1/customers/{uuid}/tokens and cached per account_uuid to
+// ~80% of TTL. Mirrors getHakkenJwt. Needs the operator-granted
+// `identiti:token:issue` scope (already held — the Hakken grant covers all
+// whitelisted audiences) + `https://api.helpan.co.ke` on Identiti's whitelist.
+interface CachedHelpanJwt {
+  token: string;
+  refreshAt: number;
+}
+const helpanJwtCache = new Map<string, CachedHelpanJwt>();
+
+export async function getHelpanCustomerJwt(accountUuid: IdentitiAccountUuid): Promise<string> {
+  const cached = helpanJwtCache.get(accountUuid);
+  if (cached && Date.now() < cached.refreshAt) return cached.token;
+
+  const res = await identityRailClient.issueCustomerJwt(accountUuid, {
+    audience: config.helpan.jwtAudience,
+    ttlSeconds: config.helpan.jwtTtlSeconds,
+  });
+  const lifetimeMs = Math.max(0, new Date(res.expiresAt).getTime() - Date.now());
+  helpanJwtCache.set(accountUuid, {
+    token: res.token,
+    refreshAt: Date.now() + Math.floor(lifetimeMs * 0.8),
+  });
+  return res.token;
+}
