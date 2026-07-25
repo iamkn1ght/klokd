@@ -21,6 +21,17 @@ import {
   type HelpanAuthorityRejection,
 } from './helpan.dto';
 
+/** Decode a JWT's `sub` claim without verifying (Helpan re-verifies the token). */
+function decodeJwtSub(jwt: string): string | undefined {
+  try {
+    return JSON.parse(
+      Buffer.from(jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString()
+    ).sub as string;
+  } catch {
+    return undefined;
+  }
+}
+
 // Klokd v3 — Helpan AI rail client
 // Aligned to KMV_RAILS_INTEGRATION_GUIDE.md §7 (Helpan AI, LIVE).
 //
@@ -290,6 +301,11 @@ class HelpanRailClient {
   ): Promise<HelpanBriefingResponse> {
     // Briefings use BearerCustomer auth, not HMAC. Custom path bypasses sign().
     this.assertConfigured();
+    // §20.11: the body REQUIRES account_uuid + app_id (a bare intent 400s
+    // REQ_INVALID). account_uuid MUST equal the customer JWT's `sub` — Helpan
+    // RLS-scopes to it (mismatch → 403 AUTH_ACCOUNT_MISMATCH), so derive it from
+    // the token rather than trusting a caller-supplied value.
+    const accountUuid = decodeJwtSub(customerJwt);
     const res = await fetch(`${this.baseUrl}/v1/briefings`, {
       method: 'POST',
       headers: {
@@ -299,6 +315,8 @@ class HelpanRailClient {
         'X-Idempotency-Key': crypto.randomUUID(),
       },
       body: JSON.stringify({
+        account_uuid: accountUuid,
+        app_id: this.appId,
         briefing_type: req.briefingType,
         intent: req.intent,
         expires_at: req.expiresAt,
