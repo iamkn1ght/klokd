@@ -56,6 +56,20 @@ router.get('/available', authenticate, authorize('WORKER'), async (req: Request,
   res.json({ success: true, data: shifts });
 });
 
+// ─── Employer: My posted shifts ─────────────────────────
+
+router.get('/mine', authenticate, authorize('EMPLOYER'), async (req: Request, res: Response) => {
+  const shifts = await shiftService.getEmployerShifts(req.user!.userId, req.user!.tenantId);
+  res.json({ success: true, data: shifts });
+});
+
+// ─── Worker: My applications ────────────────────────────
+
+router.get('/my/applications', authenticate, authorize('WORKER'), async (req: Request, res: Response) => {
+  const applications = await shiftService.getMyApplications(req.user!.userId, req.user!.tenantId);
+  res.json({ success: true, data: applications });
+});
+
 // ─── Worker: Apply ──────────────────────────────────────
 
 router.post(
@@ -142,6 +156,7 @@ router.post('/:id/clockout', authenticate, authorize('WORKER'), async (req: Requ
 });
 
 // ─── Get Shift Detail ───────────────────────────────────
+// NOTE: `/my/applications` above is registered first, so it wins over `/:id`.
 
 router.get('/:id', authenticate, async (req: Request, res: Response) => {
   const shift = await shiftService.getShiftById(req.params.id as string);

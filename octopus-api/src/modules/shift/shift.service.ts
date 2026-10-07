@@ -156,16 +156,101 @@ export class ShiftService {
       throw new AppError(422, 'You already have a confirmed shift during this time');
     }
 
-    const application = await prisma.shiftApplication.create({
-      data: {
-        tenantId,
-        shiftId,
-        workerId,
-        status: 'PENDING',
-      },
-    });
+    const application = await prisma.shiftApplication
+      .create({
+        data: {
+          tenantId,
+          shiftId,
+          workerId,
+          status: 'PENDING',
+        },
+      })
+      .catch((err: any) => {
+        // P2002 = @@unique([shiftId, workerId]) — a double-tap or retry hit
+        // the existing application. 422 with a friendly message, not a 500.
+        if (err?.code === 'P2002') {
+          throw new AppError(422, 'You have already applied to this shift');
+        }
+        throw err;
+      });
 
     return application;
+  }
+
+  /**
+   * The employer's own posted shifts with live application counts — powers
+   * the employer dashboard's real "open positions" grid.
+   */
+  async getEmployerShifts(userId: string, tenantId: string) {
+    const employer = await prisma.employer.findUnique({ where: { userId } });
+    if (!employer) {
+      throw new AppError(404, 'Employer profile not found');
+    }
+    const shifts = await prisma.shift.findMany({
+      where: { employerId: employer.id, tenantId },
+      include: { _count: { select: { applications: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+    });
+    return shifts.map(s => ({
+      id: s.id,
+      role: s.role,
+      description: s.description,
+      date: s.date,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      rateKes: s.rateKes,
+      locationName: s.locationName,
+      status: s.status,
+      applications: s._count.applications,
+    }));
+  }
+
+  /**
+   * All applications this worker has submitted, newest first — powers the
+   * "My shifts" tab's applied-view.
+   */
+  async getMyApplications(userId: string, tenantId: string) {
+    const worker = await prisma.worker.findUnique({ where: { userId } });
+    if (!worker) {
+      throw new AppError(404, 'Worker profile not found');
+    }
+    const applications = await prisma.shiftApplication.findMany({
+      where: { workerId: worker.id, tenantId },
+      include: {
+        shift: {
+          select: {
+            id: true,
+            role: true,
+            date: true,
+            startTime: true,
+            endTime: true,
+            rateKes: true,
+            locationName: true,
+            status: true,
+            employer: { select: { businessName: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+    return applications.map(app => ({
+      id: app.id,
+      status: app.status,
+      appliedAt: app.createdAt,
+      shift: {
+        id: app.shift.id,
+        role: app.shift.role,
+        venue: app.shift.employer?.businessName ?? 'Venue',
+        area: app.shift.locationName,
+        date: app.shift.date,
+        startTime: app.shift.startTime,
+        endTime: app.shift.endTime,
+        rateKes: app.shift.rateKes,
+        shiftStatus: app.shift.status,
+      },
+    }));
   }
 
   /**

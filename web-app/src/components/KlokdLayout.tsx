@@ -55,8 +55,13 @@ export function AmbientOrbs({ intensity = 'default' }: { intensity?: 'default' |
   const bColors = intensity === 'subtle'
     ? ['rgba(0,229,160,0.05)', 'rgba(0,229,160,0)'] as const
     : ['rgba(0,229,160,0.10)', 'rgba(0,229,160,0)'] as const;
+  // The orbs bleed off-canvas by design; the clip layer keeps them from
+  // expanding the document's scroll width on small viewports.
   return (
-    <>
+    <View
+      pointerEvents="none"
+      style={styles.orbClip}
+    >
       <View pointerEvents="none" style={styles.dotsLayer}>
         <DotGrid />
       </View>
@@ -76,7 +81,7 @@ export function AmbientOrbs({ intensity = 'default' }: { intensity?: 'default' |
           style={StyleSheet.absoluteFill}
         />
       </View>
-    </>
+    </View>
   );
 }
 
@@ -308,6 +313,7 @@ export function GlassCard({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ink },
+  orbClip: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' },
   dotsLayer: { position: 'absolute', top: 0, left: 0, right: 0, height: 780, overflow: 'hidden' },
   orb: { position: 'absolute', borderRadius: 999, overflow: 'hidden' },
   orbA: { top: -200, right: -200, width: 760, height: 760 },

@@ -20,7 +20,10 @@ export const colors = {
   error: '#FF6B6B',
   info: '#60A5FA',
 
-  // Alpha helpers (matched to Claude Design rgba values)
+  // Alpha helpers (matched to Claude Design rgba values).
+  // NOTE: text-facing alphas (white35+) are deliberately raised above the
+  // original design values — anything under ~0.60 white on ink #0A0A0F fails
+  // WCAG 2.1 AA (4.5:1). Borders/backgrounds (white02–white30) are untouched.
   white: '#FFFFFF',
   white02: 'rgba(255,255,255,0.02)',
   white03: 'rgba(255,255,255,0.03)',
@@ -34,18 +37,18 @@ export const colors = {
   white16: 'rgba(255,255,255,0.16)',
   white25: 'rgba(255,255,255,0.25)',
   white30: 'rgba(255,255,255,0.30)',
-  white35: 'rgba(255,255,255,0.35)',
-  white38: 'rgba(255,255,255,0.38)',
-  white40: 'rgba(255,255,255,0.40)',
-  white42: 'rgba(255,255,255,0.42)',
-  white45: 'rgba(255,255,255,0.45)',
-  white50: 'rgba(255,255,255,0.50)',
-  white55: 'rgba(255,255,255,0.55)',
-  white60: 'rgba(255,255,255,0.60)',
-  white65: 'rgba(255,255,255,0.65)',
-  white70: 'rgba(255,255,255,0.70)',
-  white75: 'rgba(255,255,255,0.75)',
-  white85: 'rgba(255,255,255,0.85)',
+  white35: 'rgba(255,255,255,0.52)', // placeholders/disabled text — ≥4.5:1
+  white38: 'rgba(255,255,255,0.52)',
+  white40: 'rgba(255,255,255,0.60)',
+  white42: 'rgba(255,255,255,0.60)',
+  white45: 'rgba(255,255,255,0.62)', // ≥6.6:1 on ink
+  white50: 'rgba(255,255,255,0.65)',
+  white55: 'rgba(255,255,255,0.68)',
+  white60: 'rgba(255,255,255,0.72)',
+  white65: 'rgba(255,255,255,0.76)',
+  white70: 'rgba(255,255,255,0.80)',
+  white75: 'rgba(255,255,255,0.85)',
+  white85: 'rgba(255,255,255,0.88)',
 
   electricAlpha: {
     '04': 'rgba(0,229,160,0.04)',

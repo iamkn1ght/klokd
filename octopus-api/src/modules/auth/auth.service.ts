@@ -30,6 +30,11 @@ const HEX_TIER_TO_INT: Record<IdentitiTier, number> = {
   tier_3: 3,
 };
 
+// Remember the profile names of just-created accounts until their first
+// successful verify, so activation can bootstrap the Worker/Employer row with
+// a real name instead of a phone-derived placeholder.
+const profileNames = new Map<string, string>();
+
 const otpAttempts = new Map<string, { count: number; windowStartedAt: number }>();
 const OTP_WINDOW_MS = 10 * 60 * 1000;
 const OTP_MAX_ATTEMPTS = 3;
@@ -113,6 +118,7 @@ export class AuthService {
         };
       }
       accountUuid = created.accountUuid;
+      profileNames.set(accountUuid, `${profile.nameFirst} ${profile.nameLast}`.trim());
 
       // Persist immediately so retries skip createCustomer.
       if (user) {
@@ -183,7 +189,7 @@ export class AuthService {
     challengeId: string,
     code: string,
     role: UserRole
-  ): Promise<{ accessToken: string; refreshToken: string; isNewUser: boolean }> {
+  ): Promise<{ accessToken: string; refreshToken: string; isNewUser: boolean; role: UserRole }> {
     const normalized = this.normalizePhone(phone);
 
     let user = await prisma.user.findUnique({ where: { phone: normalized } });
@@ -205,13 +211,60 @@ export class AuthService {
     pendingOtps.delete(challengeId);
     otpAttempts.delete(normalized);
 
-    // First successful verify activates the user.
+    // First successful verify activates the user and stamps their role.
+    // The `role` in the request is an intent at registration — NOT a way to
+    // flip roles on every login: a WORKER tapping "I hire workers" used to be
+    // silently rewritten to EMPLOYER here. Returning users keep their stored
+    // role; changes are a support/compliance action.
     const justActivated = !user.isActive;
-    if (justActivated || user.role !== role) {
+    if (justActivated) {
       user = await prisma.user.update({
         where: { id: user.id },
         data: { isActive: true, role },
       });
+      // Bootstrap the role's profile row. Without it every authenticated
+      // worker/employer action (POST /shifts/:id/apply, GET /shifts/available
+      // employers, confirm flows) 404s with "profile not found". The name from
+      // the OTP profile (required by Identiti customer-create) seeds it so the
+      // app shows a real identity from minute one. KYC upgrades later via
+      // Identiti webhooks; employers add KRA/WIBA before posting shifts.
+      try {
+        const profileName = user.accountUuid
+          ? profileNames.get(user.accountUuid)
+          : undefined;
+        profileNames.delete(user.accountUuid ?? '');
+        const [first, ...rest] = (profileName ?? 'Klokd User').split(/\s+/);
+        if (user.role === 'EMPLOYER') {
+          await prisma.employer.create({
+            data: {
+              tenantId: user.tenantId,
+              userId: user.id,
+              accountUuid: user.accountUuid,
+              kycTier: user.kycTier,
+              businessName: profileName ?? 'Unregistered business',
+            },
+          });
+        } else {
+          await prisma.worker.create({
+            data: {
+              tenantId: user.tenantId,
+              userId: user.id,
+              accountUuid: user.accountUuid,
+              kycTier: user.kycTier,
+              firstName: first,
+              lastName: rest.join(' ') || '—',
+              skills: JSON.stringify([]),
+              consentIdentity: true,
+              consentGps: true,
+              consentedAt: new Date(),
+            },
+          });
+        }
+      } catch (err) {
+        // Duplicate key = a re-run race; anything else is logged but must not
+        // block sign-in — the profile can be created by support later.
+        console.warn('[AUTH] Profile bootstrap skipped:', (err as Error).message);
+      }
     }
 
     // Mirror activation to Identiti. Fresh Identiti accounts sit in
@@ -257,7 +310,7 @@ export class AuthService {
       resourceId: user.id,
     });
 
-    return { accessToken, refreshToken: refreshTokenValue, isNewUser: justActivated };
+    return { accessToken, refreshToken: refreshTokenValue, isNewUser: justActivated, role: user.role };
   }
 
   async refreshAccessToken(refreshToken: string): Promise<{ accessToken: string }> {

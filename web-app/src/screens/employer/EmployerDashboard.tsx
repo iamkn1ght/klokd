@@ -1,79 +1,105 @@
 /**
  * Employer Dashboard (web) — desktop-shape ops view.
  *
- * Top: escrow meter + 3 KPIs. Middle: open shifts grid. Bottom: recent
- * activity. Aim: open the page, know if anything needs attention in 5s.
+ * The "open positions" grid is REAL: GET /shifts/mine for signed-in
+ * employers (skeletons → rows → empty → retry, demo-labelled samples for
+ * demo sessions). The escrow meter stays SAMPLE — Kipkiren Pay isn't live,
+ * so every money number on this page is explicitly labelled as such.
  */
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { GlassCard, FadeUp, LiveDot } from '../../components/KlokdLayout';
-import { Eyebrow, StatusPill, Avatar, GradientBtn, Sparkline, Tone } from '../../components/Primitives';
+import { Eyebrow, StatusPill } from '../../components/Primitives';
+import { ShiftCardSkeleton, ErrorState, EmptyState } from '../../components/States';
 import { colors, spacing, radius } from '../../theme';
+import { useEmployerShifts, EmployerShift } from '../../hooks/useEmployerShifts';
 
+// SAMPLE until the payment rail ships — honest labelling, no invented KPIs.
 const ESCROW_TOTAL = 200_000;
 const ESCROW_HELD = 142_400;
 
-const KPIS = [
-  { k: '12', l: 'Shifts this week', delta: '+3 vs last week' },
-  { k: 'KES 18,400', l: 'Spent this week', delta: 'avg KES 1,533 / shift' },
-  { k: '94.2%', l: 'Show-up rate', delta: 'across 47 workers' },
+const SAMPLE_KPIS = [
+  { k: '—', l: 'Shifts this week', delta: 'payments not live yet' },
+  { k: '—', l: 'Spent this week', delta: 'payments not live yet' },
+  { k: '—', l: 'Show-up rate', delta: 'available after first clock-in' },
 ];
 
-const OPEN_SHIFTS = [
-  { id: 'sh-9921', role: 'Waiter', venue: 'Brew Bistro · Westlands', when: 'Tonight · 5–10 PM', pay: 1800, applied: 12, picked: 0, state: 'filling' as const },
-  { id: 'sh-9922', role: 'Barista', venue: 'Brew Bistro · Sarit', when: 'Tomorrow · 7 AM – 2 PM', pay: 2100, applied: 8, picked: 1, state: 'filled' as const },
-  { id: 'sh-9923', role: 'Event steward', venue: 'KICC · Sat', when: 'Sat · 8 PM – 1 AM', pay: 1200, applied: 4, picked: 0, state: 'open' as const },
-];
+const STATE_TONE: Record<string, 'mint' | 'warn' | 'err'> = {
+  POSTED: 'warn',
+  CONFIRMED: 'mint',
+  ACCEPTED: 'mint',
+  ACTIVE: 'mint',
+  COMPLETED: 'mint',
+  DISPUTED: 'err',
+  PAID: 'mint',
+  CANCELLED: 'neutral',
+} as any;
 
-const RECENT = [
-  { ts: '2m', t: 'Akinyi M. applied to Waiter · Brew Bistro', tone: 'mint' as Tone },
-  { ts: '14m', t: 'Joseph K. clocked in at Brew Bistro · Sarit', tone: 'mint' as Tone },
-  { ts: '38m', t: 'Released KES 1,640 → Brian O. · M-Pesa', tone: 'volt' as Tone },
-  { ts: '1h', t: 'Escrow topped up · KES 200,000 via STK push', tone: 'mint' as Tone },
-];
+const STATE_LABEL: Record<string, string> = {
+  POSTED: 'open',
+  CONFIRMED: 'filled',
+  ACCEPTED: 'filled',
+  ACTIVE: 'active',
+  COMPLETED: 'done',
+  DISPUTED: 'disputed',
+  PAID: 'paid',
+  CANCELLED: 'cancelled',
+};
 
-const STATE_TONE = { filled: 'mint' as Tone, filling: 'warn' as Tone, open: 'err' as Tone };
+function whenRange(s: EmployerShift): string {
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
+  return `${fmt(s.startTime)} → ${fmt(s.endTime)}`;
+}
 
 export function EmployerDashboard() {
-  const pct = Math.round((ESCROW_HELD / ESCROW_TOTAL) * 100);
+  const { shifts, status, error, retry } = useEmployerShifts();
+
+  const live = status === 'live' || status === 'demo';
+  const openCount = live ? shifts!.filter(s => s.status === 'POSTED').length : 0;
+  const totalApplications = live ? shifts!.reduce((n, s) => n + s.applications, 0) : 0;
+
+  // Real KPIs where the data exists; honest em-dashes where it can't yet.
+  const kpis = live
+    ? [
+        { k: String(shifts!.length), l: 'Shifts on Klokd', delta: openCount > 0 ? `${openCount} open right now` : 'none open right now' },
+        { k: String(totalApplications), l: 'Applications received', delta: 'across all shifts' },
+        { k: '—', l: 'Spent this week', delta: 'payments not live yet' },
+      ]
+    : SAMPLE_KPIS;
+
   return (
     <View>
-      {/* Escrow + KPIs */}
+      {/* Escrow (SAMPLE) + KPIs */}
       <View style={styles.topRow}>
         <FadeUp delay={0} style={styles.escrowWrap}>
           <GlassCard variant="electric" padding={spacing.xl}>
-            <Eyebrow color={colors.electric}>ESCROW HEALTH</Eyebrow>
+            <View style={styles.escrowHeadRow}>
+              <Eyebrow color={colors.electric}>ESCROW HEALTH</Eyebrow>
+              <View style={styles.demoChip}>
+                <Text style={styles.demoChipText}>SAMPLE</Text>
+              </View>
+            </View>
             <View style={styles.escrowBigRow}>
               <View>
                 <Text style={styles.escrowBig}>KES {ESCROW_HELD.toLocaleString()}</Text>
-                <Text style={styles.escrowSub}>held · {pct}% of KES {ESCROW_TOTAL.toLocaleString()} funded</Text>
-              </View>
-              <View style={{ minWidth: 160 }}>
-                <GradientBtn>Top up</GradientBtn>
+                <Text style={styles.escrowSub}>
+                  held · {Math.round((ESCROW_HELD / ESCROW_TOTAL) * 100)}% of KES {ESCROW_TOTAL.toLocaleString()} funded
+                </Text>
               </View>
             </View>
             <View style={styles.meter}>
-              <View style={[styles.meterFill, { width: `${pct}%` }]} />
+              <View style={[styles.meterFill, { width: `${Math.round((ESCROW_HELD / ESCROW_TOTAL) * 100)}%` }]} />
             </View>
-            <View style={styles.escrowFootRow}>
-              <View style={styles.escrowFootCell}>
-                <Text style={styles.escrowFootK}>KES 57,600</Text>
-                <Text style={styles.escrowFootL}>RELEASED THIS WEEK</Text>
-              </View>
-              <View style={styles.escrowFootCell}>
-                <Text style={styles.escrowFootK}>KES 4,200</Text>
-                <Text style={styles.escrowFootL}>IN DISPUTE</Text>
-              </View>
-              <View style={styles.escrowFootCell}>
-                <Text style={styles.escrowFootK}>≈ 38 shifts</Text>
-                <Text style={styles.escrowFootL}>RUNWAY AT CURRENT RATE</Text>
-              </View>
-            </View>
+            <Text style={styles.escrowNote}>
+              M-Pesa escrow activates with the payment rail (Kipkiren Pay). This meter is a sample
+              of what it will look like.
+            </Text>
           </GlassCard>
         </FadeUp>
 
         <View style={styles.kpiCol}>
-          {KPIS.map((k, i) => (
+          {kpis.map((k, i) => (
             <FadeUp key={i} delay={100 + i * 60}>
               <GlassCard padding={spacing.lg}>
                 <Text style={styles.kpiK}>{k.k}</Text>
@@ -85,51 +111,93 @@ export function EmployerDashboard() {
         </View>
       </View>
 
-      {/* Open shifts */}
+      {/* Open shifts — REAL */}
       <FadeUp delay={300} style={{ marginTop: spacing.xxxl }}>
         <View style={styles.sectionHead}>
           <View>
-            <Eyebrow>OPEN POSITIONS</Eyebrow>
-            <Text style={styles.h2}>3 shifts active right now.</Text>
-          </View>
-          <View style={{ minWidth: 160 }}>
-            <GradientBtn>+ Post a shift</GradientBtn>
+            <Eyebrow>YOUR SHIFTS</Eyebrow>
+            <Text style={styles.h2}>
+              {live && openCount > 0 && `${openCount} shift${openCount === 1 ? '' : 's'} open right now.`}
+              {live && openCount === 0 && 'No shifts open right now.'}
+              {status === 'loading' && 'Loading your shifts…'}
+              {status === 'empty' && 'You haven’t posted a shift yet.'}
+              {status === 'error' && 'Couldn’t load your shifts.'}
+              {status === 'demo' && 'Sample shifts.'}
+            </Text>
           </View>
         </View>
 
-        <View style={styles.shiftGrid}>
-          {OPEN_SHIFTS.map((s, i) => (
-            <FadeUp key={s.id} delay={340 + i * 60} style={styles.shiftWrap}>
-              <GlassCard interactive padding={spacing.lg}>
-                <View style={styles.shiftTop}>
-                  <Text style={styles.shiftId}>{s.id}</Text>
-                  <StatusPill tone={STATE_TONE[s.state]}>{s.state}</StatusPill>
-                </View>
-                <Text style={styles.shiftRole}>{s.role}</Text>
-                <Text style={styles.shiftVenue}>{s.venue}</Text>
-                <Text style={styles.shiftWhen}>{s.when}</Text>
+        {status === 'loading' && (
+          <View style={styles.shiftGrid}>
+            {[0, 1, 2].map(i => (
+              <View key={i} style={styles.shiftWrap}>
+                <GlassCard padding={spacing.lg}>
+                  <ShiftCardSkeleton />
+                </GlassCard>
+              </View>
+            ))}
+          </View>
+        )}
 
-                <View style={styles.shiftStats}>
-                  <View style={styles.shiftStat}>
-                    <Text style={styles.shiftStatK}>{s.applied}</Text>
-                    <Text style={styles.shiftStatL}>APPLIED</Text>
+        {status === 'error' && (
+          <ErrorState
+            title="Couldn’t load your shifts."
+            detail={error ?? 'The Klokd API didn’t answer.'}
+            onRetry={retry}
+          />
+        )}
+
+        {status === 'empty' && (
+          <EmptyState
+            title="No shifts posted yet."
+            detail="Post your first shift and vetted workers nearby will see it instantly. Shifts open applications from minute one."
+          />
+        )}
+
+        {live && (
+          <View style={styles.shiftGrid}>
+            {shifts!.map((s, i) => (
+              <FadeUp key={s.id} delay={340 + i * 60} style={styles.shiftWrap}>
+                <GlassCard interactive padding={spacing.lg}>
+                  <View style={styles.shiftTop}>
+                    <Text style={styles.shiftRole} numberOfLines={1}>{s.role}</Text>
+                    <StatusPill tone={STATE_TONE[s.status] ?? 'neutral'}>
+                      {STATE_LABEL[s.status] ?? s.status.toLowerCase()}
+                    </StatusPill>
                   </View>
-                  <View style={styles.shiftStat}>
-                    <Text style={styles.shiftStatK}>{s.picked}</Text>
-                    <Text style={styles.shiftStatL}>PICKED</Text>
+                  <Text style={styles.shiftVenue} numberOfLines={1}>
+                    {s.locationName ?? 'Nairobi'}
+                  </Text>
+                  <Text style={styles.shiftWhen}>{whenRange(s)}</Text>
+
+                  <View style={styles.shiftStats}>
+                    <View style={styles.shiftStat}>
+                      <Text style={styles.shiftStatK}>{s.applications}</Text>
+                      <Text style={styles.shiftStatL}>APPLIED</Text>
+                    </View>
+                    <View style={styles.shiftStat}>
+                      <Text style={styles.shiftStatK}>{s.status === 'POSTED' ? '—' : '1'}</Text>
+                      <Text style={styles.shiftStatL}>PICKED</Text>
+                    </View>
+                    <View style={[styles.shiftStat, { alignItems: 'flex-end', flex: 1.4 }]}>
+                      <Text style={styles.shiftPay}>KES {s.rateKes.toLocaleString()}</Text>
+                      <Text style={styles.shiftStatL}>PAY</Text>
+                    </View>
                   </View>
-                  <View style={[styles.shiftStat, { alignItems: 'flex-end', flex: 1.4 }]}>
-                    <Text style={styles.shiftPay}>KES {s.pay.toLocaleString()}</Text>
-                    <Text style={styles.shiftStatL}>PAY</Text>
-                  </View>
-                </View>
-              </GlassCard>
-            </FadeUp>
-          ))}
-        </View>
+                </GlassCard>
+              </FadeUp>
+            ))}
+          </View>
+        )}
+
+        {status === 'demo' && (
+          <Text style={styles.demoNote}>
+            Demo session — sample rows only. Sign in with the employer's phone number to see your real shifts.
+          </Text>
+        )}
       </FadeUp>
 
-      {/* Recent activity */}
+      {/* Sample activity — explicitly labelled */}
       <FadeUp delay={520} style={{ marginTop: spacing.xxxl }}>
         <View style={styles.sectionHead}>
           <View>
@@ -137,18 +205,15 @@ export function EmployerDashboard() {
             <Text style={styles.h2}>What’s happening at your venues.</Text>
           </View>
           <View style={styles.liveRow}>
-            <LiveDot />
-            <Text style={styles.liveText}>Streaming · refreshed 4s ago</Text>
+            <LiveDot color={colors.warning} />
+            <Text style={styles.liveText}>Sample · notification feed lands with comms rails</Text>
           </View>
         </View>
-        <GlassCard padding={0}>
-          {RECENT.map((r, i) => (
-            <View key={i} style={[styles.actRow, i < RECENT.length - 1 && styles.actRowBorder]}>
-              <View style={[styles.actDot, r.tone === 'mint' && { backgroundColor: colors.electric }, r.tone === 'volt' && { backgroundColor: colors.volt }]} />
-              <Text style={styles.actT}>{r.t}</Text>
-              <Text style={styles.actTs}>{r.ts}</Text>
-            </View>
-          ))}
+        <GlassCard padding={spacing.lg}>
+          <Text style={styles.activityEmpty}>
+            The activity stream lights up when workers apply, clock in, and get paid — all of which
+            flow through the rails that aren't live yet. Your shifts above are live.
+          </Text>
         </GlassCard>
       </FadeUp>
     </View>
@@ -160,16 +225,23 @@ const styles = StyleSheet.create({
   escrowWrap: { flex: 2, minWidth: 480 },
   kpiCol: { flex: 1, minWidth: 240, gap: spacing.md },
 
+  escrowHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  demoChip: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,179,71,0.35)',
+    backgroundColor: 'rgba(255,179,71,0.10)',
+  },
+  demoChipText: { color: colors.warning, fontSize: 9.5, fontWeight: '900', letterSpacing: 0.8 },
+
   escrowBigRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.sm, gap: spacing.md, flexWrap: 'wrap' },
   escrowBig: { color: colors.white, fontSize: 36, fontWeight: '900', letterSpacing: -1.6 },
   escrowSub: { color: colors.white60, fontSize: 12, marginTop: 4 },
   meter: { height: 6, borderRadius: 3, backgroundColor: colors.white06, marginTop: spacing.lg, overflow: 'hidden' },
   meterFill: { height: '100%', backgroundColor: colors.electric },
-
-  escrowFootRow: { flexDirection: 'row', gap: spacing.lg, marginTop: spacing.lg, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.white10, flexWrap: 'wrap' },
-  escrowFootCell: { flex: 1, minWidth: 110 },
-  escrowFootK: { color: colors.white, fontSize: 14.5, fontWeight: '900', letterSpacing: -0.3 },
-  escrowFootL: { color: colors.white45, fontSize: 9.5, fontWeight: '900', letterSpacing: 0.6, marginTop: 4 },
+  escrowNote: { color: colors.white55, fontSize: 12, lineHeight: 17, marginTop: spacing.lg },
 
   kpiK: { color: colors.white, fontSize: 22, fontWeight: '900', letterSpacing: -0.9 },
   kpiL: { color: colors.white55, fontSize: 11.5, marginTop: 4, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
@@ -182,9 +254,8 @@ const styles = StyleSheet.create({
 
   shiftGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   shiftWrap: { flex: 1, minWidth: 280 },
-  shiftTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
-  shiftId: { color: colors.white45, fontSize: 11, fontWeight: '800', letterSpacing: 0.4 },
-  shiftRole: { color: colors.white, fontSize: 16, fontWeight: '900', letterSpacing: -0.4 },
+  shiftTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm, gap: spacing.sm },
+  shiftRole: { color: colors.white, fontSize: 16, fontWeight: '900', letterSpacing: -0.4, flex: 1 },
   shiftVenue: { color: colors.white75, fontSize: 12.5, marginTop: 3, fontWeight: '700' },
   shiftWhen: { color: colors.white50, fontSize: 11.5, marginTop: 3, fontWeight: '600' },
   shiftStats: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.white06 },
@@ -193,9 +264,20 @@ const styles = StyleSheet.create({
   shiftStatL: { color: colors.white40, fontSize: 9.5, fontWeight: '900', letterSpacing: 0.7, marginTop: 3 },
   shiftPay: { color: colors.electric, fontSize: 16, fontWeight: '900', letterSpacing: -0.4 },
 
-  actRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: 11 },
-  actRowBorder: { borderBottomWidth: 1, borderBottomColor: colors.white06 },
-  actDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.white25 },
-  actT: { flex: 1, color: colors.white75, fontSize: 13, fontWeight: '600' },
-  actTs: { color: colors.white45, fontSize: 11, fontWeight: '700' },
+  demoNote: {
+    color: colors.white55,
+    fontSize: 11.5,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.md,
+    backgroundColor: colors.white03,
+    borderWidth: 1,
+    borderColor: colors.white06,
+    overflow: 'hidden',
+  },
+
+  activityEmpty: { color: colors.white60, fontSize: 13, lineHeight: 19, fontWeight: '500' },
 });

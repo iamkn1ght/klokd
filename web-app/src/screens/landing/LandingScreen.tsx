@@ -6,10 +6,11 @@
  * scrolling past the other one's copy.
  */
 import React from 'react';
-import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { KlokdScreen, FadeUp, GlassCard, HoverCard, LiveDot } from '../../components/KlokdLayout';
 import { Logo, GradientBtn, Eyebrow } from '../../components/Primitives';
 import { colors, spacing, radius } from '../../theme';
+import { navigate } from '../../navigation/router';
 
 const WORKER_WINS = [
   'Verified once · trusted by every employer',
@@ -23,29 +24,26 @@ const EMPLOYER_WINS = [
   'KRA compliant · payslips automatic',
 ];
 
+// Value props, not vanity metrics — until the platform has real scale,
+// invented numbers would be a credibility (and possibly legal) problem.
 const MEGA = [
-  { k: 'KES 38M+', l: 'Paid out via escrow' },
-  { k: '16,412', l: 'Shifts completed' },
-  { k: '2,847', l: 'Verified workers' },
-  { k: '47', l: 'Active employers' },
+  { k: '< 18 min', l: 'M-Pesa payout after clock-out' },
+  { k: '100%', l: 'Shifts escrow-funded up front' },
+  { k: 'KYC once', l: 'Trusted by every employer' },
+  { k: 'KRA-ready', l: 'PAYE · NSSF · SHIF automatic' },
 ];
 
 export function LandingScreen({ onSignIn }: { onSignIn: () => void }) {
+  const { width } = useWindowDimensions();
+  const mobile = width < 760;
   return (
     <KlokdScreen>
       {/* ─── Top bar ─── */}
-      <FadeUp delay={0} style={styles.topRow}>
+      <FadeUp delay={0} style={[styles.topRow, mobile && styles.topRowMobile]}>
         <Logo size={36} />
         <View style={styles.topNav}>
-          <Pressable style={({ hovered }: any) => [styles.navItem, hovered && styles.navItemHover]}>
-            <Text style={styles.navText}>How it works</Text>
-          </Pressable>
-          <Pressable style={({ hovered }: any) => [styles.navItem, hovered && styles.navItemHover]}>
-            <Text style={styles.navText}>Pricing</Text>
-          </Pressable>
-          <Pressable style={({ hovered }: any) => [styles.navItem, hovered && styles.navItemHover]}>
-            <Text style={styles.navText}>About</Text>
-          </Pressable>
+          {/* Honest nav: no dead links — the page is one scroll, so the only
+              actions that exist are sign-in and the two audience cards. */}
           <Pressable
             onPress={onSignIn}
             style={({ hovered }: any) => [
@@ -59,16 +57,16 @@ export function LandingScreen({ onSignIn }: { onSignIn: () => void }) {
       </FadeUp>
 
       {/* ─── Hero ─── */}
-      <View style={styles.hero}>
+      <View style={[styles.hero, mobile && styles.heroMobile]}>
         <FadeUp delay={80}>
           <View style={styles.eyebrowPill}>
             <LiveDot />
-            <Text style={styles.eyebrowPillText}>LIVE IN NAIROBI · 284 SHIFTS OPEN RIGHT NOW</Text>
+            <Text style={styles.eyebrowPillText}>LIVE IN NAIROBI · SHIFTS POSTED DAILY</Text>
           </View>
         </FadeUp>
 
         <FadeUp delay={140}>
-          <Text style={styles.h1}>
+          <Text style={[styles.h1, mobile && styles.h1Mobile]}>
             The shift you{'\n'}
             <Text style={styles.h1Accent}>can trust.</Text>
           </Text>
@@ -97,7 +95,7 @@ export function LandingScreen({ onSignIn }: { onSignIn: () => void }) {
       </View>
 
       {/* ─── Audience split ─── */}
-      <View style={styles.audienceRow}>
+      <View style={[styles.audienceRow, mobile && styles.audienceRowMobile]}>
         <FadeUp delay={380} style={styles.audienceWrap}>
           <GlassCard interactive style={styles.audience} onPress={onSignIn}>
             <View style={styles.audienceBadge}>
@@ -168,11 +166,17 @@ export function LandingScreen({ onSignIn }: { onSignIn: () => void }) {
           <Text style={styles.footerTagline}>A Kipkiren Teknolojia company · Nairobi, Kenya</Text>
         </View>
         <View style={styles.footerBadges}>
-          {['ODPC registered', 'KRA verified', 'NSSF compliant'].map((b, i) => (
+          {['Built in Nairobi', 'M-Pesa native'].map((b, i) => (
             <View key={i} style={styles.footerBadge}>
               <Text style={styles.footerBadgeText}>{b}</Text>
             </View>
           ))}
+          <Pressable onPress={() => navigate('/terms')} style={({ hovered }: any) => [styles.footerBadge, hovered && styles.footerBadgeHover]}>
+            <Text style={styles.footerBadgeText}>Terms</Text>
+          </Pressable>
+          <Pressable onPress={() => navigate('/privacy')} style={({ hovered }: any) => [styles.footerBadge, hovered && styles.footerBadgeHover]}>
+            <Text style={styles.footerBadgeText}>Privacy</Text>
+          </Pressable>
         </View>
       </FadeUp>
     </KlokdScreen>
@@ -190,6 +194,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.white06,
     marginBottom: spacing.xxxl,
   },
+  topRowMobile: { paddingHorizontal: spacing.sm, flexWrap: 'wrap', gap: spacing.sm, rowGap: spacing.sm },
   topNav: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   navItem: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
   navItemHover: { backgroundColor: colors.white06 },
@@ -198,9 +203,11 @@ const styles = StyleSheet.create({
   signInTopText: { color: colors.white, fontSize: 14, fontWeight: '800', letterSpacing: -0.2 },
 
   hero: { paddingTop: spacing.xxxl, paddingBottom: spacing.xxxl, alignItems: 'flex-start' },
+  heroMobile: { paddingTop: spacing.xl, paddingHorizontal: spacing.xs },
   eyebrowPill: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 8, paddingRight: 14, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(0,229,160,0.08)', borderWidth: 1, borderColor: 'rgba(0,229,160,0.22)', marginBottom: spacing.lg },
   eyebrowPillText: { color: colors.electric, fontSize: 11, fontWeight: '900', letterSpacing: 1.0 },
   h1: { fontSize: 64, fontWeight: '900', letterSpacing: -2.8, lineHeight: 66, color: colors.white, marginBottom: spacing.lg, maxWidth: 860 },
+  h1Mobile: { fontSize: 44, letterSpacing: -2, lineHeight: 48 },
   h1Accent: { color: colors.electric },
   subhead: { fontSize: 17, color: colors.white65, lineHeight: 25, marginBottom: spacing.xl, maxWidth: 620 },
   heroCtas: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, alignItems: 'center' },
@@ -208,6 +215,7 @@ const styles = StyleSheet.create({
   ghostBtnText: { color: colors.white, fontSize: 14, fontWeight: '700', letterSpacing: -0.15 },
 
   audienceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg, marginBottom: spacing.xxxl },
+  audienceRowMobile: { paddingHorizontal: 2 },
   audienceWrap: { flex: 1, minWidth: 340 },
   audience: { padding: spacing.xxl, minHeight: 360, justifyContent: 'space-between' },
   audienceBadge: { alignSelf: 'flex-start', paddingHorizontal: 11, paddingVertical: 5, borderRadius: 999, backgroundColor: 'rgba(0,229,160,0.10)', borderWidth: 1, borderColor: 'rgba(0,229,160,0.28)', marginBottom: spacing.lg },
@@ -232,7 +240,8 @@ const styles = StyleSheet.create({
   footer: { paddingTop: spacing.xl, borderTopWidth: 1, borderTopColor: colors.white06, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
   footerLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexWrap: 'wrap' },
   footerTagline: { color: colors.white50, fontSize: 12, fontWeight: '600' },
-  footerBadges: { flexDirection: 'row', gap: 6 },
+  footerBadges: { flexDirection: 'row', gap: 6, alignItems: 'center' },
   footerBadge: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: colors.white10, backgroundColor: colors.white03 },
+  footerBadgeHover: { borderColor: colors.white25, backgroundColor: colors.white08 },
   footerBadgeText: { color: colors.white70, fontSize: 10.5, fontWeight: '800', letterSpacing: 0.4 },
 });

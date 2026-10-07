@@ -106,14 +106,82 @@ export function AdminShell({
 }) {
   const { width } = useWindowDimensions();
   const { account } = useAuth();
-  const compact = width < 1080;
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  // <900px: phone — side rail becomes a slide-over drawer behind a hamburger.
+  const mobile = width < 900;
+  const compact = !mobile && width < 1080;
   const railWidth = compact ? 72 : 232;
 
   return (
     <View style={styles.root}>
       <AmbientOrbs />
 
-      {/* ─── Side rail ─── */}
+      {/* ─── Mobile drawer ─── */}
+      {mobile && menuOpen && (
+        <Pressable
+          accessibilityLabel="Close menu"
+          onPress={() => setMenuOpen(false)}
+          style={styles.drawerScrim}
+        >
+          <Pressable style={[styles.drawer, { width: 264 }]} onPress={undefined}>
+            <View style={styles.drawerHead}>
+              <Logo size={26} />
+              <Pressable onPress={() => setMenuOpen(false)} hitSlop={12}>
+                <Text style={styles.drawerClose}>✕</Text>
+              </Pressable>
+            </View>
+            <View style={styles.railSection}>
+              {NAV.map(item => {
+                const active = item.key === route;
+                return (
+                  <Pressable
+                    key={item.key}
+                    onPress={() => {
+                      onRouteChange(item.key);
+                      setMenuOpen(false);
+                    }}
+                    style={[styles.railItem, active && styles.railItemActive]}
+                  >
+                    <View style={[styles.railIconWrap, active && styles.railIconWrapActive]}>
+                      <NavIcon name={item.icon} color={active ? colors.electric : colors.white60} />
+                    </View>
+                    <Text style={[styles.railItemText, active && styles.railItemTextActive]}>{item.label}</Text>
+                    {item.badge ? (
+                      <View style={styles.railBadge}>
+                        <Text style={styles.railBadgeText}>{item.badge}</Text>
+                      </View>
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+            <View style={{ flex: 1 }} />
+            {account ? (
+              <View style={styles.opCard}>
+                <Avatar initials={account.initials} size={36} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.opName}>{account.name}</Text>
+                  <Text style={styles.opRole}>ADMIN</Text>
+                </View>
+              </View>
+            ) : null}
+            {onSwitchWorkspace ? (
+              <Pressable
+                onPress={() => {
+                  setMenuOpen(false);
+                  onSwitchWorkspace();
+                }}
+                style={styles.switchBtn}
+              >
+                <Text style={styles.switchBtnText}>↔  Switch workspace</Text>
+              </Pressable>
+            ) : null}
+          </Pressable>
+        </Pressable>
+      )}
+
+      {/* ─── Side rail (desktop) ─── */}
+      {!mobile && (
       <View style={[styles.rail, { width: railWidth }]}>
         <View style={styles.railTop}>
           {compact ? (
@@ -188,34 +256,43 @@ export function AdminShell({
           ) : null}
         </View>
       </View>
+      )}
 
       {/* ─── Main column ─── */}
       <View style={styles.main}>
-        <View style={styles.topbar}>
-          <View style={{ flex: 1 }}>
+        <View style={[styles.topbar, mobile && styles.topbarMobile]}>
+          {mobile && (
+            <Pressable
+              onPress={() => setMenuOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Open menu"
+              style={({ hovered }: any) => [styles.burger, hovered && { backgroundColor: colors.white10 }]}
+            >
+              <Svg width={18} height={18} viewBox="0 0 20 20">
+                <Path d="M3 5h14M3 10h14M3 15h14" stroke={colors.white85} strokeWidth="1.8" strokeLinecap="round" />
+              </Svg>
+            </Pressable>
+          )}
+          <View style={{ flex: 1, minWidth: 0 }}>
             <View style={styles.topbarTitleRow}>
-              <Text style={styles.topbarTitle}>{pageTitle}</Text>
+              <Text style={[styles.topbarTitle, mobile && styles.topbarTitleMobile]} numberOfLines={1}>{pageTitle}</Text>
               <View style={styles.envChip}>
                 <PulseDot size={6} color={colors.warning} />
                 <Text style={styles.envChipText}>SANDBOX</Text>
               </View>
             </View>
-            {pageSubtitle && <Text style={styles.topbarSubtitle}>{pageSubtitle}</Text>}
+            {pageSubtitle && !mobile && <Text style={styles.topbarSubtitle}>{pageSubtitle}</Text>}
           </View>
-          <View style={styles.topbarRight}>
-            <View style={styles.searchBox}>
-              <Svg width={14} height={14} viewBox="0 0 16 16">
-                <Circle cx="7" cy="7" r="5" stroke={colors.white45} strokeWidth="1.6" fill="none" />
-                <Path d="M11 11l3 3" stroke={colors.white45} strokeWidth="1.6" strokeLinecap="round" />
-              </Svg>
-              <Text style={styles.searchText}>Search workers, shifts, audit IDs…</Text>
-              <View style={styles.kbd}><Text style={styles.kbdText}>⌘K</Text></View>
+          {!mobile && (
+            <View style={styles.topbarRight}>
+              {/* Global search (⌘K) ships with the admin API session — a fake
+                  search box that can't search is worse than none. */}
+              {pageAction}
             </View>
-            {pageAction}
-          </View>
+          )}
         </View>
 
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollInner} bounces={false}>
+        <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollInner, mobile && styles.scrollInnerMobile]} bounces={false}>
           {children}
         </ScrollView>
       </View>
@@ -274,18 +351,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.lg,
   },
+  topbarMobile: { paddingHorizontal: spacing.md, paddingTop: spacing.md, gap: spacing.sm },
+  burger: { width: 38, height: 38, borderRadius: 10, borderWidth: 1, borderColor: colors.white12, backgroundColor: colors.white03, alignItems: 'center', justifyContent: 'center' },
   topbarTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  topbarTitleMobile: { fontSize: 17, letterSpacing: -0.5, flexShrink: 1 },
   topbarTitle: { color: colors.white, fontSize: 22, fontWeight: '900', letterSpacing: -0.8 },
   topbarSubtitle: { color: colors.white50, fontSize: 12.5, marginTop: 4, fontWeight: '500' },
   envChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(255,179,71,0.08)', borderWidth: 1, borderColor: 'rgba(255,179,71,0.28)' },
   envChipText: { color: colors.warning, fontSize: 10, fontWeight: '900', letterSpacing: 0.9 },
 
   topbarRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  searchBox: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: 12, paddingVertical: 9, borderRadius: radius.lg, backgroundColor: colors.white03, borderWidth: 1, borderColor: colors.white08, minWidth: 320 },
+
   searchText: { color: colors.white45, fontSize: 12.5, fontWeight: '500', flex: 1 },
-  kbd: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: colors.white06, borderWidth: 1, borderColor: colors.white10 },
-  kbdText: { color: colors.white60, fontSize: 10, fontWeight: '700' },
 
   scroll: { flex: 1 },
   scrollInner: { padding: spacing.xl, paddingBottom: spacing.xxxl + 24 },
+  scrollInnerMobile: { padding: spacing.md, paddingBottom: spacing.xxxl + 24 },
+
+  // Mobile drawer
+  drawerScrim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.55)', zIndex: 40, flexDirection: 'row' },
+  drawer: { backgroundColor: '#101018', borderRightWidth: 1, borderRightColor: colors.white10, paddingTop: spacing.xl, paddingBottom: spacing.lg, paddingHorizontal: spacing.md, height: '100%' as any },
+  drawerHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xs, marginBottom: spacing.xxl },
+  drawerClose: { color: colors.white60, fontSize: 16, fontWeight: '900' },
 });
