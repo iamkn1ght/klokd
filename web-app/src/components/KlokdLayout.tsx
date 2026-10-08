@@ -93,9 +93,9 @@ function DotGrid({ height = 780 }: { height?: number }) {
           <Circle cx="1" cy="1" r="1" fill={colors.white15} />
         </Pattern>
         <SvgLinearGradient id="kdotsFade" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#000" stopOpacity="0" />
-          <Stop offset="0.6" stopColor="#000" stopOpacity="0.6" />
-          <Stop offset="1" stopColor="#000" stopOpacity="1" />
+          <Stop offset="0" stopColor={colors.ink} stopOpacity="0" />
+          <Stop offset="0.6" stopColor={colors.ink} stopOpacity="0.6" />
+          <Stop offset="1" stopColor={colors.ink} stopOpacity="1" />
         </SvgLinearGradient>
       </Defs>
       <Rect width="100%" height="100%" fill="url(#kdots)" />
@@ -120,11 +120,14 @@ export function KlokdScreen({
   maxWidth = 1180,
   paddingHorizontal = spacing.xl,
   scrollViewProps,
+  scrollRef,
 }: {
   children: React.ReactNode;
   maxWidth?: number;
   paddingHorizontal?: number;
   scrollViewProps?: React.ComponentProps<typeof ScrollView>;
+  /** Lets a page scroll itself (e.g. in-page section nav). */
+  scrollRef?: React.Ref<ScrollView>;
 }) {
   return (
     <View style={styles.screen}>
@@ -153,6 +156,7 @@ export function KlokdScreen({
       )}
 
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={styles.scroll}
         bounces={false}
         {...scrollViewProps}

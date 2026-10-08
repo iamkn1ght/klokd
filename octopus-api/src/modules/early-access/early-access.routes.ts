@@ -73,6 +73,12 @@ router.post('/', async (req: Request, res: Response) => {
   res.status(201).json({ success: true, data: { received: true } });
 });
 
+// Public total for the landing page's trust strip — a count only, no rows.
+router.get('/count', async (_req: Request, res: Response) => {
+  const count = await prisma.earlyAccessRequest.count();
+  res.json({ success: true, data: { count } });
+});
+
 router.get('/', authenticate, authorize('ADMIN'), async (_req: Request, res: Response) => {
   const rows = await prisma.earlyAccessRequest.findMany({ orderBy: { createdAt: 'desc' } });
   res.json({ success: true, data: rows });
