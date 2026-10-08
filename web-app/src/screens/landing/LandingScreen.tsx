@@ -13,7 +13,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, useWindowDimensions } from 'react-native';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
-import { KlokdScreen, FadeUp, GlassCard, LiveDot } from '../../components/KlokdLayout';
+import { KlokdScreen, FadeUp, GlassCard } from '../../components/KlokdLayout';
 import { Logo, GradientBtn } from '../../components/Primitives';
 import { colors, spacing, radius } from '../../theme';
 import { navigate } from '../../navigation/router';
@@ -148,15 +148,6 @@ export function LandingScreen({ onSignIn }: { onSignIn: () => void }) {
       {/* ─── Hero ─── */}
       <View style={[styles.hero, !wide && styles.heroStacked]}>
         <View style={[styles.heroLeft, !wide && { maxWidth: undefined }]}>
-          <FadeUp delay={80}>
-            <View style={styles.eyebrowPill}>
-              <LiveDot />
-              <Text style={styles.eyebrowPillText}>
-                {EARLY_ACCESS ? 'EARLY ACCESS · NAIROBI' : 'NOW IN NAIROBI'}
-              </Text>
-            </View>
-          </FadeUp>
-
           <FadeUp delay={140}>
             <Text style={[styles.h1, mobile && styles.h1Mobile]}>
               The shift you{'\n'}
@@ -386,8 +377,6 @@ const styles = StyleSheet.create({
   heroLeft: { flex: 1.25, maxWidth: 660 },
   heroRight: { flex: 1, alignItems: 'center' },
   heroRightStacked: { alignItems: 'center' },
-  eyebrowPill: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 9, paddingRight: 14, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(0,229,160,0.08)', borderWidth: 1, borderColor: 'rgba(0,229,160,0.22)', marginBottom: spacing.xl },
-  eyebrowPillText: { color: colors.electric, fontSize: 11, fontWeight: '900', letterSpacing: 1.1 },
   h1: { fontSize: 72, fontWeight: '900', letterSpacing: -3.2, lineHeight: 74, color: colors.white, marginBottom: spacing.xl },
   h1Mobile: { fontSize: 46, letterSpacing: -2, lineHeight: 50 },
   h1Accent: { color: colors.electric },

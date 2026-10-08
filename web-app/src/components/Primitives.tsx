@@ -11,24 +11,15 @@ import { colors, spacing, radius } from '../theme';
 
 // ─── Logo ─────────────────────────────────────────────────
 
+// Wordmark only. `size` keeps its old meaning (the height the K-mark + text
+// lockup used to occupy) so existing call sites keep their visual weight.
+// The K-mark lives on as the favicon / app icon.
 export function Logo({ size = 32, subtitle }: { size?: number; subtitle?: string }) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-      <View
-        style={{
-          width: size,
-          height: size,
-          borderRadius: size * 0.27,
-          backgroundColor: colors.electric,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Text style={{ color: colors.ink, fontWeight: '900', fontSize: size * 0.55, letterSpacing: -0.5 }}>K</Text>
-      </View>
-      <Text style={{ color: colors.white, fontSize: size * 0.55, fontWeight: '900', letterSpacing: -0.6 }}>
+    <View style={{ height: size, justifyContent: 'center' }}>
+      <Text style={{ color: colors.white, fontSize: size * 0.72, fontWeight: '900', letterSpacing: -size * 0.035 }}>
         Klokd
-        {subtitle ? <Text style={{ color: colors.white50, fontWeight: '600' }}> {subtitle}</Text> : null}
+        {subtitle ? <Text style={{ color: colors.white50, fontWeight: '600', fontSize: size * 0.55, letterSpacing: -0.3 }}> {subtitle}</Text> : null}
       </Text>
     </View>
   );
