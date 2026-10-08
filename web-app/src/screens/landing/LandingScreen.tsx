@@ -11,9 +11,9 @@
  * The waitlist count only shows once it is big enough to mean something.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView, useWindowDimensions } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ScrollView, Platform, useWindowDimensions } from 'react-native';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
-import { KlokdScreen, FadeUp, GlassCard } from '../../components/KlokdLayout';
+import { KlokdScreen, FadeUp, GlassCard, GLASS_WEB } from '../../components/KlokdLayout';
 import { Logo, GradientBtn } from '../../components/Primitives';
 import { colors, spacing, radius } from '../../theme';
 import { navigate } from '../../navigation/router';
@@ -21,6 +21,10 @@ import { api, EARLY_ACCESS } from '../../services/api';
 import { ShiftClock } from '../../components/ShiftClock';
 
 const WAITLIST_MIN_TO_SHOW = 25;
+
+// Web-only glass for custom surfaces (cards get it via GlassCard).
+const glass = Platform.OS === 'web' ? (GLASS_WEB as any) : null;
+const glassBlur = Platform.OS === 'web' ? ({ backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)' } as any) : null;
 const AREAS = ['Westlands', 'CBD', 'Kilimani'];
 
 type SectionKey = 'how' | 'workers' | 'employers';
@@ -121,7 +125,8 @@ export function LandingScreen({ onSignIn }: { onSignIn: () => void }) {
   return (
     <KlokdScreen maxWidth={1200} scrollRef={scrollRef}>
       {/* ─── Nav ─── */}
-      <FadeUp delay={0} style={[styles.nav, mobile && styles.navMobile]}>
+      <View style={styles.navSticky}>
+      <FadeUp delay={0} style={[styles.nav, glass, mobile && styles.navMobile]}>
         <Logo size={34} />
         {!mobile && (
           <View style={styles.navLinks}>
@@ -137,13 +142,9 @@ export function LandingScreen({ onSignIn }: { onSignIn: () => void }) {
             ))}
           </View>
         )}
-        <Pressable
-          onPress={onSignIn}
-          style={({ hovered }: any) => [styles.navCta, hovered && styles.navCtaHover]}
-        >
-          <Text style={styles.navCtaText}>{EARLY_ACCESS ? 'Early access →' : 'Sign in →'}</Text>
-        </Pressable>
+        <GradientBtn size="sm" onPress={onSignIn}>{EARLY_ACCESS ? 'Early access →' : 'Sign in →'}</GradientBtn>
       </FadeUp>
+      </View>
 
       {/* ─── Hero ─── */}
       <View style={[styles.hero, !wide && styles.heroStacked]}>
@@ -169,7 +170,7 @@ export function LandingScreen({ onSignIn }: { onSignIn: () => void }) {
             </View>
             <Pressable
               onPress={() => scrollTo('how')}
-              style={({ hovered }: any) => [styles.ghostBtn, hovered && styles.ghostBtnHover]}
+              style={({ hovered }: any) => [styles.ghostBtn, glassBlur, hovered && styles.ghostBtnHover]}
             >
               <Text style={styles.ghostBtnText}>How it works</Text>
             </Pressable>
@@ -195,7 +196,7 @@ export function LandingScreen({ onSignIn }: { onSignIn: () => void }) {
 
       {/* ─── Trust strip ─── */}
       <FadeUp delay={460}>
-        <View style={[styles.strip, mobile && styles.stripMobile]}>
+        <View style={[styles.strip, glass, mobile && styles.stripMobile]}>
           <View style={styles.stripLeft}>
             <Icon name="pin" size={18} />
             <Text style={styles.stripLabel}>NOW ONBOARDING VENUES IN</Text>
@@ -272,7 +273,7 @@ export function LandingScreen({ onSignIn }: { onSignIn: () => void }) {
 
       {/* ─── Closing CTA ─── */}
       <FadeUp delay={760}>
-        <View style={[styles.closing, mobile && styles.closingMobile]}>
+        <View style={[styles.closing, glass, mobile && styles.closingMobile]}>
           <View style={{ flex: 1, minWidth: 260 }}>
             <Text style={[styles.closingH, mobile && styles.closingHMobile]}>
               Be first in when Klokd opens in your area.
@@ -353,23 +354,24 @@ function FlowCard({
 
 const styles = StyleSheet.create({
   // Nav
+  navSticky: { position: 'sticky' as any, top: 14, zIndex: 20, marginTop: 14 },
   nav: {
-    paddingTop: spacing.xxl,
-    paddingBottom: spacing.lg,
+    paddingVertical: 10,
+    paddingLeft: 22,
+    paddingRight: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.white06,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.white12,
+    backgroundColor: 'rgba(18,18,24,0.55)',
   },
-  navMobile: { paddingHorizontal: spacing.xs },
+  navMobile: { paddingLeft: 16 },
   navLinks: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   navItem: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10 },
   navItemHover: { backgroundColor: colors.white06 },
   navText: { color: colors.white75, fontSize: 14, fontWeight: '700', letterSpacing: -0.2 },
-  navCta: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(0,229,160,0.45)', backgroundColor: 'rgba(0,229,160,0.08)' },
-  navCtaHover: { backgroundColor: 'rgba(0,229,160,0.16)', borderColor: colors.electric },
-  navCtaText: { color: colors.white, fontSize: 14, fontWeight: '800', letterSpacing: -0.2 },
 
   // Hero
   hero: { flexDirection: 'row', alignItems: 'center', gap: 48, paddingTop: 64, paddingBottom: 56 },
@@ -383,8 +385,8 @@ const styles = StyleSheet.create({
   subhead: { fontSize: 18, color: colors.white65, lineHeight: 27, marginBottom: spacing.xxl, maxWidth: 580 },
   subheadMobile: { fontSize: 16, lineHeight: 24 },
   heroCtas: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, alignItems: 'center' },
-  ghostBtn: { paddingVertical: 14, paddingHorizontal: 22, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.white15, backgroundColor: colors.white03 },
-  ghostBtnHover: { backgroundColor: colors.white06, borderColor: colors.white25 },
+  ghostBtn: { paddingVertical: 14, paddingHorizontal: 22, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.white25, backgroundColor: 'rgba(255,255,255,0.05)' },
+  ghostBtnHover: { backgroundColor: 'rgba(255,255,255,0.09)', borderColor: colors.white30 },
   ghostBtnText: { color: colors.white, fontSize: 14.5, fontWeight: '700', letterSpacing: -0.15 },
 
   proofRow: { flexDirection: 'row', marginTop: 40, gap: spacing.lg },
@@ -395,7 +397,7 @@ const styles = StyleSheet.create({
   proofBody: { color: colors.white55, fontSize: 12, lineHeight: 17, marginTop: 3, fontWeight: '500' },
 
   // Trust strip
-  strip: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.lg, paddingVertical: 18, paddingHorizontal: spacing.xxl, borderRadius: radius.xxl, borderWidth: 1, borderColor: colors.white10, backgroundColor: colors.white03 },
+  strip: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.lg, paddingVertical: 18, paddingHorizontal: spacing.xxl, borderRadius: radius.xxl, borderWidth: 1, borderColor: colors.white10, backgroundColor: 'rgba(255,255,255,0.045)' },
   stripMobile: { paddingHorizontal: spacing.lg, gap: spacing.md },
   stripLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   stripLabel: { color: colors.white60, fontSize: 11, fontWeight: '900', letterSpacing: 1.1 },

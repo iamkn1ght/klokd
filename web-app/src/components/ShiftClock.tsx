@@ -12,7 +12,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Platform } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { colors, radius } from '../theme';
-import { EASE } from './KlokdLayout';
+import { EASE, GLASS_WEB } from './KlokdLayout';
 
 const SIZE = 250;
 const STROKE = 12;
@@ -104,47 +104,49 @@ export function ShiftClock() {
 
   return (
     <View style={styles.wrap} accessibilityLabel="Illustration: a five-hour shift paying KES 1,800, with NSSF and SHIF deducted and KES 1,642 sent to M-Pesa.">
-      <View style={styles.stage}>
-        <Animated.View style={[styles.pin, pinOut]}>
-          <Text style={styles.pinText}>Clocked in · within 500 m of the venue</Text>
-        </Animated.View>
+      <View style={[styles.panel, Platform.OS === 'web' && (GLASS_WEB as any)]}>
+        <View style={styles.stage}>
+          <Animated.View style={[styles.pin, pinOut]}>
+            <Text style={styles.pinText}>Clocked in · within 500 m of the venue</Text>
+          </Animated.View>
 
-        <Animated.View style={[styles.clock, ringLift]}>
-          <View style={styles.glow} />
-          <Svg width={SIZE} height={SIZE} style={styles.svg}>
-            <Circle cx={SIZE / 2} cy={SIZE / 2} r={R} stroke="rgba(255,255,255,0.07)" strokeWidth={STROKE} fill="none" />
-            <Circle
-              cx={SIZE / 2}
-              cy={SIZE / 2}
-              r={R}
-              stroke={colors.electric}
-              strokeWidth={STROKE}
-              strokeLinecap="round"
-              fill="none"
-              strokeDasharray={`${CIRC} ${CIRC}`}
-              strokeDashoffset={CIRC * (1 - progress)}
-              transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
-            />
-          </Svg>
-          <View style={styles.mid}>
-            <Text style={styles.phase}>{done ? 'CLOCKED OUT' : 'SHIFT LIVE'}</Text>
-            <Text style={styles.kes}>KES {Math.round(GROSS * progress).toLocaleString()}</Text>
-            <Text style={styles.time}>{clockText(Math.round(SHIFT_MINUTES * progress))}</Text>
-          </View>
-        </Animated.View>
-
-        <Animated.View style={[styles.slip, slipIn]} pointerEvents="none">
-          {SLIP.map(r => (
-            <View key={r.l} style={styles.slipRow}>
-              <Text style={styles.slipL}>{r.l}</Text>
-              <Text style={styles.slipV}>{r.v}</Text>
+          <Animated.View style={[styles.clock, ringLift]}>
+            <View style={styles.glow} />
+            <Svg width={SIZE} height={SIZE} style={styles.svg}>
+              <Circle cx={SIZE / 2} cy={SIZE / 2} r={R} stroke="rgba(255,255,255,0.07)" strokeWidth={STROKE} fill="none" />
+              <Circle
+                cx={SIZE / 2}
+                cy={SIZE / 2}
+                r={R}
+                stroke={colors.electric}
+                strokeWidth={STROKE}
+                strokeLinecap="round"
+                fill="none"
+                strokeDasharray={`${CIRC} ${CIRC}`}
+                strokeDashoffset={CIRC * (1 - progress)}
+                transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
+              />
+            </Svg>
+            <View style={styles.mid}>
+              <Text style={styles.phase}>{done ? 'CLOCKED OUT' : 'SHIFT LIVE'}</Text>
+              <Text style={styles.kes}>KES {Math.round(GROSS * progress).toLocaleString()}</Text>
+              <Text style={styles.time}>{clockText(Math.round(SHIFT_MINUTES * progress))}</Text>
             </View>
-          ))}
-          <View style={[styles.slipRow, styles.slipNet]}>
-            <Text style={styles.slipNetL}>Sent to M-Pesa ✓</Text>
-            <Text style={styles.slipNetV}>{NET}</Text>
-          </View>
-        </Animated.View>
+          </Animated.View>
+
+          <Animated.View style={[styles.slip, slipIn]} pointerEvents="none">
+            {SLIP.map(r => (
+              <View key={r.l} style={styles.slipRow}>
+                <Text style={styles.slipL}>{r.l}</Text>
+                <Text style={styles.slipV}>{r.v}</Text>
+              </View>
+            ))}
+            <View style={[styles.slipRow, styles.slipNet]}>
+              <Text style={styles.slipNetL}>Sent to M-Pesa ✓</Text>
+              <Text style={styles.slipNetV}>{NET}</Text>
+            </View>
+          </Animated.View>
+        </View>
       </View>
       <Text style={styles.caption}>Illustration · sample shift and deductions</Text>
     </View>
@@ -153,7 +155,8 @@ export function ShiftClock() {
 
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center' },
-  stage: { width: 320, height: 440, alignItems: 'center', justifyContent: 'center' },
+  panel: { padding: 14, borderRadius: radius.huge, borderWidth: 1, borderColor: colors.white12, backgroundColor: 'rgba(255,255,255,0.045)' },
+  stage: { width: 300, height: 440, alignItems: 'center', justifyContent: 'center' },
   pin: { position: 'absolute', top: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.full, backgroundColor: 'rgba(0,229,160,0.12)', borderWidth: 1, borderColor: 'rgba(0,229,160,0.40)' },
   pinText: { color: colors.electric, fontSize: 11.5, fontWeight: '800' },
   clock: { width: SIZE, height: SIZE, alignItems: 'center', justifyContent: 'center' },
@@ -170,5 +173,5 @@ const styles = StyleSheet.create({
   slipNet: { borderTopWidth: 1, borderTopColor: colors.white10, marginTop: 5, paddingTop: 7 },
   slipNetL: { color: colors.white, fontSize: 13, fontWeight: '900' },
   slipNetV: { color: colors.electric, fontSize: 13, fontWeight: '900', fontVariant: ['tabular-nums'] },
-  caption: { color: colors.white45, fontSize: 11, fontWeight: '700', marginTop: 6, letterSpacing: 0.2 },
+  caption: { color: colors.white45, fontSize: 11, fontWeight: '700', marginTop: 12, letterSpacing: 0.2 },
 });

@@ -198,6 +198,12 @@ export function FadeUp({
   return <Animated.View style={[style, { opacity, transform: [{ translateY: ty }] }]}>{children}</Animated.View>;
 }
 
+const HOVER_TRANSITION = {
+  transitionProperty: 'transform, border-color, background-color',
+  transitionDuration: '400ms',
+  transitionTimingFunction: 'cubic-bezier(0.22, 1, 0.36, 1)',
+} as any;
+
 /**
  * Web-aware hover container. Provides `hoverStyle` on hover + `scale(0.985)`
  * on press for haptic-feel feedback. Falls back to standard Pressable on native.
@@ -221,6 +227,7 @@ export function HoverCard({
       disabled={disabled}
       style={({ hovered, pressed }: any) => [
         style,
+        Platform.OS === 'web' && HOVER_TRANSITION,
         hovered && !disabled && hoverStyle,
         pressed && !disabled && { transform: [{ scale: 0.985 }] },
       ]}
@@ -257,6 +264,17 @@ export function LiveDot({ size = 7, color = colors.electric }: { size?: number; 
 // ─── Glass cards ──────────────────────────────────────────
 
 /**
+ * Web-only frosted-glass surface: blur + saturate so the orbs read through,
+ * a 1px top-edge highlight, and a soft drop shadow for depth. Shared by
+ * GlassCard and any custom surface (nav bar, strips) that should match it.
+ */
+export const GLASS_WEB = {
+  backdropFilter: 'blur(22px) saturate(150%)',
+  WebkitBackdropFilter: 'blur(22px) saturate(150%)',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12), 0 24px 60px rgba(0,0,0,0.35)',
+};
+
+/**
  * The Klokd glass card — frosted, soft border, electric-tinted shadow on hover.
  * Use for any container that should read as floating glass over the orbs.
  *
@@ -285,13 +303,11 @@ export function GlassCard({
     borderRadius: radius.xxl,
     borderWidth: 1,
     ...(variant === 'electric'
-      ? { backgroundColor: 'rgba(0,229,160,0.05)', borderColor: 'rgba(0,229,160,0.22)' }
+      ? { backgroundColor: 'rgba(0,229,160,0.06)', borderColor: 'rgba(0,229,160,0.26)' }
       : variant === 'raised'
-        ? { backgroundColor: colors.white06, borderColor: colors.white10 }
-        : { backgroundColor: colors.white03, borderColor: colors.white06 }),
-    ...(Platform.OS === 'web' && variant === 'raised'
-      ? ({ backdropFilter: 'blur(20px)' } as any)
-      : {}),
+        ? { backgroundColor: 'rgba(255,255,255,0.07)', borderColor: colors.white12 }
+        : { backgroundColor: 'rgba(255,255,255,0.045)', borderColor: colors.white10 }),
+    ...(Platform.OS === 'web' ? (GLASS_WEB as any) : {}),
   };
 
   if (!interactive) {
@@ -303,9 +319,9 @@ export function GlassCard({
       onPress={onPress}
       style={[base, style]}
       hoverStyle={{
-        borderColor: variant === 'electric' ? 'rgba(0,229,160,0.4)' : colors.white15,
-        backgroundColor: variant === 'electric' ? 'rgba(0,229,160,0.08)' : colors.white06,
-        transform: [{ translateY: -2 }],
+        borderColor: 'rgba(0,229,160,0.45)',
+        backgroundColor: variant === 'electric' ? 'rgba(0,229,160,0.09)' : 'rgba(255,255,255,0.07)',
+        transform: [{ translateY: -3 }],
       }}
     >
       {children}

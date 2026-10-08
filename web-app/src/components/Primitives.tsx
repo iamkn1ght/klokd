@@ -4,7 +4,7 @@
  * electric accent, tight type, glass surfaces.
  */
 import React, { useRef, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet, Animated, Easing } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Animated, Easing, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
 import { colors, spacing, radius } from '../theme';
@@ -27,6 +27,14 @@ export function Logo({ size = 32, subtitle }: { size?: number; subtitle?: string
 
 // ─── Buttons ──────────────────────────────────────────────
 
+// Web-only soft electric glow under the primary button (glass styling).
+const BTN_GLOW = {
+  boxShadow: '0 10px 30px rgba(0,229,160,0.28), inset 0 1px 0 rgba(255,255,255,0.35)',
+  transitionProperty: 'transform, box-shadow',
+  transitionDuration: '300ms',
+} as any;
+const BTN_GLOW_HOVER = { ...BTN_GLOW, boxShadow: '0 16px 40px rgba(0,229,160,0.40), inset 0 1px 0 rgba(255,255,255,0.35)' } as any;
+
 export function GradientBtn({
   children,
   onPress,
@@ -45,6 +53,7 @@ export function GradientBtn({
       onPress={onPress}
       style={({ hovered, pressed }: any) => [
         { borderRadius: radius.lg, overflow: 'hidden', opacity: disabled ? 0.45 : 1 },
+        Platform.OS === 'web' && !disabled && (hovered ? BTN_GLOW_HOVER : BTN_GLOW),
         hovered && !disabled && { transform: [{ translateY: -1 }] },
         pressed && !disabled && { transform: [{ scale: 0.985 }] },
       ]}
