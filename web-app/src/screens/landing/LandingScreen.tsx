@@ -11,6 +11,7 @@ import { KlokdScreen, FadeUp, GlassCard, HoverCard, LiveDot } from '../../compon
 import { Logo, GradientBtn, Eyebrow } from '../../components/Primitives';
 import { colors, spacing, radius } from '../../theme';
 import { navigate } from '../../navigation/router';
+import { EARLY_ACCESS } from '../../services/api';
 
 const WORKER_WINS = [
   'Verified once · trusted by every employer',
@@ -51,7 +52,7 @@ export function LandingScreen({ onSignIn }: { onSignIn: () => void }) {
               hovered && { backgroundColor: colors.white08, borderColor: colors.white25 },
             ]}
           >
-            <Text style={styles.signInTopText}>Sign in →</Text>
+            <Text style={styles.signInTopText}>{EARLY_ACCESS ? 'Early access →' : 'Sign in →'}</Text>
           </Pressable>
         </View>
       </FadeUp>
@@ -82,22 +83,24 @@ export function LandingScreen({ onSignIn }: { onSignIn: () => void }) {
 
         <FadeUp delay={300} style={styles.heroCtas}>
           <View style={{ minWidth: 180 }}>
-            <GradientBtn onPress={onSignIn}>Get started</GradientBtn>
+            <GradientBtn onPress={onSignIn}>{EARLY_ACCESS ? 'Get early access' : 'Get started'}</GradientBtn>
           </View>
-          <HoverCard
-            onPress={onSignIn}
-            style={styles.ghostBtn}
-            hoverStyle={{ borderColor: colors.electric, backgroundColor: 'rgba(0,229,160,0.06)' }}
-          >
-            <Text style={styles.ghostBtnText}>See live demo →</Text>
-          </HoverCard>
+          {!EARLY_ACCESS && (
+            <HoverCard
+              onPress={onSignIn}
+              style={styles.ghostBtn}
+              hoverStyle={{ borderColor: colors.electric, backgroundColor: 'rgba(0,229,160,0.06)' }}
+            >
+              <Text style={styles.ghostBtnText}>See live demo →</Text>
+            </HoverCard>
+          )}
         </FadeUp>
       </View>
 
       {/* ─── Audience split ─── */}
       <View style={[styles.audienceRow, mobile && styles.audienceRowMobile]}>
         <FadeUp delay={380} style={styles.audienceWrap}>
-          <GlassCard interactive style={styles.audience} onPress={onSignIn}>
+          <GlassCard interactive style={styles.audience} onPress={() => navigate('/signin?persona=worker')}>
             <View style={styles.audienceBadge}>
               <Text style={styles.audienceBadgeText}>FOR WORKERS</Text>
             </View>
@@ -116,13 +119,13 @@ export function LandingScreen({ onSignIn }: { onSignIn: () => void }) {
               ))}
             </View>
             <View style={styles.audienceCta}>
-              <Text style={styles.audienceCtaText}>Sign up as a worker →</Text>
+              <Text style={styles.audienceCtaText}>{EARLY_ACCESS ? 'Join as a worker →' : 'Sign up as a worker →'}</Text>
             </View>
           </GlassCard>
         </FadeUp>
 
         <FadeUp delay={440} style={styles.audienceWrap}>
-          <GlassCard interactive style={styles.audience} onPress={onSignIn}>
+          <GlassCard interactive style={styles.audience} onPress={() => navigate('/signin?persona=employer')}>
             <View style={[styles.audienceBadge, styles.audienceBadgeVolt]}>
               <Text style={styles.audienceBadgeTextVolt}>FOR EMPLOYERS</Text>
             </View>
@@ -141,7 +144,7 @@ export function LandingScreen({ onSignIn }: { onSignIn: () => void }) {
               ))}
             </View>
             <View style={styles.audienceCta}>
-              <Text style={styles.audienceCtaText}>Sign up as an employer →</Text>
+              <Text style={styles.audienceCtaText}>{EARLY_ACCESS ? 'Join as an employer →' : 'Sign up as an employer →'}</Text>
             </View>
           </GlassCard>
         </FadeUp>

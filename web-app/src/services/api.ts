@@ -5,9 +5,8 @@
  *   1. EXPO_PUBLIC_API_URL — Expo inlines this at bundle time
  *      (`npx expo start --web` picks it up from web-app/.env).
  *   2. window.__KLOKD_API_URL__ — set before the bundle loads.
- *   3. Deployed Railway API — the default everywhere. NOTE: as of Sep 2026
- *      that deployment no longer resolves (404); run octopus-api locally
- *      (`npm run dev`) and set EXPO_PUBLIC_API_URL=http://localhost:3000.
+ *   3. Deployed Railway API — the default everywhere. For local work run
+ *      octopus-api (`npm run dev`) and set EXPO_PUBLIC_API_URL=http://localhost:3000.
  */
 const API_ORIGIN =
   process.env.EXPO_PUBLIC_API_URL ||
@@ -15,6 +14,12 @@ const API_ORIGIN =
   'https://klokd-production.up.railway.app';
 
 const BASE_URL = `${API_ORIGIN}/api/v1`;
+
+/**
+ * EXPO_PUBLIC_SIGNIN_MODE=early-access (set by the production Dockerfile)
+ * swaps self-serve sign-in for the early-access waitlist. Unset = live sign-in.
+ */
+export const EARLY_ACCESS = process.env.EXPO_PUBLIC_SIGNIN_MODE === 'early-access';
 
 interface ApiOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -41,7 +46,7 @@ export async function api<T = unknown>(path: string, options: ApiOptions = {}): 
   const data = await res.json().catch(() => null);
 
   if (!res.ok || data?.success === false) {
-    throw new Error(data?.error || `API error ${res.status}`);
+    throw new Error(data?.details?.[0]?.message || data?.error || `API error ${res.status}`);
   }
 
   return data.data ?? data;

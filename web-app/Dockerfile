@@ -10,7 +10,9 @@ COPY . .
 
 # Inlined into the bundle at export time. Override via a Railway build variable.
 ARG EXPO_PUBLIC_API_URL=https://klokd-production.up.railway.app
+ARG EXPO_PUBLIC_SIGNIN_MODE=early-access
 ENV EXPO_PUBLIC_API_URL=$EXPO_PUBLIC_API_URL
+ENV EXPO_PUBLIC_SIGNIN_MODE=$EXPO_PUBLIC_SIGNIN_MODE
 ENV CI=1
 
 RUN npx expo export --platform web --output-dir dist

@@ -555,6 +555,25 @@ model AnalyticsEvent {
   @@map("analytics_events")
 }
 
+// ─── EARLY ACCESS ───────────────────────────────────────
+// Public waitlist captured by klokd.co.ke while self-serve sign-in is gated
+// (Todoku SMS unavailable). One row per phone; resubmits update in place.
+
+model EarlyAccessRequest {
+  id           String   @id @default(uuid())
+  phone        String   @unique
+  role         String
+  name         String
+  businessName String?  @map("business_name")
+  area         String?
+  source       String   @default("web")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([role])
+  @@map("early_access_requests")
+}
+
 // ─── WEBHOOK ────────────────────────────────────────────
 
 model WebhookSubscription {

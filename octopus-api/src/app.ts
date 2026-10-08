@@ -17,6 +17,7 @@ import { railsStatusRouter, railsHealthRouter } from './modules/admin/rails-heal
 import securityRoutes from './modules/admin/security.routes';
 import railWebhookRoutes from './modules/rails/webhook.routes';
 import demoRoutes from './modules/demo/demo.routes';
+import earlyAccessRoutes from './modules/early-access/early-access.routes';
 import agentDispatchRoutes from './modules/agent/agent-dispatch.routes';
 import agentRoutes from './modules/agent/agent.routes';
 import path from 'path';
@@ -81,6 +82,7 @@ app.use('/api/v1/rails', railsStatusRouter);
 app.use('/api/v1/security', securityRoutes);
 app.use('/api/v1/agents', agentRoutes);
 app.use('/api/v1/demo', demoRoutes);
+app.use('/api/v1/early-access', earlyAccessRoutes);
 
 // Static demo page — http://localhost:3000/demo.html
 app.use(express.static(path.join(process.cwd(), 'public')));

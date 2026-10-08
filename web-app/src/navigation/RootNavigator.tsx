@@ -18,6 +18,8 @@ import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { useAuth, Persona } from '../context/AuthContext';
 import { LandingScreen } from '../screens/landing/LandingScreen';
 import { SignInScreen } from '../screens/signin/SignInScreen';
+import { EarlyAccessScreen } from '../screens/signin/EarlyAccessScreen';
+import { EARLY_ACCESS } from '../services/api';
 import { LegalScreen } from '../screens/legal/LegalScreen';
 import { ConsumerShell, ShellNavItem } from '../components/ConsumerShell';
 import { AdminShell, AdminRoute } from '../components/AdminShell';
@@ -114,6 +116,10 @@ export function RootNavigator() {
   }
 
   // ─── Sign-in ───
+  // Early-access builds route every sign-in entry point to the waitlist.
+  if (route.name === 'signin' && EARLY_ACCESS) {
+    return <EarlyAccessScreen onBackToLanding={() => navigate('/')} initialPersona={route.persona ?? null} />;
+  }
   if (route.name === 'signin') {
     return (
       <SignInScreen
