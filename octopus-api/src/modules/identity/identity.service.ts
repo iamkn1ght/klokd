@@ -2,6 +2,7 @@ import prisma from '../../config/database';
 import { AppError } from '../../middleware/errorHandler';
 import { logAudit } from '../../utils/auditLogger';
 import { identityRailClient } from '../rails';
+import { hakkenIntegrationService } from '../hakken/hakken.service';
 
 // Klokd v3 — Identity Service (C2: revised S3-03)
 // All National ID images, biometrics, and KYC documents flow to Identiti (AD-K02).
@@ -98,6 +99,13 @@ export class IdentityService {
         ]);
       }
 
+      // Tier 1+ unlocks shift apply — register/refresh in Hakken now. (The
+      // Identiti KYC_TIER_CHANGED webhook path is not live, so this is the
+      // trigger that actually fires.) Non-blocking; failures are audited.
+      if ((tierInt ?? worker.kycTier) >= 1) {
+        void hakkenIntegrationService.upsertWorkerEntity(worker.id);
+      }
+
       await logAudit({
         tenantId,
         actorId: worker.userId,
@@ -176,7 +184,7 @@ export class IdentityService {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new AppError(404, 'User not found');
 
-    return prisma.employer.upsert({
+    const employer = await prisma.employer.upsert({
       where: { userId },
       create: {
         tenantId,
@@ -193,6 +201,14 @@ export class IdentityService {
         contactPerson: data.contactPerson,
       },
     });
+
+    // A business-verified profile (KRA PIN on file) is what makes the name a
+    // business name rather than the person's sign-up name — only then does it
+    // go to Hakken. Non-blocking; failures are audited and caught up later.
+    if (employer.kraPin) {
+      void hakkenIntegrationService.upsertEmployerEntity(employer.id);
+    }
+    return employer;
   }
 
   async declareWiba(

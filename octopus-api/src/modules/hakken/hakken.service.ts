@@ -343,9 +343,20 @@ export class HakkenIntegrationService {
       });
       return;
     }
+    if (!shift.employer.hakkenEntityId && shift.employer.kraPin) {
+      // Business-verified employer who was never registered (registration used
+      // to hang off the Identiti tier webhook, which never fires): register
+      // inline so this shift can still publish.
+      await this.upsertEmployerEntity(shift.employer.id);
+      const refreshed = await prisma.employer.findUnique({
+        where: { id: shift.employer.id },
+        select: { hakkenEntityId: true },
+      });
+      shift.employer.hakkenEntityId = refreshed?.hakkenEntityId ?? null;
+    }
     if (!shift.employer.hakkenEntityId) {
-      // Employer not yet registered with Hakken — the shift can't publish until
-      // it is. Recorded so the sweep can retry once the employer entity lands.
+      // Employer not yet registered with Hakken (no KRA PIN yet, or the
+      // registration call failed) — the sweep's catch-up pass retries later.
       await this.audit({
         actorId, operation: 'shift_publish', outcome: 'skipped', resourceId: shift.id,
         businessOpId: shift.id, traceparent, detail: { reason: 'employer_not_registered_with_hakken' },

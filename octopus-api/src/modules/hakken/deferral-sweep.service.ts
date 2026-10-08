@@ -31,6 +31,7 @@ import {
 //      uses deterministic Hakken idempotency keys, so replays can't double-post.
 
 const SWEEP_MARKER_ACTION_PREFIX = 'hakken.sweep_replay.';
+const CATCH_UP_BATCH = 20;
 
 interface PendingDeferral {
   operation: HakkenReplayableOperation;
@@ -52,6 +53,7 @@ export interface SweepResult {
 export class HakkenDeferralSweepService {
   private intervalHandle: ReturnType<typeof setInterval> | null = null;
   private running = false;
+  private catchingUp = false;
 
   /** Parse `hakken.<operation>.<outcome>` → its parts (null if not one of ours). */
   private parseAction(action: string): { operation: string; outcome: string } | null {
@@ -234,6 +236,71 @@ export class HakkenDeferralSweepService {
     }
   }
 
+  /**
+   * Catch-up pass for records that never reached Hakken at all (no deferral row
+   * to replay): verified workers and business-verified employers without an
+   * entity, and future POSTED shifts without a broadcast. Each record is tried
+   * at most once per hour (any hakken_integration audit row in the last hour
+   * counts as a recent attempt), CATCH_UP_BATCH per kind per pass.
+   */
+  async catchUp(): Promise<{ workers: number; employers: number; shifts: number }> {
+    const result = { workers: 0, employers: 0, shifts: 0 };
+    if (!config.hakkenSweep.enabled || this.catchingUp) return result;
+    this.catchingUp = true;
+    try {
+      const [workers, employers, shifts] = await Promise.all([
+        prisma.worker.findMany({
+          where: { kycTier: { gte: 1 }, hakkenEntityId: null, accountUuid: { not: null } },
+          select: { id: true },
+          take: CATCH_UP_BATCH,
+        }),
+        prisma.employer.findMany({
+          where: { kraPin: { not: null }, hakkenEntityId: null, accountUuid: { not: null } },
+          select: { id: true },
+          take: CATCH_UP_BATCH,
+        }),
+        prisma.shift.findMany({
+          where: { status: 'POSTED', hakkenBroadcastId: null, startTime: { gt: new Date() } },
+          select: { id: true },
+          take: CATCH_UP_BATCH,
+        }),
+      ]);
+      if (workers.length + employers.length + shifts.length === 0) return result;
+      if (!(await hakkenReplayReady())) return result;
+
+      const recent = new Date(Date.now() - 3600_000);
+      const triedRecently = async (resourceId: string) =>
+        (await prisma.auditLog.count({
+          where: { resource: 'hakken_integration', resourceId, createdAt: { gte: recent } },
+        })) > 0;
+
+      // Employers first so their shifts can publish in the same pass.
+      for (const e of employers) {
+        if (await triedRecently(e.id)) continue;
+        await hakkenIntegrationService.upsertEmployerEntity(e.id);
+        result.employers++;
+      }
+      for (const w of workers) {
+        if (await triedRecently(w.id)) continue;
+        await hakkenIntegrationService.upsertWorkerEntity(w.id);
+        result.workers++;
+      }
+      for (const s of shifts) {
+        if (await triedRecently(s.id)) continue;
+        await hakkenIntegrationService.publishShiftOpen(s.id);
+        result.shifts++;
+      }
+      if (result.workers + result.employers + result.shifts > 0) {
+        console.log(
+          `[HAKKEN-CATCHUP] attempted employers=${result.employers} workers=${result.workers} shifts=${result.shifts}`
+        );
+      }
+      return result;
+    } finally {
+      this.catchingUp = false;
+    }
+  }
+
   start(intervalMs = config.hakkenSweep.intervalMs) {
     if (this.intervalHandle) return;
     if (!config.hakkenSweep.enabled) {
@@ -242,7 +309,9 @@ export class HakkenDeferralSweepService {
     }
     console.log(`[HAKKEN-SWEEP] Started (interval: ${intervalMs / 1000}s)`);
     this.intervalHandle = setInterval(() => {
-      this.sweep().catch((err) => console.error('[HAKKEN-SWEEP] pass failed:', err));
+      this.sweep()
+        .then(() => this.catchUp())
+        .catch((err) => console.error('[HAKKEN-SWEEP] pass failed:', err));
     }, intervalMs);
   }
 

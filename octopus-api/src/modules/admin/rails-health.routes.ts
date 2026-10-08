@@ -87,23 +87,24 @@ function railDefs(): RailDef[] {
       path: '',
       probe: probeDb,
     },
-    // No public /health on Identiti; the JWKS fetch doubles as a
-    // well-defined, cache-friendly unauthenticated probe.
+    // Every live rail serves an unauthenticated GET /v1/health (verified
+    // 08 Oct 2026). Their bare /health paths are HMAC-gated (401) or absent
+    // (404), which used to report healthy rails as down.
     {
       key: 'identiti',
       name: 'Identiti',
       desc: 'KYC + customers',
       baseUrl: config.identiti.baseUrl,
-      path: '/.well-known/jwks.json',
-      probe: () => timedFetch(`${base(config.identiti.baseUrl)}/.well-known/jwks.json`),
+      path: '/v1/health',
+      probe: () => timedFetch(`${base(config.identiti.baseUrl)}/v1/health`),
     },
     {
       key: 'todoku',
       name: 'Todoku',
       desc: 'SMS / OTP delivery',
       baseUrl: config.todoku.baseUrl,
-      path: '/.well-known/jwks.json',
-      probe: () => timedFetch(`${base(config.todoku.baseUrl)}/.well-known/jwks.json`),
+      path: '/v1/health',
+      probe: () => timedFetch(`${base(config.todoku.baseUrl)}/v1/health`),
     },
     // Provision-ready: env absent is EXPECTED until KP-1-Ops lands.
     {
@@ -119,16 +120,16 @@ function railDefs(): RailDef[] {
       name: 'Hakken',
       desc: 'Shift discovery broadcast',
       baseUrl: config.hakken.baseUrl,
-      path: '/health',
-      probe: () => timedFetch(`${base(config.hakken.baseUrl)}/health`),
+      path: '/v1/health',
+      probe: () => timedFetch(`${base(config.hakken.baseUrl)}/v1/health`),
     },
     {
       key: 'helpan',
       name: 'Helpan AI',
       desc: 'Match + scoring',
       baseUrl: config.helpan.baseUrl,
-      path: '/health',
-      probe: () => timedFetch(`${base(config.helpan.baseUrl)}/health`),
+      path: '/v1/health',
+      probe: () => timedFetch(`${base(config.helpan.baseUrl)}/v1/health`),
     },
   ];
 }
@@ -196,10 +197,24 @@ async function statusHandler(_req: Request, res: Response) {
 
 // ─── ADMIN detailed health ──────────────────────────────
 
+/**
+ * What hasn't reached Hakken yet — non-zero numbers that don't fall within a
+ * few sweep intervals mean discovery is silently broken. Mirrors the sweep's
+ * catch-up selection (deferral-sweep.service.ts).
+ */
+async function hakkenBacklogCounts() {
+  const [workersUnregistered, employersUnregistered, openShiftsNotBroadcast] = await Promise.all([
+    prisma.worker.count({ where: { kycTier: { gte: 1 }, hakkenEntityId: null, accountUuid: { not: null } } }),
+    prisma.employer.count({ where: { kraPin: { not: null }, hakkenEntityId: null, accountUuid: { not: null } } }),
+    prisma.shift.count({ where: { status: 'POSTED', hakkenBroadcastId: null, startTime: { gt: new Date() } } }),
+  ]);
+  return { workersUnregistered, employersUnregistered, openShiftsNotBroadcast };
+}
+
 export const railsHealthRouter = Router();
 
 railsHealthRouter.get('/', authenticate, authorize('ADMIN'), async (_req: Request, res: Response) => {
-  const rails = await probeAll();
+  const [rails, hakkenBacklog] = await Promise.all([probeAll(), hakkenBacklogCounts()]);
   const up = rails.filter(r => r.status === 'up').length;
   res.json({
     success: true,
@@ -208,6 +223,7 @@ railsHealthRouter.get('/', authenticate, authorize('ADMIN'), async (_req: Reques
       allUp: up === rails.length,
       summary: `${up}/${rails.length} rails up`,
       rails,
+      hakkenBacklog,
     },
   });
 });
