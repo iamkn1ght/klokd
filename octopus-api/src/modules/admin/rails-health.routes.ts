@@ -3,6 +3,8 @@ import { authenticate, authorize } from '../../middleware/auth';
 import { rateLimiter } from '../../middleware/rateLimiter';
 import prisma from '../../config/database';
 import { config } from '../../config';
+import { identityRailClient } from '../rails';
+import type { IdentitiAccountUuid } from '../rails';
 
 /**
  * REAL rail health — replaces the admin overview's hardcoded "all green"
@@ -57,6 +59,35 @@ async function timedFetch(url: string): Promise<ProbeResult> {
   }
 }
 
+// Identiti's /v1/health is shallow (static metadata, no DB touch) — it stayed
+// 200 through the Oct 2026 Supabase pause while every DB-backed route 500'd.
+// So after the shallow check, do one authenticated read that hits the DB: a
+// tier lookup for an all-zero account. 404 = DB reachable (healthy); 5xx/502
+// or timeout = down. Cached for 60s so the public status route can't hammer
+// the rail.
+const IDENTITI_PROBE_ACCOUNT = 'acc_00000000-0000-0000-0000-000000000000' as IdentitiAccountUuid;
+let identitiDeepCache: { at: number; result: ProbeResult } | null = null;
+
+async function probeIdentiti(baseUrl: string): Promise<ProbeResult> {
+  if (identitiDeepCache && Date.now() - identitiDeepCache.at < 60_000) return identitiDeepCache.result;
+  const shallow = await timedFetch(`${baseUrl}/v1/health`);
+  let result: ProbeResult = shallow;
+  if (shallow.ok && config.identiti.appSecret) {
+    const started = Date.now();
+    try {
+      await identityRailClient.getTier(IDENTITI_PROBE_ACCOUNT);
+      result = { ok: true, ms: Date.now() - started, detail: null };
+    } catch (err) {
+      const status = (err as { statusCode?: number }).statusCode ?? 502;
+      result = status < 500
+        ? { ok: true, ms: Date.now() - started, detail: null }
+        : { ok: false, ms: Date.now() - started, detail: `Database-backed routes failing (HTTP ${status})` };
+    }
+  }
+  identitiDeepCache = { at: Date.now(), result };
+  return result;
+}
+
 async function probeDb(): Promise<ProbeResult> {
   const started = Date.now();
   try {
@@ -96,7 +127,7 @@ function railDefs(): RailDef[] {
       desc: 'KYC + customers',
       baseUrl: config.identiti.baseUrl,
       path: '/v1/health',
-      probe: () => timedFetch(`${base(config.identiti.baseUrl)}/v1/health`),
+      probe: () => probeIdentiti(base(config.identiti.baseUrl)),
     },
     {
       key: 'todoku',

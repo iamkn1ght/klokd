@@ -84,8 +84,8 @@ router.post(
           }
           break;
         }
-        case 'SIM_SWAP_DETECTED':
-        case 'ACCOUNT_DEACTIVATED': {
+        case 'PHONE_CHANGED':
+        case 'ACCOUNT_SUSPENDED': {
           await logAudit({
             tenantId: config.defaultTenantId,
             actorId: 'identiti',

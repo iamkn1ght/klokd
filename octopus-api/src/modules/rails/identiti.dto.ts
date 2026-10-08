@@ -167,12 +167,17 @@ export interface IdentitiStepUpVerifyResponse {
   expiresIn: number;
 }
 
-// Webhook events — Identiti emits via Kafka today; HTTP webhook signing ships
-// in ID-14 Phase 2. Klokd's webhook handler is built but inert until then.
+// Webhook events — Identiti has NO HTTP webhook code yet (confirmed by the
+// Identiti operator, 08 Oct 2026): events go to Kafka only, and HTTP delivery
+// (outbox + HMAC signer + retry) is the unbuilt ID-14 Phase 2. Klokd's receiver
+// stays inert (503, no IDENTITI_WEBHOOK_SECRET) until then.
+// Event names per Identiti: there is no SIM-swap signal (no telco feed is
+// scoped) — PHONE_CHANGED is a customer-initiated phone change, the closest
+// proxy; deactivation is ACCOUNT_SUSPENDED (identiti.account.events).
 export type IdentitiWebhookEvent =
   | 'KYC_TIER_CHANGED'
-  | 'SIM_SWAP_DETECTED'
-  | 'ACCOUNT_DEACTIVATED';
+  | 'PHONE_CHANGED'
+  | 'ACCOUNT_SUSPENDED';
 
 export interface IdentitiWebhookPayload {
   event: IdentitiWebhookEvent;
