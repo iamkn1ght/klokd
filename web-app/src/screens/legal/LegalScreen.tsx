@@ -23,7 +23,7 @@ const CONTENT: Record<
     title: 'Terms of Service',
     updated: 'October 2026',
     intro:
-      'These terms govern your use of Klokd (klokd.co.ke), operated by Klokd Workplace Solutions Ltd, Nairobi, Kenya. By creating an account you agree to them. Please read them alongside our Privacy Policy.',
+      'These terms govern your use of the Klokd service at klokd.co.ke, operated by Klokd, Nairobi, Kenya. By creating an account you agree to them. Please read them alongside our Privacy Policy.',
     sections: [
       {
         h: '1. What Klokd does',
@@ -63,7 +63,7 @@ const CONTENT: Record<
     title: 'Privacy Policy',
     updated: 'October 2026',
     intro:
-      'Klokd Workplace Solutions Ltd is a data controller under the Kenya Data Protection Act, 2019 (DPA). This policy explains what we collect, why, who we share it with, and the rights you have. The short version: we collect the minimum needed to verify you once and pay you correctly, and we never sell your data.',
+      'Klokd is a data controller under the Kenya Data Protection Act, 2019 (DPA). This policy explains what we collect, why, who we share it with, and the rights you have. The short version: we collect the minimum needed to verify you once and pay you correctly, and we never sell your data.',
     sections: [
       {
         h: '1. What we collect',
@@ -139,7 +139,7 @@ export function LegalScreen({ doc }: { doc: LegalDoc }) {
         <Pressable onPress={() => navigate('/')} style={({ hovered }: any) => [styles.backHome, hovered && { opacity: 0.7 }]}>
           <Text style={styles.backHomeText}>← Back to klokd.co.ke</Text>
         </Pressable>
-        <Text style={styles.company}>Klokd Workplace Solutions Ltd · Nairobi, Kenya</Text>
+        <Text style={styles.company}>Klokd · Nairobi, Kenya</Text>
       </FadeUp>
     </KlokdScreen>
   );
