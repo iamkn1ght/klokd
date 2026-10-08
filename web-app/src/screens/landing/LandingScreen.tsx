@@ -7,9 +7,8 @@
  *   Closing CTA → Footer.
  *
  * Honesty rules: no partner logos, no invented metrics, no links to pages
- * that don't exist. The phone preview renders the real worker shift-card UI
- * with sample data and says so. The waitlist count only shows once it is
- * big enough to mean something.
+ * that don't exist. The hero's shift clock uses sample figures and says so.
+ * The waitlist count only shows once it is big enough to mean something.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, useWindowDimensions } from 'react-native';
@@ -19,7 +18,7 @@ import { Logo, GradientBtn } from '../../components/Primitives';
 import { colors, spacing, radius } from '../../theme';
 import { navigate } from '../../navigation/router';
 import { api, EARLY_ACCESS } from '../../services/api';
-import { DEMO_SHIFTS } from '../../hooks/demoShifts';
+import { ShiftClock } from '../../components/ShiftClock';
 
 const WAITLIST_MIN_TO_SHOW = 25;
 const AREAS = ['Westlands', 'CBD', 'Kilimani'];
@@ -88,70 +87,6 @@ function Icon({ name, color = colors.electric, size = 22 }: { name: string; colo
         </>
       )}
     </Svg>
-  );
-}
-
-// ─── Product preview (real worker shift-card UI, sample data) ──
-
-function PhonePreview() {
-  const shifts = DEMO_SHIFTS.slice(0, 3);
-  return (
-    <View style={styles.phoneWrap}>
-      <View style={styles.phone}>
-        <View style={styles.phoneNotch} />
-        <View style={styles.phoneTop}>
-          <Text style={styles.phoneHello}>Habari, Akinyi</Text>
-          <View style={styles.verifiedPill}>
-            <Icon name="shield" size={12} />
-            <Text style={styles.verifiedText}>Verified</Text>
-          </View>
-        </View>
-
-        <View style={styles.phoneStats}>
-          {[
-            { k: '98%', l: 'Show-up' },
-            { k: '★ 4.9', l: 'Rating' },
-            { k: '31', l: 'Shifts' },
-          ].map((s, i) => (
-            <View key={s.l} style={[styles.phoneStat, i > 0 && styles.phoneStatDivider]}>
-              <Text style={styles.phoneStatK}>{s.k}</Text>
-              <Text style={styles.phoneStatL}>{s.l}</Text>
-            </View>
-          ))}
-        </View>
-
-        <Text style={styles.phoneSection}>SHIFTS NEAR YOU</Text>
-        <View style={{ gap: 8 }}>
-          {shifts.map(s => (
-            <View key={s.id} style={[styles.phoneCard, s.highlighted && styles.phoneCardHot]}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.phoneRole}>{s.role}</Text>
-                <Text style={styles.phoneVenue} numberOfLines={1}>{s.venue}</Text>
-                <Text style={styles.phoneMeta} numberOfLines={1}>{s.date} · {s.dist}</Text>
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={styles.phonePay}>KES {s.pay.toLocaleString()}</Text>
-                <View style={[styles.phoneApply, s.highlighted && styles.phoneApplyHot]}>
-                  <Text style={styles.phoneApplyText}>{s.highlighted ? 'Apply →' : 'View'}</Text>
-                </View>
-              </View>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.paidToast}>
-          <View style={styles.mpesaDot}>
-            <Text style={styles.mpesaDotText}>M</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.paidLabel}>PAID TO M-PESA</Text>
-            <Text style={styles.paidValue}>KES 1,640 · after deductions</Text>
-          </View>
-          <Text style={styles.paidCheck}>✓</Text>
-        </View>
-      </View>
-      <Text style={styles.previewCaption}>Klokd worker app · sample shifts</Text>
-    </View>
   );
 }
 
@@ -263,7 +198,7 @@ export function LandingScreen({ onSignIn }: { onSignIn: () => void }) {
         </View>
 
         <FadeUp delay={260} style={[styles.heroRight, !wide && styles.heroRightStacked]}>
-          <PhonePreview />
+          <ShiftClock />
         </FadeUp>
       </View>
 
@@ -469,49 +404,6 @@ const styles = StyleSheet.create({
   proofDivider: { borderLeftWidth: 1, borderLeftColor: colors.white08, paddingLeft: spacing.lg },
   proofTitle: { color: colors.white, fontSize: 13.5, fontWeight: '800', letterSpacing: -0.2 },
   proofBody: { color: colors.white55, fontSize: 12, lineHeight: 17, marginTop: 3, fontWeight: '500' },
-
-  // Phone preview
-  phoneWrap: { alignItems: 'center' },
-  phone: {
-    width: 320,
-    padding: 16,
-    paddingTop: 30,
-    borderRadius: 44,
-    borderWidth: 1,
-    borderColor: colors.white15,
-    backgroundColor: '#0D0D14',
-    shadowColor: '#00E5A0',
-    shadowOpacity: 0.14,
-    shadowRadius: 60,
-    shadowOffset: { width: 0, height: 20 },
-  },
-  phoneNotch: { position: 'absolute', top: 10, alignSelf: 'center', width: 90, height: 22, borderRadius: 12, backgroundColor: '#000' },
-  phoneTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, marginBottom: 14 },
-  phoneHello: { color: colors.white, fontSize: 19, fontWeight: '900', letterSpacing: -0.6 },
-  verifiedPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(0,229,160,0.10)', borderWidth: 1, borderColor: 'rgba(0,229,160,0.30)' },
-  verifiedText: { color: colors.electric, fontSize: 10.5, fontWeight: '800' },
-  phoneStats: { flexDirection: 'row', paddingVertical: 12, borderRadius: radius.lg, backgroundColor: colors.white04, borderWidth: 1, borderColor: colors.white08, marginBottom: 16 },
-  phoneStat: { flex: 1, alignItems: 'center' },
-  phoneStatDivider: { borderLeftWidth: 1, borderLeftColor: colors.white08 },
-  phoneStatK: { color: colors.white, fontSize: 15, fontWeight: '900', letterSpacing: -0.4 },
-  phoneStatL: { color: colors.white50, fontSize: 10, fontWeight: '700', marginTop: 2 },
-  phoneSection: { color: colors.white45, fontSize: 9.5, fontWeight: '900', letterSpacing: 1, marginBottom: 8 },
-  phoneCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: radius.lg, backgroundColor: colors.white03, borderWidth: 1, borderColor: colors.white08 },
-  phoneCardHot: { borderColor: 'rgba(0,229,160,0.45)', backgroundColor: 'rgba(0,229,160,0.06)' },
-  phoneRole: { color: colors.white, fontSize: 13.5, fontWeight: '900', letterSpacing: -0.3 },
-  phoneVenue: { color: colors.white70, fontSize: 11.5, fontWeight: '700', marginTop: 1 },
-  phoneMeta: { color: colors.white50, fontSize: 10.5, fontWeight: '600', marginTop: 3 },
-  phonePay: { color: colors.white, fontSize: 14, fontWeight: '900', letterSpacing: -0.3 },
-  phoneApply: { marginTop: 6, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 7, borderWidth: 1, borderColor: colors.white15 },
-  phoneApplyHot: { borderColor: colors.electric, backgroundColor: 'rgba(0,229,160,0.16)' },
-  phoneApplyText: { color: colors.electric, fontSize: 10.5, fontWeight: '800' },
-  paidToast: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14, padding: 12, borderRadius: radius.lg, backgroundColor: 'rgba(0,229,160,0.08)', borderWidth: 1, borderColor: 'rgba(0,229,160,0.30)' },
-  mpesaDot: { width: 30, height: 30, borderRadius: 8, backgroundColor: '#00A859', alignItems: 'center', justifyContent: 'center' },
-  mpesaDotText: { color: '#fff', fontSize: 14, fontWeight: '900' },
-  paidLabel: { color: colors.electric, fontSize: 9, fontWeight: '900', letterSpacing: 0.8 },
-  paidValue: { color: colors.white, fontSize: 12.5, fontWeight: '800', marginTop: 2 },
-  paidCheck: { color: colors.electric, fontSize: 16, fontWeight: '900' },
-  previewCaption: { color: colors.white45, fontSize: 11, fontWeight: '700', marginTop: 14, letterSpacing: 0.2 },
 
   // Trust strip
   strip: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.lg, paddingVertical: 18, paddingHorizontal: spacing.xxl, borderRadius: radius.xxl, borderWidth: 1, borderColor: colors.white10, backgroundColor: colors.white03 },
