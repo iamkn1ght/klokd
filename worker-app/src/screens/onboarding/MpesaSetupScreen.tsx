@@ -1,40 +1,28 @@
 /**
- * M-Pesa setup screen — Large number display + 30-min guarantee + numpad.
- * Ported 1:1 from claude-design/screens/onboarding.jsx
+ * M-Pesa setup screen — confirms payouts go to the worker's verified sign-in
+ * number. Klokd never stores an M-Pesa number (Identiti holds the verified
+ * phone, Kipkiren Pay will hold the payout destination), so this step only
+ * shows the number and explains it; there is nothing to save.
  */
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GradientBtn, Eyebrow, Label, StepProgress } from '../../components/Primitives';
 import { AmbientOrbs, FadeUp, SafeTop } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
-import { useApi } from '../../hooks/useApi';
 import { useAuth } from '../../context/AuthContext';
 import { colors, typography } from '../../theme';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
 
-function formatPhone(p: string): string {
-  if (p.length <= 4) return p;
-  if (p.length <= 7) return p.slice(0, 4) + ' ' + p.slice(4);
-  return p.slice(0, 4) + ' ' + p.slice(4, 7) + ' ' + p.slice(7);
+/** +254722400500 / 254722400500 / 0722400500 → "0722 400 500". */
+function displayPhone(raw: string | undefined): string | null {
+  if (!raw) return null;
+  let d = raw.replace(/[^\d]/g, '');
+  if (d.startsWith('254')) d = '0' + d.slice(3);
+  if (d.length !== 10) return raw;
+  return `${d.slice(0, 4)} ${d.slice(4, 7)} ${d.slice(7)}`;
 }
-
-function isValidKenyanPhone(p: string): boolean {
-  if (p.length !== 10 || !p.startsWith('0')) return false;
-  const prefix = p.slice(0, 4);
-  const safPrefixes = [
-    '0700','0701','0702','0703','0704','0705','0706','0707','0708','0709',
-    '0710','0711','0712','0713','0714','0715','0716','0717','0718','0719',
-    '0720','0721','0722','0723','0724','0725','0726','0727','0728','0729',
-    '0740','0741','0742','0743','0744','0745','0746','0747','0748','0749',
-    '0790','0791','0792','0793','0794','0795','0796','0797','0798','0799',
-    '0110','0111','0112','0113','0114','0115',
-  ];
-  return safPrefixes.includes(prefix);
-}
-
-const KEYS = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
 
 function OnbHeader({ step, onBack }: { step: number; onBack?: () => void }) {
   return (
@@ -53,29 +41,8 @@ function OnbHeader({ step, onBack }: { step: number; onBack?: () => void }) {
 }
 
 export function MpesaSetupScreen({ navigation }: Props) {
-  const { put } = useApi();
-  const { completeOnboarding } = useAuth();
-  const [num, setNum] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const ready = isValidKenyanPhone(num);
-  const formatted = num.length ? formatPhone(num) : '';
-
-  const onKey = (k: string) => {
-    if (k === '⌫') setNum(n => n.slice(0, -1));
-    else if (k && num.length < 10) setNum(n => n + k);
-  };
-
-  const handleDone = async () => {
-    setLoading(true);
-    try {
-      await put('/identity/workers/mpesa', { mpesaNumber: num });
-    } catch {}
-    setLoading(false);
-    // Flips isNewUser — RootNavigator swaps the onboarding stack out for
-    // Main automatically (state-driven routing; no manual cross-stack nav).
-    completeOnboarding();
-  };
+  const { user, completeOnboarding } = useAuth();
+  const phone = displayPhone(user?.phone);
 
   return (
     <View style={styles.screen}>
@@ -85,57 +52,39 @@ export function MpesaSetupScreen({ navigation }: Props) {
 
       <FadeUp delay={0} style={styles.titleBlock}>
         <Eyebrow color={colors.white40} style={{ marginBottom: 8 }}>Step 5 of 5 · Get paid</Eyebrow>
-        <Text style={styles.h2}>Where should we send your money?</Text>
-        <Text style={styles.sub}>Your M-Pesa number. Money lands within 30 minutes of every clock-out.</Text>
+        <Text style={styles.h2}>Your pay goes to this number.</Text>
+        <Text style={styles.sub}>
+          Klokd pays to the M-Pesa account on the number you signed in with. It was verified by SMS, so nobody else can redirect your money.
+        </Text>
       </FadeUp>
 
       <View style={styles.content}>
-        {/* Number display */}
         <FadeUp delay={120} style={styles.numDisplay}>
-          <Label color={colors.electric} style={{ marginBottom: 6, letterSpacing: 1.54 }}>Safaricom M-Pesa</Label>
-          <Text style={styles.bigNumber}>
-            {formatted || <Text style={{ color: 'rgba(255,255,255,0.2)' }}>0722 000 000</Text>}
-          </Text>
-          <Text style={styles.numCounter}>{num.length}/10 digits</Text>
-        </FadeUp>
-
-        {/* Guarantee strip */}
-        <FadeUp delay={220} style={styles.guarantee}>
-          <Icons.mpesa color={colors.electric} size={14} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.guaranteeTitle}>30-minute guarantee</Text>
-            <Text style={styles.guaranteeSub}>KES lands here after every clock-out.</Text>
+          <Label color={colors.electric} style={{ marginBottom: 6, letterSpacing: 1.54 }}>Verified · M-Pesa payouts</Label>
+          <Text style={styles.bigNumber}>{phone ?? 'Your sign-in number'}</Text>
+          <View style={styles.verifiedRow}>
+            <Icons.mpesa color={colors.electric} size={13} />
+            <Text style={styles.verifiedText}>Confirmed by SMS when you signed in</Text>
           </View>
         </FadeUp>
 
-        {/* Numpad */}
-        <View style={styles.numpad}>
-          {KEYS.map((k, i) => {
-            if (k === '') return <View key={i} style={styles.numKeyEmpty} />;
-            const isDel = k === '⌫';
-            return (
-              <TouchableOpacity
-                key={i}
-                onPress={() => onKey(k)}
-                activeOpacity={0.6}
-                style={[
-                  styles.numKey,
-                  isDel
-                    ? { borderColor: 'rgba(255,107,107,0.2)', backgroundColor: 'rgba(255,107,107,0.06)' }
-                    : { borderColor: 'rgba(255,255,255,0.07)', backgroundColor: colors.white04 },
-                ]}
-              >
-                <Text style={[styles.numKeyText, { color: isDel ? colors.error : colors.white }]}>{k}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        <FadeUp delay={220} style={styles.note}>
+          <Text style={styles.noteTitle}>Make sure M-Pesa is active on this line</Text>
+          <Text style={styles.noteSub}>
+            Pay is sent after each clock-out, with a payslip showing every deduction.
+          </Text>
+        </FadeUp>
+
+        <FadeUp delay={300} style={styles.note}>
+          <Text style={styles.noteTitle}>Want pay on a different number?</Text>
+          <Text style={styles.noteSub}>
+            Sign in with that number instead. Payouts always follow your verified sign-in number.
+          </Text>
+        </FadeUp>
       </View>
 
       <View style={styles.footer}>
-        <GradientBtn disabled={!ready || loading} onPress={handleDone}>
-          {ready ? (loading ? 'Saving…' : "I'm ready to work") : 'Enter 10 digits to finish'}
-        </GradientBtn>
+        <GradientBtn onPress={completeOnboarding}>I'm ready to work</GradientBtn>
       </View>
     </View>
   );
@@ -168,29 +117,18 @@ const styles = StyleSheet.create({
     minHeight: 34,
     textAlign: 'center',
   },
-  numCounter: { fontSize: 10, color: colors.white40, marginTop: 4 },
+  verifiedRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
+  verifiedText: { fontSize: 11.5, color: colors.white60, fontWeight: '600' },
 
-  guarantee: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 12, paddingVertical: 9,
-    borderRadius: 11,
+  note: {
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderRadius: 12,
     backgroundColor: colors.white03,
     borderWidth: 1, borderColor: colors.white06,
-    marginBottom: 14,
+    marginBottom: 10,
   },
-  guaranteeTitle: { fontSize: 11, color: colors.white, fontWeight: '600' },
-  guaranteeSub: { fontSize: 9.5, color: colors.white45 },
-
-  numpad: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
-  numKey: {
-    width: '31.7%',
-    paddingVertical: 13,
-    borderRadius: 12,
-    borderWidth: 0.5,
-    alignItems: 'center',
-  },
-  numKeyEmpty: { width: '31.7%' },
-  numKeyText: { fontSize: 17, fontWeight: '600' },
+  noteTitle: { fontSize: 13, color: colors.white, fontWeight: '700' },
+  noteSub: { fontSize: 12, color: colors.white50, lineHeight: 17, marginTop: 3 },
 
   footer: { paddingHorizontal: 22, paddingTop: 14, paddingBottom: 20, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.white06 },
 });
