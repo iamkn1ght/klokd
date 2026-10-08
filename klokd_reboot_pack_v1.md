@@ -2,12 +2,14 @@
 ## Session Continuity Document · Kirimon Market Ventures
 
 **Product:** Klokd — Casual Labour Marketplace (Product B)
-**Pack version:** v1.0 · March 2026
+**Pack version:** v1.1 · 08 October 2026 (v1.0 · March 2026)
 **Prepared by:** Chamia Mutuku, Co-Founder & CPO
 **Classification:** Confidential · Internal Use Only
 **Rule:** Update this document at the end of every working session. Never start a session without reading it first.
 
 ---
+
+> **v1.1 (08 Oct 2026) — read this first.** Sections 1–10 still describe the March 2026 plan. Since then the platform moved to the KMV rails model (Identiti, Todoku, Kipkiren Pay, Hakken, Helpan — Klokd never holds Daraja / Africa's Talking / WhatsApp credentials), hosting moved to Railway + Supabase (eu-west-1), and the web surface unified on one dark design. Where a Section 1–10 rule conflicts with the Decisions Register (Section 11), **the register wins** — superseded decisions are marked there, never deleted. Live engineering state (sprints, rails, builds) is tracked in `RECAP.md`; this pack tracks decisions, open questions, assets, infrastructure and the next starting point.
 
 ## 0. How to Use This Pack
 
@@ -452,22 +454,22 @@ All locked product, technical, and design decisions. Check this before proposing
 | D-01 | Brand name: Klokd | Founding | LOCKED |
 | D-02 | Domain: klokd.co.ke | Founding | LOCKED |
 | D-03 | Handle: @klokdKE (NOT @klokKE) | Founding | LOCKED |
-| D-04 | Logomark: K | Founding | LOCKED |
-| D-05 | Two-shell identity: Worker = ink dark, Employer = mist light | Design session | LOCKED |
-| D-06 | Primary CTA: Electric Mint → Volt gradient | Design session | LOCKED |
+| D-04 | Logomark: K | Founding | SUPERSEDED on web by D-35 (K stays as favicon / app icon) |
+| D-05 | Two-shell identity: Worker = ink dark, Employer = mist light | Design session | SUPERSEDED by D-33 (24 Jun 2026) |
+| D-06 | Primary CTA: Electric Mint → Volt gradient | Design session | SUPERSEDED by D-34 (24 Jun 2026) |
 | D-07 | No white text on Electric Mint | Design session | LOCKED |
 | D-08 | Typeface: Inter throughout | Design session | LOCKED |
 | D-09 | M-Pesa Native — firm-wide defining characteristic | Founding | LOCKED |
 | D-10 | Kirimon never appears in user-facing copy | Founding | LOCKED |
 | D-11 | Manual matching at MVP — no algorithm | Architecture session | LOCKED |
-| D-12 | Escrow: STK Push on confirmation, auto-release at 4 hours | Architecture session | LOCKED |
+| D-12 | Escrow: STK Push on confirmation, auto-release at 4 hours | Architecture session | LOCKED — mechanism now via Kipkiren Pay (D-32); 4h auto-release unchanged |
 | D-13 | GPS: geo_hash only, raw coordinates never persisted | Architecture session | LOCKED |
 | D-14 | GPS clock-in radius: 500m | Architecture session | LOCKED |
 | D-15 | Payment Service isolated from Shift Service | Architecture session | LOCKED |
 | D-16 | Compliance Engine as discrete Layer 1 API service from Sprint 7 | Architecture session | LOCKED |
 | D-17 | All statutory rates in config table, never hardcoded | Architecture session | LOCKED |
 | D-18 | AHL toggle via config — currently OFF | Architecture session | LOCKED |
-| D-19 | AWS af-south-1 for all data (residency requirement) | Architecture session | LOCKED |
+| D-19 | AWS af-south-1 for all data (residency requirement) | Architecture session | SUPERSEDED by D-32 (Supabase eu-west-1 per platform standard; Railway hosting) |
 | D-20 | 7-year retention on payment records and contracts | Architecture session | LOCKED |
 | D-21 | Privacy & Consent screen is Screen 2 of worker onboarding (GATES data collection) | Compliance session | LOCKED |
 | D-22 | WIBA screen is Screen 3 of employer onboarding (GATES clock-in) | Compliance session | LOCKED |
@@ -480,6 +482,19 @@ All locked product, technical, and design decisions. Check this before proposing
 | D-29 | Android-first. iOS in Year 1 post-beta | Architecture session | LOCKED |
 | D-30 | Pre-seed ask: KES 18M | Funding session | LOCKED |
 | D-31 | Employer onboarding: stacked value prop cards (not carousel) | UX session | LOCKED |
+| D-32 | KMV rails model: Klokd consumes Identiti (accounts, KYC, phone tokens), Todoku (SMS/OTP), Kipkiren Pay (escrow, payouts), Hakken (discovery), Helpan (agents). Klokd never holds Daraja / Africa's Talking / WhatsApp creds and never stores ID images (AD-K01/02/03). Hosting: Railway (API + web), Supabase eu-west-1 | v3 rails, Jun 2026 | LOCKED |
+| D-33 | One dark design for every persona on web (landing, worker, employer, admin) — orbs + dot-grid background | Product surface day, 24 Jun 2026 | LOCKED |
+| D-34 | Single accent: electric `#00E5A0`; volt only as the per-app identifier (FOR EMPLOYERS badges). Primary button gradient electric → `#0FBD83` | 24 Jun 2026 | LOCKED |
+| D-35 | Web logo is the "Klokd" wordmark only; the K mark is the favicon / app icon | 08 Oct 2026 | LOCKED |
+| D-36 | Website hosting: Railway service `klokd-web` (Expo web export served by Caddy, auto-deploys on `web-app/**` pushes); `klokd.co.ke` + `www` (301 → apex) via Cloudflare DNS, DNS-only | 08 Oct 2026 | LOCKED |
+| D-37 | Public self-serve sign-in is gated behind early access (`EXPO_PUBLIC_SIGNIN_MODE=early-access`) until Todoku SMS delivery works; waitlist stored via `POST /api/v1/early-access` | 08 Oct 2026 | LOCKED until OQ-13 resolves |
+| D-38 | Landing honesty rules: no partner logos, no invented metrics, no links to pages that don't exist; waitlist count shown only at ≥ 25; illustrations labelled as sample data | 08 Oct 2026 | LOCKED |
+| D-39 | Landing hero visual = the looping "shift clock" (clock-in → pay counts up → payslip → sent to M-Pesa) | 08 Oct 2026 | LOCKED |
+| D-40 | Visual style = refined glassmorphism over the existing orb background. Aurora gradient deferred to public launch (low-end Android performance, single-accent rule) | 08 Oct 2026 | LOCKED |
+| D-41 | Klokd collects no M-Pesa number: payouts follow the SMS-verified sign-in number (Kipkiren Pay will hold the destination) | 08 Oct 2026 | LOCKED |
+| D-42 | Hakken registration triggers: worker on IPRS KYC reaching tier ≥ 1; employer once a KRA PIN is on file (until then the business name may be a person's name); sweep catch-up every 5 min for anything missed | 08 Oct 2026 | LOCKED |
+| D-43 | No Identiti HTTP webhooks for now. Before the real-money pilot: synchronous account-status checks at shift confirmation and payout. If platform-wide events are needed, prefer Identiti's Kafka option | 08 Oct 2026 | LOCKED |
+| D-44 | Legal pages name the operating company as "Klokd" (exact registered form pending — OQ-11) | 08 Oct 2026 | PROVISIONAL |
 
 ---
 
@@ -499,6 +514,14 @@ These are unresolved as of the pack date. Any session that resolves one must upd
 | OQ-08 | WIBA Option B insurance partner — which insurer? What is the commercial arrangement? | Sprint 7+ (Option B design if selected) | P2 |
 | OQ-09 | Section 37 advice: Does a 30-day block fully satisfy the legal obligation or is further action required? | Sprint 5 S37 implementation | P2 |
 | OQ-10 | Rate intelligence data source — how will the KES [min]–[max] strip in Post a Shift be populated initially? | Sprint 13 Post a Shift screen | P2 |
+| OQ-11 | Exact registered company name as on the certificate (e.g. "Klokd Limited")? | Terms + Privacy wording (D-44) | P1 |
+| OQ-12 | `OTP_SANDBOX_ECHO=true` on the production API returns OTP codes to any caller (account takeover). Turn off when OQ-13 resolves, or sooner if the demo apps can lose sign-in | Any real users | P0 |
+| OQ-13 | Todoku reports SMS / voice / WhatsApp channels unavailable — real OTPs can't reach phones | Re-opening public sign-in (D-37) | P0 |
+| OQ-14 | Rotate the API secrets exposed in the 08 Oct session (Hakken, Helpan, Identiti app secrets; JWT secrets) | Security hygiene | P1 |
+| OQ-15 | Identiti's Supabase project (`tjqpyblyoslyoplmnlua`) free tier auto-paused 3× (22 May, 18 Jul, 08 Oct) — move to a paid plan | All sign-ups (account creation fails while paused) | P0 |
+| OQ-16 | Helpan rail returned 500 on every write (25 Jul) — fixed? | Any Helpan feature work | P2 |
+| OQ-17 | Hakken `klokd` app still `provisioning` — Silvia to flip to `active` | Formal Hakken go-live | P2 |
+| OQ-18 | Two `_dmarc` TXT records on klokd.co.ke (`p=reject` and `p=none`) — keep one | Email deliverability | P2 |
 
 ---
 
@@ -517,42 +540,45 @@ All deliverables produced to date, with their status.
 | MVP Specification | Markdown | Produced | klokd_mvp_spec.md |
 | MVP Specification | PDF | Produced | klokd_mvp_spec.pdf |
 | Sprint Backlog | Interactive HTML artifact | Produced | klokd_sprint_backlog.html |
-| Reboot Pack | Markdown (this document) | Produced | klokd_reboot_pack_v1.md |
+| Reboot Pack | Markdown (this document) | Produced | klokd_reboot_pack_v1.md (v1.1, 08 Oct 2026) |
+| Public website | Expo web (`web-app/`) | **LIVE** | https://klokd.co.ke — landing (shift-clock hero, glassmorphism), early-access form, Terms, Privacy |
+| Early-access waitlist | API + DB table | **LIVE** | `POST /api/v1/early-access` (public), `GET /api/v1/early-access` (admin), `GET /api/v1/early-access/count` |
+| Worker + employer apps | Expo Android APKs + OTA | **LIVE (investor builds)** | EAS `kmv209`; OTA on `preview` branch (latest worker update 08 Oct: payout step) |
+| Privacy Policy + Terms | Web pages | **LIVE** | klokd.co.ke/#/privacy · #/terms (company name per D-44) |
 
 ### Assets Still Required
-- Beta landing page copy and design (klokd.co.ke is live via Cloudflare Pages)
 - Investor pitch deck (8–10 slides)
 - Financial model (KES — Year 1–3 projections)
 - Postman collection (Sprint 3+)
 - Prisma schema file (Sprint 3+)
 - Worker and Employer app full screen sets (Sprints 8–15)
 - WhatsApp notification templates
-- Privacy Policy document
+- Counsel review of Privacy Policy + Terms (drafts are live)
 - Employment contract template (for Contract Service PDF generation)
 
 ---
 
 ## 14. Infrastructure
 
+*As of 08 Oct 2026. Details and history in `RECAP.md`.*
+
 | Item | Status | Notes |
 |---|---|---|
-| Domain: klokd.co.ke | Live | Cloudflare Pages — beta landing page |
-| AWS af-south-1 | Not provisioned | Sprint 1 deliverable |
-| RDS PostgreSQL | Not provisioned | Sprint 1 deliverable |
-| AWS S3 (af-south-1) | Not provisioned | Sprint 1 deliverable |
-| GitHub repository | Not created | Sprint 3 deliverable |
-| Railway (backend hosting) | Not provisioned | Sprint 3 deliverable |
-| Daraja sandbox | Sprint 1 target | B2C integration required |
-| Daraja production keys | Sprint 16 gate | Safaricom application Sprint 1 |
-| Africa's Talking (OTP) | Not provisioned | Sprint 3 deliverable |
-| FCM / Firebase | Not provisioned | Sprint 6 deliverable |
-| WhatsApp Business API | Not provisioned | Sprint 6 deliverable |
-| Cloudflare DNS | Active | klokd.co.ke routing |
-| ODPC registration | Sprint 1 target | Data Controller + Processor |
-| KRA PIN | Sprint 1 target | Required for PAYE setup |
-| BRS registration | Sprint 1 target | Company registration |
-| NSSF registration | Before beta | Employer registration required |
-| SHIF/SHA registration | Before beta | Employer registration required |
+| Domain: klokd.co.ke | **LIVE** | Cloudflare DNS (DNS-only CNAMEs) → Railway `klokd-web`; Let's Encrypt certificate to Jan 2027; `www` 301 → apex |
+| Website (`web-app/`) | **LIVE** | Railway `klokd-web` (project `happy-smile`), Dockerfile + Caddy, auto-deploys on `web-app/**` |
+| API (`octopus-api/`) | **LIVE** | Railway `klokd` → https://klokd-production.up.railway.app, auto-deploys on push to `main`; SQLite on a Railway volume (backups still to set up) |
+| GitHub repository | **LIVE** | `iamkn1ght/klokd` (moved from `thhvvv/klokd`), branch `main` |
+| Supabase (Klokd) | **LIVE** | `nbtpkmjovgbwgwefsdjn`, eu-west-1 — document storage |
+| Identiti (accounts / KYC) | **LIVE** | `klokd_sandbox`; outage 08 Oct (Supabase pause) resolved same day — see OQ-15 |
+| Todoku (SMS / OTP) | DEGRADED | Rail up, but SMS / voice / WhatsApp channels unavailable — OQ-13 |
+| Hakken (discovery) | **LIVE** | Registration wiring fixed 08 Oct (D-42); app still `provisioning` — OQ-17 |
+| Helpan AI (agents) | PROVISIONED, UNUSED | API routes built; no app calls them; rail write errors as of Jul — OQ-16 |
+| Kipkiren Pay (escrow / payouts) | HELD | Not ready upstream (KP-1-Ops) |
+| Mobile builds | **LIVE (investor)** | EAS `kmv209`, OTA `preview`; iOS via Expo Go (no Apple Developer account yet) |
+| Daraja / Africa's Talking / WhatsApp API | NOT USED | Replaced by rails (D-32) |
+| ODPC registration | Open | Before real users (counsel to scope) |
+| Company registration | Done (name per D-44) | Confirm exact form — OQ-11 |
+| KRA PIN / NSSF / SHIF employer registration | Open | Before real wages are paid |
 
 ---
 
@@ -579,7 +605,8 @@ At 40 shifts/month × KES 1,800 gross per shift:
 | Role | Name | Notes |
 |---|---|---|
 | Founder & CPO | Chamia Mutuku | He/him · Kirimon Market Ventures |
-| Developer TBC | — | Sprint 3 start required |
+| Developer | Cornelius | Builds + deploys; holds Railway / EAS access; receives rail secrets |
+| Rails operator | Silvia | Identiti, Todoku, Hakken, Kipkiren Pay provisioning + escalations |
 | Designer (part-time) | — | From Sprint 11 |
 | Interview Lead / DPIA | Ivy | Referenced — confirm role and surname |
 | Legal counsel | TBC | Kenyan labour firm — Sprint 1 P0 engagement |
@@ -605,37 +632,32 @@ At 40 shifts/month × KES 1,800 gross per shift:
 
 ## 18. Next Session Starting Point
 
-Current status as of Pack v1.0 (March 2026):
+Current status as of Pack v1.1 (08 Oct 2026):
 
-**Completed this session:**
-- Architecture advisory (three-layer model) — decisions locked
-- MVP specification — all 23 sprints, all 387 story points, all acceptance criteria
-- Definition of Done (Story / Sprint / Phase / MVP levels)
-- Compliance critical path
-- Sprint Backlog — interactive HTML artifact
-- MVP Spec — .md and .pdf deliverables
-- Reboot Pack v1.0 — this document
+**Completed this session (08 Oct 2026):**
+- klokd.co.ke live on Railway (web service, Caddy, custom domain, SSL); the unpushed 7 Oct work deployed
+- Early-access mode + waitlist API; public sign-in gated (D-37)
+- Landing rebuilt: honest content, shift-clock hero, wordmark logo, refined glassmorphism (D-35, D-38–D-40)
+- Legal pages name the company "Klokd" (D-44)
+- Partner audit: Hakken was silently publishing nothing — registration wiring fixed, sweep catch-up, admin backlog counts (D-42); rail health probes corrected; Identiti probe now database-backed
+- Worker app: payout step confirms the verified number, no M-Pesa collection (D-41) — OTA published
+- Identiti outage diagnosed (Supabase pause) and confirmed resolved with a live create-customer check
 
 **Next actions (in priority order):**
-1. Engage Kenyan labour law firm — SoW and briefing (Sprint 1 P0)
-2. Submit ODPC registration applications — Data Controller + Processor (Sprint 1 P0)
-3. Submit KRA PIN application (Sprint 1 P0)
-4. Submit BRS company registration (Sprint 1 P0)
-5. Submit Safaricom Daraja production access application (Sprint 1)
-6. Run employer interview script (20 interviews, Sprint 2)
-7. Run worker interview script (30 interviews, Sprint 2)
-8. Design Klokd investor pitch deck (8–10 slides, parallel to Phase 0)
-9. Build Worker Consent screen (Screen 2 of onboarding — open in next design session)
-10. Build Employer WIBA screen (Screen 3 of onboarding — open in next design session)
+1. Get Todoku SMS working (OQ-13), then turn off `OTP_SANDBOX_ECHO` (OQ-12) and re-open web sign-in
+2. Move Identiti's Supabase to a paid plan (OQ-15); rotate exposed secrets (OQ-14)
+3. Confirm Hakken registrations / broadcasts are flowing (admin `GET /api/v1/admin/rails-health` → `hakkenBacklog`)
+4. Web — employer: business verification (KRA + WIBA), Post a Shift, Select Worker
+5. Web — worker: ID verification, Shift Detail + contract acceptance; clock-in/out stays mobile-first
+6. Replace the web "coming soon" tabs (Shifts, Team, Me; Pay waits on Kipkiren Pay)
+7. Mobile: finish the EAS `kmv209 → mumbus` transfer; Play Store submission
+8. SEO foundation: pre-rendered public pages at real URLs + sitemap; area pages; Google for Jobs once shifts are real
+9. Housekeeping: fix stale tests (`payment.test.ts` Daraja import, e2e payment release); set up SQLite backups
 
-**Next build sessions suggested:**
-- Worker App — remaining screens (Clock-In with GPS ring, Active Shift, Payment Confirmed)
-- Employer App — remaining screens (Active monitoring, Clock-Out Confirm)
-- Pitch deck — investor narrative, financial projections
-- Database schema — ERD design for Sprint 2 review
+**Blocked on business / legal (not code):** Kipkiren Pay production + M-Pesa B2C, ODPC registration, WIBA cover, counsel review of Terms / Privacy, escrow licensing position (OQ-04/05).
 
 ---
 
-*Klokd · Reboot Pack v1.0 · March 2026*
+*Klokd · Reboot Pack v1.1 · 08 October 2026 (v1.0 · March 2026)*
 *A Kirimon Market Ventures Company · klokd.co.ke · @klokdKE*
 *Update this document at the end of every session. Version control in filename.*
