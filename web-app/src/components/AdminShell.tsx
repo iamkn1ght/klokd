@@ -19,9 +19,10 @@ import Svg, { Path, Circle } from 'react-native-svg';
 import { AmbientOrbs } from './KlokdLayout';
 import { Logo, Avatar, PulseDot } from './Primitives';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../services/api';
 import { colors, spacing, radius } from '../theme';
 
-export type AdminRoute = 'overview' | 'verification' | 'attendance' | 'disputes' | 'payments' | 'audit' | 'users';
+export type AdminRoute = 'overview' | 'verification' | 'attendance' | 'disputes' | 'payments' | 'privacy' | 'audit' | 'users';
 
 interface NavItem {
   key: AdminRoute;
@@ -32,10 +33,11 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { key: 'overview', label: 'Overview', icon: 'home' },
-  { key: 'verification', label: 'Verification', icon: 'shield', badge: 12 },
+  { key: 'verification', label: 'Verification', icon: 'shield' },
   { key: 'attendance', label: 'Attendance', icon: 'clock' },
-  { key: 'disputes', label: 'Disputes', icon: 'flag', badge: 3 },
+  { key: 'disputes', label: 'Disputes', icon: 'flag' },
   { key: 'payments', label: 'Payments', icon: 'cash' },
+  { key: 'privacy', label: 'Data requests', icon: 'shield' },
   { key: 'audit', label: 'Audit log', icon: 'doc' },
   { key: 'users', label: 'Users', icon: 'users' },
 ];
@@ -101,7 +103,7 @@ export function AdminShell({
   pageTitle,
   pageSubtitle,
   pageAction,
-  onSwitchWorkspace,
+  onSignOut,
   children,
 }: {
   route: AdminRoute;
@@ -109,11 +111,36 @@ export function AdminShell({
   pageTitle: string;
   pageSubtitle?: string;
   pageAction?: React.ReactNode;
-  onSwitchWorkspace?: () => void;
+  onSignOut?: () => void;
   children: React.ReactNode;
 }) {
   const { width } = useWindowDimensions();
-  const { account } = useAuth();
+  const { account, accessToken } = useAuth();
+  // Live queue sizes on the rail (no hard-coded counts).
+  const [badges, setBadges] = React.useState<Partial<Record<AdminRoute, number>>>({});
+  React.useEffect(() => {
+    if (!accessToken) return;
+    let cancelled = false;
+    const load = () =>
+      api<{ openDisputes: number; flaggedAttendance: number; openDataRequests: number; workers: number; verifiedWorkers: number }>('/admin/stats', { token: accessToken })
+        .then(s => {
+          if (cancelled) return;
+          setBadges({
+            disputes: s.openDisputes,
+            attendance: s.flaggedAttendance,
+            privacy: s.openDataRequests,
+            verification: s.workers - s.verifiedWorkers,
+          });
+        })
+        .catch(() => undefined);
+    load();
+    const t = setInterval(load, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, [accessToken]);
+  const badgeFor = (k: AdminRoute) => badges[k] || 0;
   const [menuOpen, setMenuOpen] = React.useState(false);
   // <900px: phone — side rail becomes a slide-over drawer behind a hamburger.
   const mobile = width < 900;
@@ -154,9 +181,9 @@ export function AdminShell({
                       <NavIcon name={item.icon} color={active ? colors.electric : colors.white60} />
                     </View>
                     <Text style={[styles.railItemText, active && styles.railItemTextActive]}>{item.label}</Text>
-                    {item.badge ? (
+                    {badgeFor(item.key) ? (
                       <View style={styles.railBadge}>
-                        <Text style={styles.railBadgeText}>{item.badge}</Text>
+                        <Text style={styles.railBadgeText}>{badgeFor(item.key)}</Text>
                       </View>
                     ) : null}
                   </Pressable>
@@ -173,15 +200,15 @@ export function AdminShell({
                 </View>
               </View>
             ) : null}
-            {onSwitchWorkspace ? (
+            {onSignOut ? (
               <Pressable
                 onPress={() => {
                   setMenuOpen(false);
-                  onSwitchWorkspace();
+                  onSignOut();
                 }}
                 style={styles.switchBtn}
               >
-                <Text style={styles.switchBtnText}>↔  Switch workspace</Text>
+                <Text style={styles.switchBtnText}>Sign out</Text>
               </Pressable>
             ) : null}
           </Pressable>
@@ -224,12 +251,12 @@ export function AdminShell({
                     {item.label}
                   </Text>
                 )}
-                {!compact && item.badge ? (
+                {!compact && badgeFor(item.key) ? (
                   <View style={styles.railBadge}>
-                    <Text style={styles.railBadgeText}>{item.badge}</Text>
+                    <Text style={styles.railBadgeText}>{badgeFor(item.key)}</Text>
                   </View>
                 ) : null}
-                {compact && item.badge ? <View style={styles.railBadgeDot} /> : null}
+                {compact && badgeFor(item.key) ? <View style={styles.railBadgeDot} /> : null}
               </Pressable>
             );
           })}
@@ -254,12 +281,12 @@ export function AdminShell({
               </View>
             )
           ) : null}
-          {!compact && onSwitchWorkspace ? (
+          {!compact && onSignOut ? (
             <Pressable
-              onPress={onSwitchWorkspace}
+              onPress={onSignOut}
               style={({ hovered }: any) => [styles.switchBtn, hovered && { backgroundColor: colors.white08 }]}
             >
-              <Text style={styles.switchBtnText}>↔  Switch workspace</Text>
+              <Text style={styles.switchBtnText}>Sign out</Text>
             </Pressable>
           ) : null}
         </View>
@@ -284,17 +311,11 @@ export function AdminShell({
           <View style={{ flex: 1, minWidth: 0 }}>
             <View style={styles.topbarTitleRow}>
               <Text style={[styles.topbarTitle, mobile && styles.topbarTitleMobile]} numberOfLines={1}>{pageTitle}</Text>
-              <View style={styles.envChip}>
-                <PulseDot size={6} color={colors.warning} />
-                <Text style={styles.envChipText}>SANDBOX</Text>
-              </View>
             </View>
             {pageSubtitle && !mobile && <Text style={styles.topbarSubtitle}>{pageSubtitle}</Text>}
           </View>
           {!mobile && (
             <View style={styles.topbarRight}>
-              {/* Global search (⌘K) ships with the admin API session — a fake
-                  search box that can't search is worse than none. */}
               {pageAction}
             </View>
           )}

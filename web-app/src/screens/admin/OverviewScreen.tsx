@@ -1,274 +1,168 @@
 /**
- * Overview — live ops dashboard: real rail health, honest labels elsewhere.
- *
- * RAIL HEALTH IS REAL: GET /api/v1/rails/status probes Klokd's DB plus each
- * KMV rail with per-rail timeouts and renders up / down / unconfigured. When
- * the API itself can't be reached (Railway unpaid → app not found), the panel
- * degrades to an explicit "unreachable" state instead of pretending green.
- *
- * The KPI, activity and fill-rate panels remain SAMPLE — inventing ops
- * numbers would be the exact credibility problem this screen exists to avoid.
+ * Operations overview (admin) — all live:
+ *   GET /admin/stats          people, shifts, queues, money by stage
+ *   GET /admin/rails-health   partner services with latency + detail
  */
-import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { GlassCard, FadeUp } from '../../components/KlokdLayout';
-import { Eyebrow, StatusPill, Tone } from '../../components/Primitives';
+import React from 'react';
+import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { GlassCard, FadeUp, LiveDot } from '../../components/KlokdLayout';
+import { Eyebrow, StatusPill } from '../../components/Primitives';
 import { ErrorState } from '../../components/States';
-import { colors, spacing } from '../../theme';
-import { api, API_ORIGIN_EXPORT } from '../../services/api';
+import { Notice } from '../../components/Form';
+import { useApiData } from '../../hooks/useApiData';
+import { navigate } from '../../navigation/router';
+import { colors, spacing, radius } from '../../theme';
+import { kes, ago } from '../../lib/format';
 
-type RailState = 'up' | 'down' | 'unconfigured' | 'unreachable';
-
-const RAIL_DESC: Record<string, string> = {
-  self: 'Core API + database',
-  identiti: 'KYC + customers',
-  todoku: 'SMS / OTP delivery',
-  kppay: 'M-Pesa escrow + payouts',
-  hakken: 'Shift discovery broadcast',
-  helpan: 'Match + scoring',
-};
-
-const TONE: Record<RailState, Tone> = {
-  up: 'mint',
-  down: 'err',
-  unconfigured: 'warn',
-  unreachable: 'err',
-};
-
-const LABEL: Record<RailState, string> = {
-  up: 'live',
-  down: 'down',
-  unconfigured: 'not provisioned',
-  unreachable: 'API unreachable',
-};
-
-interface RailRow {
-  key: string;
-  name: string;
-  desc: string;
-  status: RailState;
+interface Stats {
+  workers: number;
+  verifiedWorkers: number;
+  employers: number;
+  verifiedEmployers: number;
+  totalShifts: number;
+  openShifts: number;
+  liveShifts: number;
+  shiftsToday: number;
+  awaitingApproval: { count: number; totalKes: number };
+  approvedUnpaid: { count: number; netKes: number; feesKes: number };
+  paid: { count: number; netKes: number; feesKes: number };
+  openDisputes: number;
+  flaggedAttendance: number;
+  waitlist: number;
+  openDataRequests: number;
+  paymentsLive: boolean;
 }
 
-// Sample panels — kept but honestly labelled; they preview the real thing.
-const KPIS_SAMPLE = [
-  { k: '—', l: 'Today’s shifts', delta: 'opens with live traffic' },
-  { k: '—', l: 'Escrow held', delta: 'payment rail pending' },
-  { k: '—', l: 'Verifications', delta: 'Identiti KYC flow pending' },
-  { k: '—', l: 'Open disputes', delta: 'none recorded' },
-];
-
-const SAMPLE_ACTIVITY = [
-  { t: 'Rail deployment', sub: 'All rails currently offline — unpaid Railway balance', when: 'now', tone: 'err' as const },
-];
+interface Rails {
+  checkedAt: string;
+  summary: string;
+  rails: { key: string; name: string; desc: string; status: 'up' | 'down' | 'unconfigured'; ms?: number; detail?: string | null }[];
+  hakkenBacklog?: { workersUnregistered: number; employersUnregistered: number; openShiftsNotBroadcast: number } | null;
+}
 
 export function OverviewScreen() {
-  const [rails, setRails] = useState<RailRow[] | null>(null);
-  const [state, setState] = useState<'loading' | 'live' | 'error'>('loading');
-  const [attempt, setAttempt] = useState(0);
+  const stats = useApiData<Stats>('/admin/stats', { pollMs: 60_000 });
+  const rails = useApiData<Rails>('/admin/rails-health', { pollMs: 60_000 });
 
-  const retry = useCallback(() => {
-    setState('loading');
-    setAttempt(n => n + 1);
-  }, []);
+  if (stats.status === 'loading') return <View style={styles.loading}><ActivityIndicator color={colors.electric} /></View>;
+  if (stats.status === 'error') return <ErrorState title="Couldn’t load the overview." detail={stats.error ?? undefined} onRetry={stats.reload} />;
+  const s = stats.data!;
 
-  useEffect(() => {
-    let cancelled = false;
-    setState('loading');
-    api<{ rails: RailRow[] }>('/rails/status', { token: undefined })
-      .then(d => {
-        if (cancelled) return;
-        setRails(d.rails ?? []);
-        setState('live');
-      })
-      .catch(() => {
-        if (cancelled) return;
-        // The API didn't answer at all (unpaid hosting, offline demo) — show
-        // every rail as unreachable instead of a fake green board.
-        setRails(
-          (['self', 'identiti', 'todoku', 'kppay', 'hakken', 'helpan'] as const).map(k => ({
-            key: k,
-            name: k === 'self' ? 'Klokd API' : k.charAt(0).toUpperCase() + k.slice(1),
-            desc: RAIL_DESC[k] ?? '',
-            status: 'unreachable' as RailState,
-          }))
-        );
-        setState('error');
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [attempt]);
-
-  const anyDown = rails?.some(r => r.status !== 'up') ?? false;
-  const upCount = rails?.filter(r => r.status === 'up').length ?? 0;
+  const queues = [
+    { k: s.openDisputes, l: 'Open disputes', to: '/admin/disputes' },
+    { k: s.flaggedAttendance, l: 'Check-ins to review', to: '/admin/attendance' },
+    { k: s.workers - s.verifiedWorkers, l: 'Workers not verified', to: '/admin/verification' },
+    { k: s.openDataRequests, l: 'Data requests open', to: '/admin/privacy' },
+  ];
 
   return (
-    <View>
-      {/* ─── Deployment banner (honest, always visible when degraded) ─── */}
-      {anyDown && (
-        <FadeUp delay={0} style={{ marginBottom: spacing.lg }}>
-          <GlassCard variant="raised" padding={spacing.lg}>
-            <View style={styles.bannerRow}>
-              <View style={styles.bannerDot} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.bannerTitle}>Rails degraded — deployments offline</Text>
-                <Text style={styles.bannerSub}>
-                  {state === 'error'
-                    ? `Klokd API unreachable at ${API_ORIGIN_EXPORT}. Hosting (Railway) is likely unpaid — settle the balance and the API, OTP and shift feeds come back.`
-                    : 'One or more rails are down or not provisioned. This panel probes the real rails on every load — no fake green.'}
-                </Text>
-              </View>
-            </View>
-          </GlassCard>
-          {state === 'error' && (
-            <View style={{ marginTop: spacing.sm }}>
-              <ErrorState
-                title="Couldn’t reach the Klokd API."
-                detail="Rail probes and ops data need the API. Retry once hosting is restored."
-                onRetry={retry}
-              />
-            </View>
-          )}
-        </FadeUp>
+    <View style={{ gap: spacing.xxl }}>
+      {!s.paymentsLive && (
+        <Notice>
+          Kipkiren Pay isn’t connected yet, so no money moves through Klokd. Shift pay is calculated, approved and queued; payouts start automatically once the rail is configured.
+        </Notice>
       )}
 
-      {/* ─── Rail health (REAL) ─── */}
-      <FadeUp delay={80}>
-        <View style={styles.sectionHead}>
-          <View>
-            <Eyebrow>RAIL HEALTH · LIVE PROBE</Eyebrow>
-            <Text style={styles.sectionTitle}>
-              {state === 'live' && `${upCount}/${rails!.length} rails up`}
-              {state === 'loading' && 'Probing rails…'}
-              {state === 'error' && 'API unreachable'}
-            </Text>
-          </View>
-          <View style={styles.sectionHeadRight}>
-            <StatusPill tone={state === 'live' ? (anyDown ? 'warn' : 'mint') : 'err'}>
-              {state === 'live' ? (anyDown ? 'degraded' : 'healthy') : 'offline'}
-            </StatusPill>
-          </View>
+      <View style={styles.grid}>
+        {queues.map((q, i) => (
+          <FadeUp key={q.l} delay={i * 50} style={styles.cell}>
+            <Pressable onPress={() => navigate(q.to)} accessibilityRole="link">
+              <GlassCard interactive padding={spacing.lg}>
+                <Text style={[styles.big, { color: q.k > 0 ? colors.warning : colors.white }]}>{q.k}</Text>
+                <Text style={styles.label}>{q.l}</Text>
+              </GlassCard>
+            </Pressable>
+          </FadeUp>
+        ))}
+      </View>
+
+      <View style={styles.cols}>
+        <View style={styles.col}>
+          <Eyebrow>PEOPLE & SHIFTS</Eyebrow>
+          <GlassCard padding={spacing.lg} style={{ marginTop: spacing.sm }}>
+            <Line k="Workers" v={`${s.workers} · ${s.verifiedWorkers} ID-verified`} />
+            <Line k="Businesses" v={`${s.employers} · ${s.verifiedEmployers} with KRA PIN + WIBA`} />
+            <Line k="Shifts, all time" v={String(s.totalShifts)} />
+            <Line k="Open for applicants" v={String(s.openShifts)} />
+            <Line k="On shift right now" v={String(s.liveShifts)} />
+            <Line k="Starting today" v={String(s.shiftsToday)} />
+            <Line k="Early-access waitlist" v={String(s.waitlist)} />
+          </GlassCard>
         </View>
+        <View style={styles.col}>
+          <Eyebrow>MONEY BY STAGE</Eyebrow>
+          <GlassCard padding={spacing.lg} style={{ marginTop: spacing.sm }}>
+            <Line k="Waiting for employer check" v={`${s.awaitingApproval.count} · ${kes(s.awaitingApproval.totalKes)}`} />
+            <Line k="Approved, to pay out" v={`${s.approvedUnpaid.count} · ${kes(s.approvedUnpaid.netKes)} to workers`} />
+            <Line k="Paid to workers" v={`${s.paid.count} · ${kes(s.paid.netKes)}`} />
+            <Line k="Klokd fees earned" v={kes(s.paid.feesKes)} />
+            <Line k="Klokd fees pending" v={kes(s.approvedUnpaid.feesKes)} />
+          </GlassCard>
+        </View>
+      </View>
 
-        <View style={styles.railsGrid}>
-          {state === 'loading' &&
-            [0, 1, 2, 3].map(i => (
-              <View key={i} style={styles.railWrap}>
-                <GlassCard padding={spacing.lg}>
-                  <View style={styles.skeletonBar} />
-                  <View style={[styles.skeletonBar, { width: '60%' }]} />
-                </GlassCard>
-              </View>
-            ))}
-
-          {rails?.map((r, i) => (
-            <FadeUp key={r.key} delay={120 + i * 50} style={styles.railWrap}>
+      <View>
+        <View style={styles.railHead}>
+          <Eyebrow>PARTNER SERVICES</Eyebrow>
+          {rails.data && (
+            <View style={styles.liveRow}>
+              <LiveDot />
+              <Text style={styles.small}>{rails.data.summary} · checked {ago(rails.data.checkedAt)}</Text>
+            </View>
+          )}
+        </View>
+        {rails.status === 'error' && <Notice tone="err">{rails.error}</Notice>}
+        <View style={styles.grid}>
+          {(rails.data?.rails ?? []).map(r => (
+            <View key={r.key} style={styles.cell}>
               <GlassCard padding={spacing.lg}>
                 <View style={styles.railTop}>
-                  <View
-                    style={[
-                      styles.railDot,
-                      r.status === 'up' && { backgroundColor: colors.electric },
-                      r.status === 'down' && { backgroundColor: colors.error },
-                      r.status === 'unconfigured' && { backgroundColor: colors.warning },
-                      r.status === 'unreachable' && { backgroundColor: colors.error },
-                    ]}
-                  />
-                  <Text style={styles.railName}>{RAIL_NAMES[r.key] ?? r.name}</Text>
-                  <StatusPill tone={TONE[r.status]}>{LABEL[r.status]}</StatusPill>
+                  <Text style={styles.railName}>{r.name}</Text>
+                  <StatusPill tone={r.status === 'up' ? 'mint' : r.status === 'down' ? 'err' : 'neutral'}>
+                    {r.status === 'unconfigured' ? 'not connected' : r.status}
+                  </StatusPill>
                 </View>
-                <Text style={styles.railDesc}>{RAIL_DESC[r.key] ?? r.desc}</Text>
+                <Text style={styles.small}>{r.desc}</Text>
+                {r.ms != null && r.status !== 'unconfigured' ? <Text style={styles.small}>{r.ms} ms</Text> : null}
+                {r.detail ? <Text style={styles.detail}>{r.detail}</Text> : null}
               </GlassCard>
-            </FadeUp>
+            </View>
           ))}
         </View>
-      </FadeUp>
-
-      {/* ─── Ops panels (SAMPLE) ─── */}
-      <View style={styles.splitRow}>
-        <FadeUp delay={300} style={{ flex: 1.4, minWidth: 360 }}>
-          <View style={styles.sectionHead}>
-            <View>
-              <Eyebrow>PLATFORM KPIs</Eyebrow>
-              <Text style={styles.sectionTitle}>Preview · opens with live traffic</Text>
-            </View>
-          </View>
-          <View style={styles.kpiRow}>
-            {KPIS_SAMPLE.map((k, i) => (
-              <FadeUp key={k.l} delay={340 + i * 60} style={styles.kpiWrap}>
-                <GlassCard padding={spacing.lg}>
-                  <Text style={styles.kpiLabel}>{k.l}</Text>
-                  <Text style={styles.kpiValue}>{k.k}</Text>
-                  <Text style={styles.kpiDelta}>{k.delta}</Text>
-                </GlassCard>
-              </FadeUp>
-            ))}
-          </View>
-        </FadeUp>
-
-        <FadeUp delay={380} style={{ flex: 1, minWidth: 320 }}>
-          <View style={styles.sectionHead}>
-            <View>
-              <Eyebrow>LIVE ACTIVITY</Eyebrow>
-              <Text style={styles.sectionTitle}>Waits on rails</Text>
-            </View>
-          </View>
-          <GlassCard>
-            {SAMPLE_ACTIVITY.map((a, i) => (
-              <View key={i} style={[styles.activityRow, i < SAMPLE_ACTIVITY.length - 1 && styles.activityRowBorder]}>
-                <View style={[styles.activityDot, a.tone === 'err' && { backgroundColor: colors.error }]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.activityT}>{a.t}</Text>
-                  <Text style={styles.activitySub}>{a.sub}</Text>
-                </View>
-                <Text style={styles.activityWhen}>{a.when}</Text>
-              </View>
-            ))}
-          </GlassCard>
-        </FadeUp>
+        {rails.data?.hakkenBacklog && (
+          <Text style={[styles.small, { marginTop: spacing.sm }]}>
+            Waiting to publish to Hakken: {rails.data.hakkenBacklog.workersUnregistered} workers · {rails.data.hakkenBacklog.employersUnregistered} businesses · {rails.data.hakkenBacklog.openShiftsNotBroadcast} open shifts
+          </Text>
+        )}
       </View>
     </View>
   );
 }
 
-const RAIL_NAMES: Record<string, string> = {
-  self: 'Klokd API',
-  identiti: 'Identiti',
-  todoku: 'Todoku',
-  kppay: 'Kipkiren Pay',
-  hakken: 'Hakken',
-  helpan: 'Helpan AI',
-};
+function Line({ k, v }: { k: string; v: string }) {
+  return (
+    <View style={styles.line}>
+      <Text style={styles.lineK}>{k}</Text>
+      <Text style={styles.lineV}>{v}</Text>
+    </View>
+  );
+}
 
 const styles = StyleSheet.create({
-  bannerRow: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },
-  bannerDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.error, marginTop: 6 },
-  bannerTitle: { color: colors.white, fontSize: 14.5, fontWeight: '900', letterSpacing: -0.3 },
-  bannerSub: { color: colors.white60, fontSize: 12.5, lineHeight: 18, marginTop: 3 },
-
-  sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: spacing.lg, flexWrap: 'wrap', gap: spacing.sm },
-  sectionTitle: { color: colors.white, fontSize: 20, fontWeight: '900', letterSpacing: -0.7, marginTop: 6 },
-  sectionHeadRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-
-  railsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
-  railWrap: { flex: 1, minWidth: 260 },
-  railTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: 6 },
-  railDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.white25 },
-  railName: { color: colors.white, fontSize: 14.5, fontWeight: '800', letterSpacing: -0.3, flex: 1 },
-  railDesc: { color: colors.white50, fontSize: 11.5, fontWeight: '500' },
-
-  splitRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg, marginTop: spacing.xxxl },
-  kpiRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
-  kpiWrap: { flex: 1, minWidth: 200 },
-  kpiLabel: { color: colors.white55, fontSize: 11.5, fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase' },
-  kpiValue: { color: colors.white, fontSize: 30, fontWeight: '900', letterSpacing: -1.2, marginTop: spacing.sm },
-  kpiDelta: { color: colors.electric, fontSize: 11.5, fontWeight: '700', marginTop: spacing.sm },
-  skeletonBar: { height: 12, borderRadius: 6, backgroundColor: colors.white08, marginBottom: spacing.sm },
-
-  activityRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, paddingVertical: 10 },
-  activityRowBorder: { borderBottomWidth: 1, borderBottomColor: colors.white06 },
-  activityDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.white25, marginTop: 8 },
-  activityT: { color: colors.white, fontSize: 12.5, fontWeight: '700', letterSpacing: -0.15 },
-  activitySub: { color: colors.white55, fontSize: 11.5, marginTop: 2 },
-  activityWhen: { color: colors.white40, fontSize: 11, fontWeight: '600' },
+  loading: { paddingVertical: 80, alignItems: 'center' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+  cell: { flex: 1, minWidth: 200 },
+  big: { fontSize: 30, fontWeight: '900', letterSpacing: -1 },
+  label: { color: colors.white60, fontSize: 12, fontWeight: '700', marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.3 },
+  cols: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xl },
+  col: { flex: 1, minWidth: 300 },
+  line: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.white06 },
+  lineK: { color: colors.white65, fontSize: 13 },
+  lineV: { color: colors.white, fontSize: 13, fontWeight: '800', textAlign: 'right', flexShrink: 1 },
+  railHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm, flexWrap: 'wrap', gap: spacing.sm },
+  liveRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  railTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm },
+  railName: { color: colors.white, fontSize: 15, fontWeight: '900' },
+  small: { color: colors.white55, fontSize: 12, marginTop: 4 },
+  detail: { color: colors.warning, fontSize: 11.5, marginTop: 4, padding: 6, borderRadius: radius.sm, backgroundColor: colors.warnAlpha['12'] },
 });

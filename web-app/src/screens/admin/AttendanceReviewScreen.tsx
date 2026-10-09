@@ -67,8 +67,7 @@ const when = (iso: string) =>
   new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
 
 export function AttendanceReviewScreen() {
-  const { accessToken, account } = useAuth();
-  const demo = !accessToken || !!account?.demo;
+  const { accessToken } = useAuth();
   const [flags, setFlags] = useState<FlaggedEvent[] | null>(null);
   const [overrides, setOverrides] = useState<OverrideRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +76,7 @@ export function AttendanceReviewScreen() {
   const reload = useCallback(() => setAttempt(n => n + 1), []);
 
   useEffect(() => {
-    if (demo) return;
+    if (!accessToken) return;
     let cancelled = false;
     Promise.all([
       api<FlaggedEvent[]>(`/attendance/admin/flags${showReviewed ? '?all=1' : ''}`, { token: accessToken! }),
@@ -93,16 +92,8 @@ export function AttendanceReviewScreen() {
     return () => {
       cancelled = true;
     };
-  }, [accessToken, demo, showReviewed, attempt]);
+  }, [accessToken, showReviewed, attempt]);
 
-  if (demo) {
-    return (
-      <EmptyState
-        title="Sign in with a staff account to review attendance."
-        detail="This page reads live check-in data, so demo sessions can’t open it."
-      />
-    );
-  }
   if (error && !flags) return <ErrorState title="Couldn’t load attendance." detail={error} onRetry={reload} />;
   if (!flags || !overrides) {
     return (

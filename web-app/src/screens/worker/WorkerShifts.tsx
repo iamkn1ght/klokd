@@ -1,214 +1,206 @@
 /**
- * Worker Shifts (web) — the worker's real applications list.
- *
- * Live from GET /shifts/my/applications for signed-in accounts: every shift
- * this worker has applied to, with the application's current state. Skeleton
- * while loading, retry on failure, and the labelled demo feed for demo
- * sessions (payments rails aren't live, so demo rows are honest samples).
+ * Worker shifts (web) — GET /me/shifts, grouped the way a worker thinks:
+ *   Waiting for your answer · Coming up · Applied · Done · Not picked
+ * Every row opens the shift page (#/worker/shifts/:id).
  */
-import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React from 'react';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { GlassCard, FadeUp } from '../../components/KlokdLayout';
 import { Eyebrow, StatusPill, Tone } from '../../components/Primitives';
 import { ShiftCardSkeleton, ErrorState, EmptyState } from '../../components/States';
 import { colors, spacing, radius } from '../../theme';
-import { api } from '../../services/api';
-import { useAuth } from '../../context/AuthContext';
-import { DEMO_SHIFTS } from '../../hooks/demoShifts';
+import { useApiData } from '../../hooks/useApiData';
+import { navigate } from '../../navigation/router';
+import { kes, when, day } from '../../lib/format';
+import { WorkerShiftDetail } from './WorkerShiftDetail';
 
-type AppStatus = 'PENDING' | 'SELECTED' | 'REJECTED' | 'WITHDRAWN';
-
-const STATUS_TONE: Record<AppStatus, Tone> = {
-  PENDING: 'warn',
-  SELECTED: 'mint',
-  REJECTED: 'err',
-  WITHDRAWN: 'neutral',
-};
-
-const STATUS_LABEL: Record<AppStatus, string> = {
-  PENDING: 'Applied · waiting',
-  SELECTED: 'Selected ✓',
-  REJECTED: 'Not selected',
-  WITHDRAWN: 'Withdrawn',
-};
-
-interface MyApplication {
+export interface MyShift {
   id: string;
-  status: AppStatus;
-  appliedAt: string;
-  shift: {
-    id: string;
-    role: string;
-    venue: string;
-    area: string | null;
-    date: string;
-    startTime: string;
-    endTime: string;
-    rateKes: number;
-    shiftStatus: string;
-  };
+  role: string;
+  venue: string;
+  area: string | null;
+  startTime: string;
+  endTime: string;
+  rateKes: number;
+  status: string;
+  directOffer: boolean;
+  arrivedAt: string | null;
+  clockInAt: string | null;
+  clockOutAt: string | null;
+  settlement: { status: string; netKes: number; grossKes: number } | null;
+  rated: boolean;
+  disputeStatus: string | null;
 }
 
-function demoRows(): MyApplication[] {
-  // Honest labelled demo rows — same shape the API returns.
-  return DEMO_SHIFTS.slice(0, 3).map((s, i) => ({
-    id: `demo-${s.id}`,
-    status: (['PENDING', 'SELECTED', 'PENDING'] as AppStatus[])[i],
-    appliedAt: new Date(Date.now() - (i + 1) * 3600_000).toISOString(),
-    shift: {
-      id: s.id,
-      role: s.role,
-      venue: s.venue,
-      area: s.area,
-      date: s.date,
-      startTime: s.time.split('–')[0]?.trim() ?? '09:00',
-      endTime: s.time.split('–')[1]?.trim() ?? '17:00',
-      rateKes: s.pay,
-      shiftStatus: 'POSTED',
-    },
-  }));
+interface MyShifts {
+  offers: MyShift[];
+  upcoming: MyShift[];
+  applied: { applicationId: string; appliedAt: string; shift: { id: string; role: string; venue: string; area: string | null; startTime: string; endTime: string; rateKes: number } }[];
+  history: MyShift[];
+  notPicked: { applicationId: string; role: string; venue: string; startTime: string; outcome: string }[];
 }
 
-function whenLabel(iso: string): string {
-  const d = new Date(iso);
-  const diff = Date.now() - d.getTime();
-  const mins = Math.round(diff / 60_000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return d.toLocaleDateString('en-KE', { day: 'numeric', month: 'short' });
+const STATUS: Record<string, { label: string; tone: Tone }> = {
+  CONFIRMED: { label: 'needs your answer', tone: 'warn' },
+  ACCEPTED: { label: 'confirmed', tone: 'mint' },
+  ACTIVE: { label: 'on shift', tone: 'mint' },
+  COMPLETED: { label: 'done', tone: 'mint' },
+  PAID: { label: 'paid', tone: 'mint' },
+  DISPUTED: { label: 'under review', tone: 'err' },
+  CANCELLED: { label: 'cancelled', tone: 'neutral' },
+};
+
+export function WorkerShifts({ sub }: { sub?: string }) {
+  if (sub) return <WorkerShiftDetail id={sub} />;
+  return <ShiftList />;
 }
 
-export function WorkerShifts() {
-  const { accessToken, account } = useAuth();
-  const demoSession = !accessToken || !!account?.demo;
+function ShiftList() {
+  const q = useApiData<MyShifts>('/me/shifts', { pollMs: 30_000 });
 
-  const [rows, setRows] = useState<MyApplication[] | null>(null);
-  const [status, setStatus] = useState<'loading' | 'live' | 'empty' | 'demo' | 'error'>(
-    demoSession ? 'demo' : 'loading'
-  );
-  const [error, setError] = useState<string | null>(null);
-  const [attempt, setAttempt] = useState(0);
-
-  const retry = useCallback(() => {
-    setStatus('loading');
-    setAttempt(n => n + 1);
-  }, []);
-
-  useEffect(() => {
-    if (demoSession) {
-      setRows(demoRows());
-      setStatus('demo');
-      return;
-    }
-    let cancelled = false;
-    setStatus('loading');
-    setError(null);
-    api<MyApplication[]>('/shifts/my/applications', { token: accessToken! })
-      .then(apps => {
-        if (cancelled) return;
-        setRows(apps ?? []);
-        setStatus((apps ?? []).length === 0 ? 'empty' : 'live');
-      })
-      .catch((e: Error) => {
-        if (cancelled) return;
-        setError(e.message || 'The Klokd API didn’t answer.');
-        setStatus('error');
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessToken, account?.demo, attempt]);
+  if (q.status === 'loading') {
+    return (
+      <View style={styles.list}>
+        {[0, 1, 2].map(i => (
+          <GlassCard key={i} padding={spacing.lg}>
+            <ShiftCardSkeleton />
+          </GlassCard>
+        ))}
+      </View>
+    );
+  }
+  if (q.status === 'error') return <ErrorState title="Couldn’t load your shifts." detail={q.error ?? undefined} onRetry={q.reload} />;
+  const d = q.data!;
+  const nothing = !d.offers.length && !d.upcoming.length && !d.applied.length && !d.history.length;
 
   return (
-    <View>
-      <View style={styles.head}>
-        <View>
-          <Eyebrow>MY SHIFTS</Eyebrow>
-          <Text style={styles.h2}>
-            {status === 'live' && `${rows!.length} application${rows!.length === 1 ? '' : 's'} in flight.`}
-            {status === 'loading' && 'Loading your applications…'}
-            {status === 'empty' && 'You haven’t applied to anything yet.'}
-            {status === 'demo' && 'Sample applications.'}
-            {status === 'error' && 'Couldn’t load your applications.'}
-          </Text>
-        </View>
+    <View style={{ gap: spacing.xxl }}>
+      <View>
+        <Eyebrow>MY SHIFTS</Eyebrow>
+        <Text style={styles.h1}>Your shifts, start to payslip.</Text>
       </View>
-
-      {status === 'loading' && (
-        <View style={styles.stack}>
-          <ShiftCardSkeleton />
-          <ShiftCardSkeleton />
+      {nothing && (
+        <EmptyState title="No shifts yet." detail="Apply to shifts on the Home tab. When a business picks you, it shows up here for you to confirm." />
+      )}
+      <Group title="Waiting for your answer" rows={d.offers} highlight />
+      <Group title="Coming up" rows={d.upcoming} />
+      {d.applied.length > 0 && (
+        <View>
+          <Text style={styles.groupH}>Applied · waiting to be picked</Text>
+          <View style={styles.list}>
+            {d.applied.map(a => (
+              <Row
+                key={a.applicationId}
+                onPress={() => navigate(`/worker/shifts/${a.shift.id}`)}
+                title={a.shift.role}
+                sub={`${a.shift.venue} · ${a.shift.area ?? 'Nairobi'}`}
+                when={when(a.shift.startTime, a.shift.endTime)}
+                right={kes(a.shift.rateKes)}
+                pill={{ label: 'applied', tone: 'neutral' }}
+              />
+            ))}
+          </View>
         </View>
       )}
-
-      {status === 'error' && (
-        <ErrorState
-          title="Couldn’t load your applications."
-          detail={error ?? 'The Klokd API didn’t answer.'}
-          onRetry={retry}
-        />
-      )}
-
-      {status === 'empty' && (
-        <EmptyState
-          title="No applications yet."
-          detail="Open the Home tab and hit “Apply now” on any shift — it lands here instantly so you can track it."
-        />
-      )}
-
-      {(status === 'live' || status === 'demo') && (
-        <View style={styles.stack}>
-          {rows!.map((a, i) => (
-            <FadeUp key={a.id} delay={100 + i * 60}>
-              <GlassCard padding={spacing.lg} style={styles.row}>
-                <View style={styles.rowLeft}>
-                  <Text style={styles.role}>{a.shift.role}</Text>
-                  <Text style={styles.venue}>{a.shift.venue}</Text>
-                  <Text style={styles.meta}>
-                    {a.shift.area ?? 'Nairobi'} · applied {whenLabel(a.appliedAt)}
-                  </Text>
-                </View>
-                <View style={styles.rowRight}>
-                  <Text style={styles.pay}>KES {a.shift.rateKes.toLocaleString()}</Text>
-                  <StatusPill tone={STATUS_TONE[a.status]}>{STATUS_LABEL[a.status]}</StatusPill>
-                </View>
-              </GlassCard>
-            </FadeUp>
+      <Group title="Done" rows={d.history} />
+      {d.notPicked.length > 0 && (
+        <View>
+          <Text style={styles.groupH}>Not picked</Text>
+          {d.notPicked.map(n => (
+            <Text key={n.applicationId} style={styles.notPicked}>
+              {n.role} at {n.venue} · {day(n.startTime)} · {n.outcome}
+            </Text>
           ))}
-          {status === 'demo' && (
-            <Text style={styles.demoNote}>Demo session — sample rows only. Sign in with your phone to see your real applications.</Text>
-          )}
         </View>
       )}
     </View>
   );
 }
 
+function Group({ title, rows, highlight }: { title: string; rows: MyShift[]; highlight?: boolean }) {
+  if (!rows.length) return null;
+  return (
+    <View>
+      <Text style={[styles.groupH, highlight && { color: colors.warning }]}>{title}</Text>
+      <View style={styles.list}>
+        {rows.map((s, i) => {
+          const st = STATUS[s.status] ?? { label: s.status.toLowerCase(), tone: 'neutral' as Tone };
+          const extra =
+            s.status === 'COMPLETED' && !s.rated ? 'rate this shift' : s.settlement ? `you get ${kes(s.settlement.netKes)}` : null;
+          return (
+            <FadeUp key={s.id} delay={Math.min(i, 6) * 40}>
+              <Row
+                onPress={() => navigate(`/worker/shifts/${s.id}`)}
+                title={`${s.role}${s.directOffer && s.status === 'CONFIRMED' ? ' · offered to you' : ''}`}
+                sub={`${s.venue} · ${s.area ?? 'Nairobi'}`}
+                when={when(s.startTime, s.endTime)}
+                right={kes(s.rateKes)}
+                pill={st}
+                extra={extra}
+              />
+            </FadeUp>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+function Row({
+  onPress,
+  title,
+  sub,
+  when: w,
+  right,
+  pill,
+  extra,
+}: {
+  onPress: () => void;
+  title: string;
+  sub: string;
+  when: string;
+  right: string;
+  pill: { label: string; tone: Tone };
+  extra?: string | null;
+}) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="link" style={({ hovered }: any) => [styles.row, hovered && styles.rowHover]}>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <View style={styles.rowTop}>
+          <Text style={styles.title} numberOfLines={1}>{title}</Text>
+          <StatusPill tone={pill.tone}>{pill.label}</StatusPill>
+        </View>
+        <Text style={styles.sub} numberOfLines={1}>{sub}</Text>
+        <Text style={styles.when}>{w}</Text>
+      </View>
+      <View style={{ alignItems: 'flex-end' }}>
+        <Text style={styles.right}>{right}</Text>
+        {extra ? <Text style={styles.extra}>{extra}</Text> : null}
+      </View>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  head: { marginBottom: spacing.lg },
-  h2: { color: colors.white, fontSize: 24, fontWeight: '900', letterSpacing: -1, marginTop: 6 },
-  stack: { gap: spacing.sm },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  rowLeft: { flex: 1, minWidth: 180 },
-  role: { color: colors.white, fontSize: 15, fontWeight: '900', letterSpacing: -0.3 },
-  venue: { color: colors.white75, fontSize: 13, marginTop: 2, fontWeight: '700' },
-  meta: { color: colors.white55, fontSize: 11.5, marginTop: 4, fontWeight: '600' },
-  rowRight: { alignItems: 'flex-end', gap: 6 },
-  pay: { color: colors.white, fontSize: 16, fontWeight: '900', letterSpacing: -0.4 },
-  demoNote: {
-    color: colors.white45,
-    fontSize: 11.5,
-    fontWeight: '600',
-    textAlign: 'center',
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radius.md,
-    backgroundColor: colors.white03,
+  h1: { color: colors.white, fontSize: 26, fontWeight: '900', letterSpacing: -1, marginTop: 8 },
+  groupH: { color: colors.white60, fontSize: 11, fontWeight: '900', letterSpacing: 0.9, textTransform: 'uppercase', marginBottom: spacing.sm },
+  list: { gap: spacing.sm },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.lg,
+    padding: spacing.lg,
+    borderRadius: radius.xxl,
     borderWidth: 1,
-    borderColor: colors.white06,
-    overflow: 'hidden',
+    borderColor: colors.white10,
+    backgroundColor: 'rgba(255,255,255,0.045)',
   },
+  rowHover: { borderColor: 'rgba(0,229,160,0.45)', backgroundColor: 'rgba(255,255,255,0.07)' },
+  rowTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  title: { color: colors.white, fontSize: 15.5, fontWeight: '900', letterSpacing: -0.3, flexShrink: 1 },
+  sub: { color: colors.white70, fontSize: 12.5, fontWeight: '700', marginTop: 3 },
+  when: { color: colors.white50, fontSize: 12, fontWeight: '600', marginTop: 2 },
+  right: { color: colors.electric, fontSize: 15, fontWeight: '900' },
+  extra: { color: colors.white60, fontSize: 11.5, fontWeight: '700', marginTop: 3 },
+  notPicked: { color: colors.white55, fontSize: 12.5, paddingVertical: 4 },
 });

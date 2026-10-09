@@ -23,6 +23,8 @@ import { useEmployerProfile } from '../../hooks/useEmployerProfile';
 import { api } from '../../services/api';
 import { navigate, Link } from '../../navigation/router';
 import { AttendancePanel } from './AttendancePanel';
+import { RateShift, ContractText } from '../../components/ShiftParts';
+import { useApiData, useApiAction } from '../../hooks/useApiData';
 import { colors, spacing, radius } from '../../theme';
 
 export const SHIFT_STATE_TONE: Record<string, 'mint' | 'warn' | 'err' | 'neutral'> = {
@@ -55,8 +57,8 @@ export function shiftWhen(startIso: string, endIso: string): string {
   return `${day} · ${t(s)}–${t(e)}`;
 }
 
-export function EmployerShifts({ sub }: { sub?: string }) {
-  if (sub === 'new') return <PostShift />;
+export function EmployerShifts({ sub, invite }: { sub?: string; invite?: string | null }) {
+  if (sub === 'new') return <PostShift invite={invite ?? null} />;
   if (sub) return <ShiftDetail id={sub} />;
   return <ShiftList />;
 }
@@ -66,7 +68,7 @@ export function EmployerShifts({ sub }: { sub?: string }) {
 function ShiftList() {
   const { shifts, status, error, retry } = useEmployerShifts();
   const { profile } = useEmployerProfile();
-  const live = status === 'live' || status === 'demo';
+  const live = status === 'live';
 
   return (
     <View>
@@ -75,7 +77,7 @@ function ShiftList() {
           <Eyebrow color={colors.volt}>SHIFTS</Eyebrow>
           <Text style={styles.h1}>Post, fill, manage.</Text>
         </View>
-        {status !== 'demo' && <GradientBtn onPress={() => navigate('/employer/shifts/new')}>Post a shift</GradientBtn>}
+        <GradientBtn onPress={() => navigate('/employer/shifts/new')}>Post a shift</GradientBtn>
       </View>
 
       {profile && !profile.canPostShifts && <VerifyBanner />}
@@ -100,19 +102,16 @@ function ShiftList() {
         <View style={styles.list}>
           {shifts!.map((s, i) => (
             <FadeUp key={s.id} delay={i * 40}>
-              <ShiftRow s={s} demo={status === 'demo'} />
+              <ShiftRow s={s} />
             </FadeUp>
           ))}
         </View>
-      )}
-      {status === 'demo' && (
-        <Text style={styles.demoNote}>Demo session · sample rows. Sign in with your business number to post real shifts.</Text>
       )}
     </View>
   );
 }
 
-function ShiftRow({ s, demo }: { s: EmployerShift; demo: boolean }) {
+function ShiftRow({ s }: { s: EmployerShift }) {
   const body = (
     <View style={styles.row}>
       <View style={{ flex: 1, minWidth: 0 }}>
@@ -121,7 +120,7 @@ function ShiftRow({ s, demo }: { s: EmployerShift; demo: boolean }) {
           <StatusPill tone={SHIFT_STATE_TONE[s.status] ?? 'neutral'}>{SHIFT_STATE_LABEL[s.status] ?? s.status.toLowerCase()}</StatusPill>
         </View>
         <Text style={styles.rowMeta} numberOfLines={1}>
-          {demo ? s.startTime : shiftWhen(s.startTime, s.endTime)} · {s.locationName ?? 'Nairobi'}
+          {shiftWhen(s.startTime, s.endTime)} · {s.locationName ?? 'Nairobi'}
         </Text>
       </View>
       <View style={styles.rowRight}>
@@ -132,7 +131,6 @@ function ShiftRow({ s, demo }: { s: EmployerShift; demo: boolean }) {
       </View>
     </View>
   );
-  if (demo) return <GlassCard padding={spacing.lg}>{body}</GlassCard>;
   return (
     <Link to={`/employer/shifts/${s.id}`} style={styles.rowLink} hoverStyle={styles.rowLinkHover}>
       {body}
@@ -190,10 +188,12 @@ function atTime(day: Date, hhmm: string): Date {
   return d;
 }
 
-function PostShift() {
-  const { accessToken, account } = useAuth();
+function PostShift({ invite }: { invite: string | null }) {
+  const { accessToken } = useAuth();
   const { profile, status: profileStatus } = useEmployerProfile();
-  const demo = !accessToken || !!account?.demo;
+  // Re-hire: the shift goes straight to this worker from the Team tab.
+  const team = useApiData<{ workerId: string; name: string; roles: string[] }[]>(invite ? '/employer/team' : null);
+  const invitee = invite ? team.data?.find(t => t.workerId === invite) ?? null : null;
   const days = useMemo(() => nextDays(7), []);
 
   const [role, setRole] = useState('Waiter');
@@ -245,6 +245,7 @@ function PostShift() {
           locationLat: a.lat,
           locationLng: a.lng,
           locationName: a.name,
+          inviteWorkerId: invite ?? undefined,
         },
       });
       navigate(`/employer/shifts/${shift.id}`, { replace: true });
@@ -254,7 +255,7 @@ function PostShift() {
     }
   };
 
-  const gated = !demo && profileStatus === 'live' && profile && !profile.canPostShifts;
+  const gated = profileStatus === 'live' && profile && !profile.canPostShifts;
 
   return (
     <View style={styles.formWrap}>
@@ -263,7 +264,15 @@ function PostShift() {
       <Text style={styles.h1}>Post a shift.</Text>
       <Text style={styles.p}>Verified workers near the venue see it as soon as you post. You pick who works it.</Text>
 
-      {demo && <Notice>Demo session · you can explore the form, but posting needs a signed-in business account.</Notice>}
+      {invite && (
+        <Notice tone="ok">
+          {invitee
+            ? `This shift goes straight to ${invitee.name}. They accept or decline in the app; it isn’t shown to anyone else.`
+            : team.status === 'loading'
+              ? 'Loading your team…'
+              : 'That worker isn’t in your team, so the shift will be offered to them only if they have worked for you before.'}
+        </Notice>
+      )}
       {gated && <VerifyBanner />}
 
       <GlassCard padding={spacing.xl} style={{ marginTop: spacing.lg }}>
@@ -329,8 +338,8 @@ function PostShift() {
           <Text style={styles.sumPay}>KES {payNum ? payNum.toLocaleString() : '—'} · 1 worker</Text>
           {!valid && <Text style={styles.problem}>{problems[0]}</Text>}
         </View>
-        <GradientBtn onPress={submit} disabled={!valid || posting || demo || !!gated}>
-          {posting ? 'Posting…' : 'Post shift'}
+        <GradientBtn onPress={submit} disabled={!valid || posting || !!gated}>
+          {posting ? 'Posting…' : invitee ? `Offer to ${invitee.name}` : 'Post shift'}
         </GradientBtn>
       </View>
       {err ? <Notice tone="err">{err}</Notice> : null}
@@ -370,8 +379,11 @@ interface Applicant {
 }
 
 function ShiftDetail({ id }: { id: string }) {
-  const { accessToken, account } = useAuth();
-  const demo = !accessToken || !!account?.demo;
+  const { accessToken } = useAuth();
+  const act = useApiAction();
+  const pending = useApiData<{ shiftId: string }[]>('/me/ratings/pending');
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [cancelErr, setCancelErr] = useState<string | null>(null);
   const [shift, setShift] = useState<ShiftDetailData | null>(null);
   const [applicants, setApplicants] = useState<Applicant[] | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -380,7 +392,7 @@ function ShiftDetail({ id }: { id: string }) {
   const reload = useCallback(() => setAttempt(n => n + 1), []);
 
   useEffect(() => {
-    if (demo) return;
+    if (!accessToken) return;
     let cancelled = false;
     (async () => {
       try {
@@ -399,16 +411,8 @@ function ShiftDetail({ id }: { id: string }) {
     return () => {
       cancelled = true;
     };
-  }, [id, accessToken, demo, attempt]);
+  }, [id, accessToken, attempt]);
 
-  if (demo) {
-    return (
-      <View style={styles.formWrap}>
-        <BackLink />
-        <EmptyState title="Sign in to see applicants." detail="Demo sessions only show sample shifts." />
-      </View>
-    );
-  }
   if (status === 'loading') {
     return (
       <View style={styles.loading}>
@@ -463,8 +467,44 @@ function ShiftDetail({ id }: { id: string }) {
         {shift.status !== 'CANCELLED' && (
           <AttendancePanel shiftId={shift.id} workerFirstName={shift.worker.firstName} onChanged={reload} />
         )}
+        {(pending.data ?? []).some(p => p.shiftId === shift.id) && (
+          <RateShift shiftId={shift.id} who={`${shift.worker.firstName} ${shift.worker.lastName.charAt(0)}.`} onDone={pending.reload} />
+        )}
+        <View style={{ marginTop: spacing.md }}>
+          <ContractText shiftId={shift.id} />
+        </View>
         </>
       ) : null}
+
+      {['POSTED', 'CONFIRMED', 'ACCEPTED'].includes(shift.status) && (
+        <View style={styles.cancelBox}>
+          {cancelErr ? <Notice tone="err">{cancelErr}</Notice> : null}
+          {!confirmCancel ? (
+            <GhostBtn size="sm" tone="danger" onPress={() => setConfirmCancel(true)}>Cancel this shift</GhostBtn>
+          ) : (
+            <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap', alignItems: 'center' }}>
+              <Text style={styles.hint}>{shift.worker ? `${shift.worker.firstName} will be told straight away.` : 'Applicants will be told it’s closed.'}</Text>
+              <GhostBtn
+                size="sm"
+                tone="danger"
+                onPress={async () => {
+                  setCancelErr(null);
+                  try {
+                    await act(`/shifts/${shift.id}/cancel`);
+                    setConfirmCancel(false);
+                    reload();
+                  } catch (e: any) {
+                    setCancelErr(e.message);
+                  }
+                }}
+              >
+                Yes, cancel it
+              </GhostBtn>
+              <GhostBtn size="sm" onPress={() => setConfirmCancel(false)}>Keep it</GhostBtn>
+            </View>
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -652,5 +692,5 @@ const styles = StyleSheet.create({
   backHover: { opacity: 0.8 },
   backText: { color: colors.white60, fontSize: 13, fontWeight: '700' },
 
-  demoNote: { color: colors.white55, fontSize: 11.5, fontWeight: '600', textAlign: 'center', marginTop: spacing.md },
+  cancelBox: { marginTop: spacing.xl, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.white06 },
 });

@@ -153,6 +153,10 @@ export const config = {
 
   defaultTenantId: 'klokd-ke-default',
 
+  // Shared staff access key for sign-in while SMS codes are unavailable
+  // (min 24 chars; generate with `openssl rand -base64 32`).
+  adminAccessKey: process.env.ADMIN_ACCESS_KEY || '',
+
   // Staff who may sign in to the admin console (E.164, comma-separated),
   // e.g. ADMIN_PHONES=+254712345678,+254798765432
   adminPhones: (process.env.ADMIN_PHONES || '')

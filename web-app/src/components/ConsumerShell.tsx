@@ -15,6 +15,7 @@ import { View, Text, Pressable, ScrollView, StyleSheet, Platform, useWindowDimen
 import { AmbientOrbs } from './KlokdLayout';
 import { Logo, Avatar } from './Primitives';
 import { useAuth } from '../context/AuthContext';
+import { NotificationBell } from './NotificationBell';
 import { colors, spacing, radius } from '../theme';
 
 export interface ShellNavItem<K extends string = string> {
@@ -29,7 +30,7 @@ export function ConsumerShell<K extends string>({
   nav,
   active,
   onChange,
-  onSwitchWorkspace,
+  onSignOut,
   children,
 }: {
   persona: 'Worker' | 'Employer';
@@ -37,7 +38,7 @@ export function ConsumerShell<K extends string>({
   nav: ShellNavItem<K>[];
   active: K;
   onChange: (k: K) => void;
-  onSwitchWorkspace?: () => void;
+  onSignOut?: () => void;
   children: React.ReactNode;
 }) {
   const { account } = useAuth();
@@ -97,38 +98,25 @@ export function ConsumerShell<K extends string>({
           </View>
 
           <View style={[styles.topbarRight, mobile && styles.topbarRightMobile]}>
-            {onSwitchWorkspace && !mobile && (
-              <Pressable
-                onPress={onSwitchWorkspace}
-                style={({ hovered }: any) => [styles.switch, hovered && { backgroundColor: colors.white08, borderColor: colors.white25 }]}
-              >
-                <Text style={styles.switchText}>↔ Switch workspace</Text>
-              </Pressable>
-            )}
-            {/* Notification bell returns with the comms rails — a dead icon
-                with a fake unread dot is worse than no icon. */}
+            <NotificationBell />
             {account ? (
               <View style={[styles.accountChip, mobile && styles.accountChipMobile]}>
                 <Avatar initials={account.initials} size={32} tone={persona === 'Worker' ? 'electric' : 'volt'} />
                 {!mobile && (
                   <View>
                     <Text style={styles.accountName}>{account.name}</Text>
-                    <Text style={styles.accountEmail}>
-                      {account.email ?? account.phone ?? ''}
-                      {account.demo ? ' · demo' : ''}
-                    </Text>
+                    <Text style={styles.accountEmail}>{account.phone ?? ''}</Text>
                   </View>
                 )}
               </View>
             ) : null}
-            {mobile && onSwitchWorkspace && (
+            {onSignOut && (
               <Pressable
-                onPress={onSwitchWorkspace}
+                onPress={onSignOut}
                 accessibilityRole="button"
-                accessibilityLabel="Switch workspace"
-                style={({ hovered }: any) => [styles.switchIcon, hovered && { backgroundColor: colors.white10 }]}
+                style={({ hovered }: any) => [styles.switch, hovered && { backgroundColor: colors.white08, borderColor: colors.white25 }]}
               >
-                <Text style={styles.switchIconText}>↔</Text>
+                <Text style={styles.switchText}>Sign out</Text>
               </Pressable>
             )}
           </View>

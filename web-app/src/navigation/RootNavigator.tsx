@@ -1,17 +1,16 @@
 /**
  * RootNavigator — hash-router driven. Every surface is a URL:
  *
- *   #/                    landing (signed-in users are redirected to their
- *                          workspace default)
- *   #/signin?persona=x    sign-in flow (deep-linkable persona preselect)
- *   #/worker/:tab         worker workspace
- *   #/employer/:tab       employer workspace
- *   #/admin/:route        admin console (staff)
+ *   #/                    landing (signed-in users go to their workspace)
+ *   #/signin?persona=x    sign-in (early-access builds show the waitlist,
+ *                          except staff sign-in for the operations console)
+ *   #/worker/:tab[/:id]   worker workspace
+ *   #/employer/:tab[/:id] employer workspace
+ *   #/admin/:route        operations console (staff)
  *
- * Guards (in one effect): signed-out users hitting a protected route are
- * redirected to sign-in (the intended destination is remembered and restored
- * after login); signed-in users on #/ are sent to their workspace; the admin
- * console rejects non-staff sessions. Browser back/forward works everywhere.
+ * Guards (one effect): signed-out users hitting a protected route go to
+ * sign-in (the destination is restored after login); signed-in users on #/
+ * go to their workspace; a workspace only opens for the matching role.
  */
 import React, { useEffect } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
@@ -26,19 +25,23 @@ import { AdminShell, AdminRoute } from '../components/AdminShell';
 import { TabErrorBoundary } from '../components/ErrorBoundary';
 import { WorkerHome } from '../screens/worker/WorkerHome';
 import { WorkerShifts } from '../screens/worker/WorkerShifts';
+import { WorkerPay } from '../screens/worker/WorkerPay';
+import { WorkerMe } from '../screens/worker/WorkerMe';
 import { EmployerDashboard } from '../screens/employer/EmployerDashboard';
 import { EmployerShifts } from '../screens/employer/EmployerShifts';
 import { EmployerVerify } from '../screens/employer/EmployerVerify';
-import { PlaceholderTab } from '../screens/PlaceholderTab';
+import { EmployerPay } from '../screens/employer/EmployerPay';
+import { EmployerTeam } from '../screens/employer/EmployerTeam';
 import { OverviewScreen } from '../screens/admin/OverviewScreen';
 import { VerificationScreen } from '../screens/admin/VerificationScreen';
 import { AttendanceReviewScreen } from '../screens/admin/AttendanceReviewScreen';
 import { DisputesScreen } from '../screens/admin/DisputesScreen';
 import { PaymentsScreen } from '../screens/admin/PaymentsScreen';
+import { PrivacyScreen } from '../screens/admin/PrivacyScreen';
 import { AuditScreen } from '../screens/admin/AuditScreen';
 import { UsersScreen } from '../screens/admin/UsersScreen';
 import { colors, spacing } from '../theme';
-import { useRoute, navigate, defaultRouteFor, Route } from './router';
+import { useRoute, navigate, defaultRouteFor } from './router';
 
 type WorkerTab = 'home' | 'shifts' | 'pay' | 'profile';
 type EmployerTab = 'dashboard' | 'shifts' | 'pay' | 'team' | 'verify';
@@ -53,26 +56,26 @@ const WORKER_NAV: ShellNavItem<WorkerTab>[] = [
 const EMPLOYER_NAV: ShellNavItem<EmployerTab>[] = [
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'shifts', label: 'Shifts' },
-  { key: 'pay', label: 'Pay & escrow' },
+  { key: 'pay', label: 'Pay & billing' },
   { key: 'team', label: 'Team' },
 ];
 
 const ADMIN_TITLES: Record<AdminRoute, { title: string; subtitle: string }> = {
-  overview: { title: 'Operations overview', subtitle: 'Live rail health, queue depth, escrow & today’s movement.' },
-  verification: { title: 'Verification queue', subtitle: 'KYC escalations awaiting manual review.' },
+  overview: { title: 'Operations overview', subtitle: 'Live partner health, queues and money moving through Klokd.' },
+  verification: { title: 'Verification', subtitle: 'Workers who haven’t passed ID checks and businesses missing KRA PIN or WIBA.' },
   attendance: { title: 'Attendance', subtitle: 'Flagged check-ins and employers who start shifts without the PIN.' },
-  disputes: { title: 'Disputes', subtitle: 'Worker / employer claims that need an admin call.' },
-  payments: { title: 'Payments & escrow', subtitle: 'Live escrow positions, failed payouts, reconciliation.' },
-  audit: { title: 'Audit log', subtitle: 'Hakken-signed append-only audit trail.' },
-  users: { title: 'Users', subtitle: 'Workers, employers, operators.' },
+  disputes: { title: 'Disputes', subtitle: 'Problems reported by workers and businesses that need a decision.' },
+  payments: { title: 'Pay & payouts', subtitle: 'Every shift’s pay, from approval to M-Pesa.' },
+  privacy: { title: 'Data requests', subtitle: 'Correction and deletion requests under the Data Protection Act (30-day deadline).' },
+  audit: { title: 'Audit log', subtitle: 'Append-only record of sensitive actions.' },
+  users: { title: 'Users', subtitle: 'Workers and businesses on Klokd.' },
 };
 
 export function RootNavigator() {
-  const { account, persona, isLoading } = useAuth();
+  const { account, persona, isLoading, signOut } = useAuth();
   const route = useRoute();
 
   // ─── Guards ───
-  // One effect owns all redirects; render just follows the URL.
   useEffect(() => {
     if (isLoading) return;
     const authed = !!account && !!persona;
@@ -83,20 +86,16 @@ export function RootNavigator() {
     }
     if (route.name === 'worker' || route.name === 'employer' || route.name === 'admin') {
       if (!authed) {
-        // Remember the destination so sign-in can restore it.
         try {
           sessionStorage.setItem('klokd_return_to', window.location.hash);
         } catch {
           /* private mode — skip restore */
         }
-        navigate('/signin', { replace: true });
+        navigate(route.name === 'admin' ? '/signin?persona=admin' : '/signin', { replace: true });
         return;
       }
       const surface: Persona = route.name;
-      // The workspace surface must match the active persona — deep links into
-      // someone else's surface fall back to the user's own workspace. (Admin
-      // console additionally requires the staff role.)
-      if (persona !== surface || (surface === 'admin' && !account?.roles.includes('admin'))) {
+      if (persona !== surface) {
         navigate(defaultRouteFor(persona!), { replace: true });
       }
     }
@@ -105,23 +104,19 @@ export function RootNavigator() {
     }
   }, [route, account, persona, isLoading]);
 
-  // Boot: branded splash while the stored session is restored (avoids the
-  // landing flash for returning visitors).
   if (isLoading) return <BootSplash />;
 
-  // ─── Landing ───
-  if (route.name === 'landing') {
-    return <LandingScreen onSignIn={() => navigate('/signin')} />;
-  }
+  const handleSignOut = () => {
+    signOut();
+    navigate('/', { replace: true });
+  };
 
-  // ─── Legal (public, sign-out safe) ───
-  if (route.name === 'legal') {
-    return <LegalScreen doc={route.doc} />;
-  }
+  if (route.name === 'landing') return <LandingScreen onSignIn={() => navigate('/signin')} />;
+  if (route.name === 'legal') return <LegalScreen doc={route.doc} />;
 
-  // ─── Sign-in ───
-  // Early-access builds route every sign-in entry point to the waitlist.
-  if (route.name === 'signin' && EARLY_ACCESS) {
+  // Early-access builds route public sign-in to the waitlist; staff sign-in
+  // for the operations console always stays available.
+  if (route.name === 'signin' && EARLY_ACCESS && route.persona !== 'admin') {
     return <EarlyAccessScreen onBackToLanding={() => navigate('/')} initialPersona={route.persona ?? null} />;
   }
   if (route.name === 'signin') {
@@ -143,7 +138,6 @@ export function RootNavigator() {
     );
   }
 
-  // ─── Workspaces (route guards guarantee persona matches surface) ───
   if (route.name === 'worker' && persona === 'worker') {
     return (
       <ConsumerShell
@@ -152,37 +146,13 @@ export function RootNavigator() {
         nav={WORKER_NAV}
         active={route.tab as WorkerTab}
         onChange={tab => navigate(`/worker/${tab}`)}
-        onSwitchWorkspace={() => navigate('/signin')}
+        onSignOut={handleSignOut}
       >
-        <TabErrorBoundary key={route.tab}>
+        <TabErrorBoundary key={`${route.tab}/${route.sub ?? ''}`}>
           {route.tab === 'home' && <WorkerHome />}
-          {route.tab === 'shifts' && <WorkerShifts />}
-          {route.tab === 'pay' && (
-            <PlaceholderTab
-              eyebrow="PAY"
-              title="Your statutory ledger."
-              summary="See gross earnings, PAYE/NSSF/SHIF breakdown, AHL toggle, and downloadable monthly payslip."
-              bullets={[
-                'Gross earnings auto-tracked per completed shift',
-                'PAYE · NSSF · SHIF auto-calculated and remitted',
-                'Recent payouts with M-Pesa receipt numbers',
-              ]}
-              nativeUrl="Open Klokd Worker on iOS / Android · or localhost:8091"
-            />
-          )}
-          {route.tab === 'profile' && (
-            <PlaceholderTab
-              eyebrow="ME"
-              title="Identity, reputation, and privacy."
-              summary="Verified once, your KYC works everywhere. Edit skills, certificates, M-Pesa number, and consent."
-              bullets={[
-                'Skills and certificates on file',
-                'Identiti KYC tier shared across every employer',
-                'Privacy · what employers can see vs cannot',
-              ]}
-              nativeUrl="Open Klokd Worker on iOS / Android · or localhost:8091"
-            />
-          )}
+          {route.tab === 'shifts' && <WorkerShifts sub={route.sub} />}
+          {route.tab === 'pay' && <WorkerPay />}
+          {route.tab === 'profile' && <WorkerMe />}
         </TabErrorBoundary>
       </ConsumerShell>
     );
@@ -196,38 +166,14 @@ export function RootNavigator() {
         nav={EMPLOYER_NAV}
         active={route.tab as EmployerTab}
         onChange={tab => navigate(`/employer/${tab}`)}
-        onSwitchWorkspace={() => navigate('/signin')}
+        onSignOut={handleSignOut}
       >
         <TabErrorBoundary key={`${route.tab}/${route.sub ?? ''}`}>
           {route.tab === 'dashboard' && <EmployerDashboard />}
-          {route.tab === 'shifts' && <EmployerShifts sub={route.sub} />}
+          {route.tab === 'shifts' && <EmployerShifts sub={route.sub} invite={route.invite ?? null} />}
           {route.tab === 'verify' && <EmployerVerify />}
-          {route.tab === 'pay' && (
-            <PlaceholderTab
-              eyebrow="PAY & ESCROW"
-              title="Fund · release · reconcile."
-              summary="Top up escrow via STK push, track releases per worker, export reconciled ledger to CSV."
-              bullets={[
-                'Escrow meter · top-up via M-Pesa STK',
-                'Per-shift release with M-Pesa receipt logged to audit',
-                'CSV export for accountant · KRA-ready',
-              ]}
-              nativeUrl="Open Klokd Employer on iOS / Android · or localhost:8092"
-            />
-          )}
-          {route.tab === 'team' && (
-            <PlaceholderTab
-              eyebrow="TEAM"
-              title="Your trusted pool."
-              summary="Workers who've worked your venue, sorted by trust score. Invite back with one tap."
-              bullets={[
-                'Trusted · workers who worked 3+ shifts here',
-                'Recent · workers from your last 30 days',
-                'Invited · pending direct invitations',
-              ]}
-              nativeUrl="Open Klokd Employer on iOS / Android · or localhost:8092"
-            />
-          )}
+          {route.tab === 'pay' && <EmployerPay />}
+          {route.tab === 'team' && <EmployerTeam />}
         </TabErrorBoundary>
       </ConsumerShell>
     );
@@ -237,19 +183,14 @@ export function RootNavigator() {
     const tab = route.tab as AdminRoute;
     const { title, subtitle } = ADMIN_TITLES[tab];
     return (
-      <AdminShell
-        route={tab}
-        onRouteChange={r => navigate(`/admin/${r}`)}
-        pageTitle={title}
-        pageSubtitle={subtitle}
-        onSwitchWorkspace={() => navigate('/signin')}
-      >
+      <AdminShell route={tab} onRouteChange={r => navigate(`/admin/${r}`)} pageTitle={title} pageSubtitle={subtitle} onSignOut={handleSignOut}>
         <TabErrorBoundary key={tab}>
           {tab === 'overview' && <OverviewScreen />}
           {tab === 'verification' && <VerificationScreen />}
           {tab === 'attendance' && <AttendanceReviewScreen />}
           {tab === 'disputes' && <DisputesScreen />}
           {tab === 'payments' && <PaymentsScreen />}
+          {tab === 'privacy' && <PrivacyScreen />}
           {tab === 'audit' && <AuditScreen />}
           {tab === 'users' && <UsersScreen />}
         </TabErrorBoundary>
@@ -257,7 +198,6 @@ export function RootNavigator() {
     );
   }
 
-  // Transient state while a guard redirect is in flight.
   return <BootSplash label="Redirecting…" />;
 }
 

@@ -119,7 +119,8 @@ export class ShiftService {
     role?: string,
     date?: Date
   ) {
-    const where: Record<string, unknown> = { status: 'POSTED' };
+    // Open shifts that haven't started yet.
+    const where: Record<string, unknown> = { status: 'POSTED', startTime: { gt: new Date() } };
     if (role) where.role = role;
     if (date) {
       where.date = {

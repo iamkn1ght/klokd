@@ -29,6 +29,11 @@ const verifyOtpSchema = z.object({
   role: z.enum(['WORKER', 'EMPLOYER', 'ADMIN']),
 });
 
+const staffLoginSchema = z.object({
+  phone: z.string().regex(/^(?:254|\+254|0)\d{9}$/, 'Invalid Kenyan phone number'),
+  accessKey: z.string().min(1).max(200),
+});
+
 const refreshSchema = z.object({
   refreshToken: z.string().uuid(),
 });
@@ -38,6 +43,13 @@ router.post('/otp/request', rateLimiter(3, 10), async (req: Request, res: Respon
   const { phone, profile } = requestOtpSchema.parse(req.body);
   const result = await authService.requestOtp(phone, profile);
   res.json({ success: true, ...result });
+});
+
+// Staff sign-in (no SMS): listed phone + access key. Tight rate limit.
+router.post('/staff/login', rateLimiter(5, 15), async (req: Request, res: Response) => {
+  const { phone, accessKey } = staffLoginSchema.parse(req.body);
+  const result = await authService.staffLogin(phone, accessKey);
+  res.json({ success: true, data: result });
 });
 
 router.post('/otp/verify', rateLimiter(3, 10), async (req: Request, res: Response) => {

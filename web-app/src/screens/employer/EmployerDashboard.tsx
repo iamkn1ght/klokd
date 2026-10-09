@@ -1,10 +1,9 @@
 /**
- * Employer Dashboard (web) — desktop-shape ops view.
- *
- * The "open positions" grid is REAL: GET /shifts/mine for signed-in
- * employers (skeletons → rows → empty → retry, demo-labelled samples for
- * demo sessions). The escrow meter stays SAMPLE — Kipkiren Pay isn't live,
- * so every money number on this page is explicitly labelled as such.
+ * Employer Dashboard (web). Everything on it is real:
+ *   GET /employer/overview          pay committed, spend, show-up, approvals
+ *   GET /shifts/mine                your shifts
+ *   GET /attendance/feed            live activity at your venues
+ *   GET /identity/employers/profile verification banner
  */
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
@@ -17,16 +16,19 @@ import { useEmployerProfile } from '../../hooks/useEmployerProfile';
 import { navigate } from '../../navigation/router';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
+import { useApiData } from '../../hooks/useApiData';
+import { kes } from '../../lib/format';
 
-// SAMPLE until the payment rail ships — honest labelling, no invented KPIs.
-const ESCROW_TOTAL = 200_000;
-const ESCROW_HELD = 142_400;
-
-const SAMPLE_KPIS = [
-  { k: '—', l: 'Shifts this week', delta: 'payments not live yet' },
-  { k: '—', l: 'Spent this week', delta: 'payments not live yet' },
-  { k: '—', l: 'Show-up rate', delta: 'available after first clock-in' },
-];
+interface Overview {
+  shiftsThisWeek: number;
+  openShifts: number;
+  committedKes: number;
+  committedShifts: number;
+  spentThisWeekKes: number;
+  awaitingApproval: number;
+  showUpRate: number | null;
+  paymentsLive: boolean;
+}
 
 const STATE_TONE: Record<string, 'mint' | 'warn' | 'err'> = {
   POSTED: 'warn',
@@ -59,19 +61,17 @@ function whenRange(s: EmployerShift): string {
 export function EmployerDashboard() {
   const { shifts, status, error, retry } = useEmployerShifts();
   const { profile } = useEmployerProfile();
+  const ov = useApiData<Overview>('/employer/overview', { pollMs: 60_000 });
+  const o = ov.data;
 
-  const live = status === 'live' || status === 'demo';
+  const live = status === 'live';
   const openCount = live ? shifts!.filter(s => s.status === 'POSTED').length : 0;
-  const totalApplications = live ? shifts!.reduce((n, s) => n + s.applications, 0) : 0;
 
-  // Real KPIs where the data exists; honest em-dashes where it can't yet.
-  const kpis = live
-    ? [
-        { k: String(shifts!.length), l: 'Shifts on Klokd', delta: openCount > 0 ? `${openCount} open right now` : 'none open right now' },
-        { k: String(totalApplications), l: 'Applications received', delta: 'across all shifts' },
-        { k: '—', l: 'Spent this week', delta: 'payments not live yet' },
-      ]
-    : SAMPLE_KPIS;
+  const kpis = [
+    { k: o ? String(o.shiftsThisWeek) : '—', l: 'Shifts this week', delta: o ? `${o.openShifts} open for applicants` : '' },
+    { k: o ? kes(o.spentThisWeekKes) : '—', l: 'Spent this week', delta: 'shift pay + Klokd fee, from clock-outs' },
+    { k: o?.showUpRate != null ? `${o.showUpRate}%` : '—', l: 'Show-up rate', delta: o?.showUpRate != null ? 'workers who started vs no-shows' : 'appears after your first shift starts' },
+  ];
 
   return (
     <View>
@@ -89,30 +89,30 @@ export function EmployerDashboard() {
         </FadeUp>
       )}
 
-      {/* Escrow (SAMPLE) + KPIs */}
+      {/* Pay committed + KPIs */}
       <View style={styles.topRow}>
         <FadeUp delay={0} style={styles.escrowWrap}>
           <GlassCard variant="electric" padding={spacing.xl}>
             <View style={styles.escrowHeadRow}>
-              <Eyebrow color={colors.electric}>ESCROW HEALTH</Eyebrow>
-              <View style={styles.demoChip}>
-                <Text style={styles.demoChipText}>SAMPLE</Text>
-              </View>
+              <Eyebrow color={colors.electric}>PAY COMMITTED</Eyebrow>
+              {o && o.awaitingApproval > 0 && (
+                <Pressable onPress={() => navigate('/employer/pay')}>
+                  <Text style={styles.approveLink}>{o.awaitingApproval} to approve →</Text>
+                </Pressable>
+              )}
             </View>
             <View style={styles.escrowBigRow}>
               <View>
-                <Text style={styles.escrowBig}>KES {ESCROW_HELD.toLocaleString()}</Text>
+                <Text style={styles.escrowBig}>{o ? kes(o.committedKes) : '—'}</Text>
                 <Text style={styles.escrowSub}>
-                  held · {Math.round((ESCROW_HELD / ESCROW_TOTAL) * 100)}% of KES {ESCROW_TOTAL.toLocaleString()} funded
+                  {o ? `across ${o.committedShifts} upcoming or open shift${o.committedShifts === 1 ? '' : 's'}, including the 4% Klokd fee` : 'Loading…'}
                 </Text>
               </View>
             </View>
-            <View style={styles.meter}>
-              <View style={[styles.meterFill, { width: `${Math.round((ESCROW_HELD / ESCROW_TOTAL) * 100)}%` }]} />
-            </View>
             <Text style={styles.escrowNote}>
-              M-Pesa escrow activates with the payment rail (Kipkiren Pay). This meter is a sample
-              of what it will look like.
+              {o?.paymentsLive
+                ? 'You fund each shift by M-Pesa when you pick a worker; it’s paid out after the shift.'
+                : 'M-Pesa funding switches on when Klokd payments (Kipkiren Pay) go live. Until then pay is tracked and approved here, and settled once payments are live.'}
             </Text>
           </GlassCard>
         </FadeUp>
@@ -141,10 +141,9 @@ export function EmployerDashboard() {
               {status === 'loading' && 'Loading your shifts…'}
               {status === 'empty' && 'You haven’t posted a shift yet.'}
               {status === 'error' && 'Couldn’t load your shifts.'}
-              {status === 'demo' && 'Sample shifts.'}
             </Text>
           </View>
-          {status !== 'demo' && (
+          {(
             <View style={styles.headActions}>
               <GhostBtn size="sm" onPress={() => navigate('/employer/shifts')}>All shifts</GhostBtn>
               <GradientBtn size="sm" onPress={() => navigate('/employer/shifts/new')}>Post a shift</GradientBtn>
@@ -219,11 +218,6 @@ export function EmployerDashboard() {
           </View>
         )}
 
-        {status === 'demo' && (
-          <Text style={styles.demoNote}>
-            Demo session — sample rows only. Sign in with the employer's phone number to see your real shifts.
-          </Text>
-        )}
       </FadeUp>
 
       {/* Live activity — real attendance events across this employer's shifts */}
@@ -234,11 +228,11 @@ export function EmployerDashboard() {
             <Text style={styles.h2}>What’s happening at your venues.</Text>
           </View>
           <View style={styles.liveRow}>
-            <LiveDot color={status === 'demo' ? colors.warning : colors.electric} />
-            <Text style={styles.liveText}>{status === 'demo' ? 'Sign in to see live activity' : 'Updates every 20 seconds'}</Text>
+            <LiveDot color={colors.electric} />
+            <Text style={styles.liveText}>Updates every 20 seconds</Text>
           </View>
         </View>
-        {status !== 'demo' && <ActivityFeed />}
+        <ActivityFeed />
       </FadeUp>
     </View>
   );
@@ -265,21 +259,10 @@ const styles = StyleSheet.create({
   kpiCol: { flex: 1, minWidth: 240, gap: spacing.md },
 
   escrowHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  demoChip: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(255,179,71,0.35)',
-    backgroundColor: 'rgba(255,179,71,0.10)',
-  },
-  demoChipText: { color: colors.warning, fontSize: 9.5, fontWeight: '900', letterSpacing: 0.8 },
-
+  approveLink: { color: colors.warning, fontSize: 12.5, fontWeight: '800' },
   escrowBigRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.sm, gap: spacing.md, flexWrap: 'wrap' },
   escrowBig: { color: colors.white, fontSize: 36, fontWeight: '900', letterSpacing: -1.6 },
   escrowSub: { color: colors.white60, fontSize: 12, marginTop: 4 },
-  meter: { height: 6, borderRadius: 3, backgroundColor: colors.white06, marginTop: spacing.lg, overflow: 'hidden' },
-  meterFill: { height: '100%', backgroundColor: colors.electric },
   escrowNote: { color: colors.white55, fontSize: 12, lineHeight: 17, marginTop: spacing.lg },
 
   kpiK: { color: colors.white, fontSize: 22, fontWeight: '900', letterSpacing: -0.9 },
@@ -303,20 +286,6 @@ const styles = StyleSheet.create({
   shiftStatL: { color: colors.white40, fontSize: 9.5, fontWeight: '900', letterSpacing: 0.7, marginTop: 3 },
   shiftPay: { color: colors.electric, fontSize: 16, fontWeight: '900', letterSpacing: -0.4 },
 
-  demoNote: {
-    color: colors.white55,
-    fontSize: 11.5,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginTop: spacing.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radius.md,
-    backgroundColor: colors.white03,
-    borderWidth: 1,
-    borderColor: colors.white06,
-    overflow: 'hidden',
-  },
 
   feedRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: 10, paddingHorizontal: spacing.md, borderRadius: radius.md },
   feedDot: { width: 8, height: 8, borderRadius: 4 },

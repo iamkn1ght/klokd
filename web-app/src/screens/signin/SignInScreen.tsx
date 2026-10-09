@@ -1,16 +1,16 @@
 /**
  * SignIn — persona-first, then identity, then verify:
  *
- *   1. Pick persona (Worker / Employer; Admin appears only for @klokd.co.ke)
- *   2a. Worker / Employer → REAL phone + OTP against the live rails
+ *   1. Pick persona (Worker / Employer; staff use the "Klokd staff?" link)
+ *   2a. Worker / Employer → phone + OTP against the live rails
  *       (Identiti customer-create → Klokd OTP via Todoku). New accounts are
  *       asked for a name + consent once, which Identiti requires at
  *       customer-create time.
- *   2b. Admin (@klokd.co.ke) → staff demo sign-in, no OTP (the API's OTP
- *       endpoint only mints WORKER/EMPLOYER roles).
+ *   2b. Staff → listed phone number + the Klokd staff access key
+ *       (POST /auth/staff/login).
  *
- * The API echoes `sandboxOtp` when any sandbox affordance is active; it is
- * shown inline and prefilled for convenience and stripped in production.
+ * While SMS delivery is off the API echoes `sandboxOtp`; it is shown inline
+ * and prefilled. Once Todoku SMS works the echo is switched off.
  */
 import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
@@ -93,14 +93,13 @@ export function SignInScreen({
   /** Called after ANY successful sign-in — the router owns navigation then. */
   onAuthenticated?: () => void;
 }) {
-  const { requestOtp, verifyOtp, signIn, canPickAdmin } = useAuth();
+  const { requestOtp, verifyOtp, staffSignIn: signInStaff } = useAuth();
   const [step, setStep] = useState<Step>('pick');
   const [picked, setPicked] = useState<Persona | null>(null);
 
   // identity fields
-  const [mode, setMode] = useState<'phone' | 'email'>('phone');
   const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
+  const [accessKey, setAccessKey] = useState('');
   const [first, setFirst] = useState('');
   const [last, setLast] = useState('');
   const [needsProfile, setNeedsProfile] = useState(false);
@@ -121,13 +120,11 @@ export function SignInScreen({
       setStep('identity');
     } else if (initialPersona === 'admin') {
       setPicked('admin');
-      setMode('email');
       setStep('identity');
     }
   }, [initialPersona]);
 
-  const adminVisible = mode === 'email' && canPickAdmin(email);
-  const visiblePersonas = PERSONAS.filter(p => (p.staff ? adminVisible : true));
+  const visiblePersonas = PERSONAS.filter(p => !p.staff);
   const staffSignIn = picked === 'admin';
 
   const validatePhone = (p: string): string | null => {
@@ -139,14 +136,19 @@ export function SignInScreen({
   const handleSendCode = async () => {
     setError(null);
     if (staffSignIn) {
-      // Staff demo sign-in — no OTP exists for ADMIN on the API.
-      if (!email.includes('@')) {
-        setError('Enter your @klokd.co.ke work email.');
+      // Staff: listed phone number + the Klokd staff access key.
+      const phoneErr = validatePhone(phone);
+      if (phoneErr) {
+        setError(phoneErr);
+        return;
+      }
+      if (!accessKey.trim()) {
+        setError('Enter the staff access key.');
         return;
       }
       setBusy(true);
       try {
-        await signIn(email, 'admin');
+        await signInStaff(phone, accessKey.trim());
         onAuthenticated?.();
       } catch (e: any) {
         setError(e.message ?? 'Sign-in failed.');
@@ -157,10 +159,6 @@ export function SignInScreen({
     }
 
     // Worker / employer — real rails.
-    if (mode === 'email') {
-      setError('Worker and employer sign-in is by phone number. Switch to phone, or use an @klokd.co.ke email for staff demo access.');
-      return;
-    }
     const phoneError = validatePhone(phone);
     if (phoneError) {
       setError(phoneError);
@@ -229,7 +227,7 @@ export function SignInScreen({
     step === 'pick'
       ? 'Returning accounts open in the workspace their number is registered as.'
       : staffSignIn
-        ? 'Staff access is by @klokd.co.ke email. No password needed.'
+        ? 'Use your registered staff phone number and the Klokd staff access key.'
         : needsProfile
           ? 'Identiti requires your name + consent once, when your account is created.'
           : 'We’ll send a one-time code by SMS. No password to remember.';
@@ -263,23 +261,20 @@ export function SignInScreen({
                   <PersonaCard p={p} active={picked === p.key} onPress={() => setPicked(p.key)} />
                 </FadeUp>
               ))}
-              {!adminVisible && (
-                <View style={styles.staffHint}>
-                  <Text style={styles.staffHintText}>
-                    Staff?{' '}
-                    <Text
-                      onPress={() => {
-                        setMode('email');
-                        setStep('identity');
-                        setPicked('admin');
-                      }}
-                      style={styles.staffHintLink}
-                    >
-                      Sign in with your @klokd.co.ke email →
-                    </Text>
+              <View style={styles.staffHint}>
+                <Text style={styles.staffHintText}>
+                  Klokd staff?{' '}
+                  <Text
+                    onPress={() => {
+                      setStep('identity');
+                      setPicked('admin');
+                    }}
+                    style={styles.staffHintLink}
+                  >
+                    Sign in to the operations console →
                   </Text>
-                </View>
-              )}
+                </Text>
+              </View>
               <View style={{ height: spacing.lg }} />
               <GradientBtn onPress={() => picked && setStep('identity')} disabled={!picked}>
                 Continue
@@ -290,49 +285,35 @@ export function SignInScreen({
           {/* STEP: identity */}
           {step === 'identity' && (
             <View style={styles.formBlock}>
-              {!staffSignIn && (
-                <View style={styles.modeRow}>
-                  <Pressable
-                    onPress={() => setMode('phone')}
-                    style={({ hovered }: any) => [styles.modeTab, mode === 'phone' && styles.modeTabActive, hovered && mode !== 'phone' && styles.modeTabHover]}
-                  >
-                    <Text style={[styles.modeTabText, mode === 'phone' && styles.modeTabTextActive]}>Phone</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => setMode('email')}
-                    style={({ hovered }: any) => [styles.modeTab, mode === 'email' && styles.modeTabActive, hovered && mode !== 'email' && styles.modeTabHover]}
-                  >
-                    <Text style={[styles.modeTabText, mode === 'email' && styles.modeTabTextActive]}>Staff email</Text>
-                  </Pressable>
-                </View>
-              )}
-
-              {staffSignIn || mode === 'email' ? (
+              {staffSignIn ? (
                 <>
-                  <Text style={styles.fieldLabel}>WORK EMAIL</Text>
+                  <Text style={styles.fieldLabel}>STAFF PHONE NUMBER</Text>
                   <TextInput
-                    value={email}
+                    value={phone}
                     onChangeText={t => {
-                      setEmail(t);
+                      setPhone(t);
                       setError(null);
                     }}
-                    placeholder="you@klokd.co.ke"
+                    placeholder="0722 400 500"
                     placeholderTextColor={colors.white35}
                     style={styles.input}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
+                    keyboardType="phone-pad"
                     autoFocus
                   />
-                  {!picked && adminVisible && (
-                    <View style={{ marginTop: spacing.md }}>
-                      <Text style={styles.fieldLabel}>WORKSPACE</Text>
-                      <View style={styles.personaList}>
-                        {visiblePersonas.map(p => (
-                          <PersonaCard key={p.key} p={p} active={picked === p.key} onPress={() => setPicked(p.key)} />
-                        ))}
-                      </View>
-                    </View>
-                  )}
+                  <Text style={[styles.fieldLabel, { marginTop: spacing.md }]}>ACCESS KEY</Text>
+                  <TextInput
+                    value={accessKey}
+                    onChangeText={t => {
+                      setAccessKey(t);
+                      setError(null);
+                    }}
+                    placeholder="Klokd staff access key"
+                    placeholderTextColor={colors.white35}
+                    style={styles.input}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    onSubmitEditing={handleSendCode}
+                  />
                 </>
               ) : (
                 <>
@@ -396,9 +377,9 @@ export function SignInScreen({
               <View style={{ height: spacing.lg }} />
               <GradientBtn
                 onPress={handleSendCode}
-                disabled={busy || (staffSignIn || mode === 'email' ? !email : !phone || (needsProfile && (!first.trim() || !last.trim() || !consent)))}
+                disabled={busy || (staffSignIn ? !phone || !accessKey : !phone || (needsProfile && (!first.trim() || !last.trim() || !consent)))}
               >
-                {busy ? 'Sending…' : staffSignIn ? 'Sign in' : 'Send code'}
+                {busy ? (staffSignIn ? 'Signing in…' : 'Sending…') : staffSignIn ? 'Sign in' : 'Send code'}
               </GradientBtn>
               <Pressable onPress={() => setStep('pick')} style={({ hovered }: any) => [styles.stepBack, hovered && { opacity: 0.6 }]}>
                 <Text style={styles.stepBackText}>← Change workspace</Text>
@@ -411,9 +392,9 @@ export function SignInScreen({
             <View style={styles.formBlock}>
               {sandboxOtp ? (
                 <View style={styles.sandboxBox}>
-                  <Text style={styles.sandboxLabel}>SANDBOX · CODE PREFILLED</Text>
+                  <Text style={styles.sandboxLabel}>YOUR CODE</Text>
                   <Text style={styles.sandboxCode}>{sandboxOtp}</Text>
-                  <Text style={styles.sandboxSub}>Production strips this field — the code arrives by SMS.</Text>
+                  <Text style={styles.sandboxSub}>SMS delivery isn’t switched on yet, so your code is shown here and filled in for you.</Text>
                 </View>
               ) : (
                 <Label color={colors.white60} style={{ marginBottom: spacing.md }}>
@@ -440,7 +421,7 @@ export function SignInScreen({
                 {busy ? 'Verifying…' : 'Verify & continue →'}
               </GradientBtn>
               <Pressable onPress={() => setStep('identity')} style={({ hovered }: any) => [styles.stepBack, hovered && { opacity: 0.6 }]}>
-                <Text style={styles.stepBackText}>← Change {staffSignIn ? 'email' : 'number'}</Text>
+                <Text style={styles.stepBackText}>← Change number</Text>
               </Pressable>
             </View>
           )}

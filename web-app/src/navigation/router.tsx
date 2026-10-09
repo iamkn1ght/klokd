@@ -11,6 +11,7 @@
  *   #/                       landing (redirects to workspace when signed in)
  *   #/signin[?persona=x]     sign-in flow
  *   #/worker/:tab            worker workspace  (home | shifts | pay | profile)
+ *   #/worker/shifts/:id      one shift: apply, confirm, check in, pay, rate
  *   #/employer/:tab          employer workspace (dashboard | shifts | pay | team)
  *   #/employer/shifts/new    post a shift
  *   #/employer/shifts/:id    shift detail + applicants (select a worker)
@@ -25,15 +26,15 @@ import { Pressable, Platform, Text } from 'react-native';
 export type Route =
   | { name: 'landing' }
   | { name: 'signin'; persona?: string | null }
-  | { name: 'worker'; tab: string }
-  | { name: 'employer'; tab: string; sub?: string }
+  | { name: 'worker'; tab: string; sub?: string }
+  | { name: 'employer'; tab: string; sub?: string; invite?: string | null }
   | { name: 'admin'; tab: string }
   | { name: 'legal'; doc: 'terms' | 'privacy' }
   | { name: 'notfound' };
 
 export const WORKER_TABS = ['home', 'shifts', 'pay', 'profile'] as const;
 export const EMPLOYER_TABS = ['dashboard', 'shifts', 'pay', 'team', 'verify'] as const;
-export const ADMIN_TABS = ['overview', 'verification', 'attendance', 'disputes', 'payments', 'audit', 'users'] as const;
+export const ADMIN_TABS = ['overview', 'verification', 'attendance', 'disputes', 'payments', 'privacy', 'audit', 'users'] as const;
 
 export function defaultRouteFor(persona: string): string {
   if (persona === 'employer') return '/employer/dashboard';
@@ -56,12 +57,13 @@ export function parseHash(hash: string): Route | null {
   if (parts[0] === 'terms') return { name: 'legal', doc: 'terms' };
   if (parts[0] === 'privacy') return { name: 'legal', doc: 'privacy' };
   if (parts[0] === 'worker' && (WORKER_TABS as readonly string[]).includes(parts[1] ?? '')) {
-    return { name: 'worker', tab: parts[1] };
+    if (parts.length > 2 && parts[1] !== 'shifts') return { name: 'notfound' };
+    return { name: 'worker', tab: parts[1], sub: parts[2] };
   }
   if (parts[0] === 'employer' && (EMPLOYER_TABS as readonly string[]).includes(parts[1] ?? '')) {
     // Only the shifts tab has sub-pages (new | :id).
     if (parts.length > 2 && parts[1] !== 'shifts') return { name: 'notfound' };
-    return { name: 'employer', tab: parts[1], sub: parts[2] };
+    return { name: 'employer', tab: parts[1], sub: parts[2], invite: params.get('invite') };
   }
   if (parts[0] === 'admin' && (ADMIN_TABS as readonly string[]).includes(parts[1] ?? '')) {
     return { name: 'admin', tab: parts[1] };

@@ -95,6 +95,8 @@ router.get('/admin/all', authenticate, authorize('ADMIN'), async (req: Request, 
         select: {
           id: true, role: true, date: true, startTime: true, endTime: true, rateKes: true, locationName: true, status: true,
           clockInAt: true, clockOutAt: true,
+          worker: { select: { firstName: true, lastName: true } },
+          employer: { select: { businessName: true } },
           settlement: { select: { grossKes: true, netKes: true, workedMinutes: true, scheduledMinutes: true, status: true } },
         },
       },

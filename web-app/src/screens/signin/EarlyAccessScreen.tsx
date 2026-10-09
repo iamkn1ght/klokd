@@ -210,6 +210,10 @@ export function EarlyAccessScreen({
           <Text onPress={() => navigate('/privacy')} style={styles.legalLink}>Privacy Policy</Text> and{' '}
           <Text onPress={() => navigate('/terms')} style={styles.legalLink}>Terms</Text>. DPA 2019 aligned.
         </Text>
+        <Text style={[styles.legalText, { marginTop: spacing.md }]}>
+          Klokd staff?{' '}
+          <Text onPress={() => navigate('/signin?persona=admin')} style={styles.legalLink}>Sign in to the operations console</Text>
+        </Text>
       </FadeUp>
     </KlokdScreen>
   );

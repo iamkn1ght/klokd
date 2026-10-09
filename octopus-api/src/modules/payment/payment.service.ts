@@ -175,7 +175,8 @@ export class PaymentService {
       holdId: shift.escrow.stkPushRef,
       feeAmountKes: settlement.platformFeeKes,
       stepUpToken: opts.stepUpToken,
-      idempotencyKey: `payout-${payment.id}`,
+      // A retry gets a fresh key, or the rail would replay the failed attempt.
+      idempotencyKey: payment.retryCount ? `payout-${payment.id}-r${payment.retryCount}` : `payout-${payment.id}`,
     });
 
     payment = await prisma.payment.update({
@@ -264,6 +265,21 @@ export class PaymentService {
       }
     }
     return started;
+  }
+
+  /** Admin retry of a failed payout: reset it and run it through the rail again. */
+  async retryPayout(paymentId: string, adminId: string) {
+    const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
+    if (!payment) throw new AppError(404, 'Payment not found');
+    if (!['FAILED', 'RETRYING'].includes(payment.status)) {
+      throw new AppError(409, `This payout is ${payment.status.toLowerCase()}, not failed.`);
+    }
+    await prisma.payment.update({
+      where: { id: paymentId },
+      data: { status: 'PENDING', retryCount: { increment: 1 }, paymentRailRef: null },
+    });
+    await logAudit({ tenantId: payment.tenantId, actorId: adminId, action: 'payout.retry', resource: 'payment', resourceId: paymentId });
+    return this.disbursePayment(payment.shiftId, payment.tenantId);
   }
 
   async handlePaymentFailure(paymentId: string) {

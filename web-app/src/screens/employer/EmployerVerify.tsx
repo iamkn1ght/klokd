@@ -28,17 +28,6 @@ const normaliseKra = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]/g, '');
 export function EmployerVerify() {
   const { profile, status, error, reload } = useEmployerProfile();
 
-  if (status === 'demo') {
-    return (
-      <GlassCard padding={spacing.xl}>
-        <Eyebrow color={colors.volt}>BUSINESS VERIFICATION</Eyebrow>
-        <Text style={styles.h1}>Sign in to verify your business.</Text>
-        <Text style={styles.p}>
-          Demo sessions can’t submit a KRA PIN or WIBA policy. Sign in with your business phone number to verify.
-        </Text>
-      </GlassCard>
-    );
-  }
   if (status === 'loading') {
     return (
       <View style={styles.loading}>

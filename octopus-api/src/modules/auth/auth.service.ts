@@ -214,6 +214,11 @@ export class AuthService {
     // Staff: only numbers on the ADMIN_PHONES list may take the admin role,
     // and asking for it from any other number is refused outright.
     if (role === 'ADMIN') {
+      // While OTP codes are echoed (no SMS yet) a code proves nothing, so staff
+      // must use the access-key sign-in instead.
+      if (config.otpSandboxEcho || config.railFallbackLocal) {
+        throw new AppError(403, 'Staff sign in with the Klokd access key until SMS codes are live.');
+      }
       if (!config.adminPhones.includes(normalized)) {
         throw new AppError(403, 'This number isn’t on the Klokd staff list.');
       }
@@ -325,6 +330,52 @@ export class AuthService {
     });
 
     return { accessToken, refreshToken: refreshTokenValue, isNewUser: justActivated, role: user.role };
+  }
+
+  /**
+   * Staff sign-in without SMS: a phone on the ADMIN_PHONES list plus the
+   * shared ADMIN_ACCESS_KEY. Used while Todoku SMS is unavailable (codes are
+   * echoed, so OTP cannot authenticate staff).
+   */
+  async staffLogin(phone: string, accessKey: string): Promise<{ accessToken: string; refreshToken: string; role: UserRole }> {
+    const key = config.adminAccessKey;
+    const normalized = this.normalizePhone(phone);
+    const keyOk =
+      key.length >= 24 &&
+      accessKey.length === key.length &&
+      crypto.timingSafeEqual(Buffer.from(accessKey), Buffer.from(key));
+    if (!keyOk || !config.adminPhones.includes(normalized)) {
+      // Audit rows need a real actor; failed staff attempts go to the server log.
+      console.warn(`[AUTH] staff login refused for …${normalized.slice(-3)}`);
+      throw new AppError(401, 'That phone number and access key don’t match a Klokd staff account.');
+    }
+    let user = await prisma.user.findUnique({ where: { phone: normalized }, include: { worker: true, employer: true } });
+    if (user && user.role !== 'ADMIN' && (user.worker || user.employer)) {
+      throw new AppError(409, 'This number already has a worker or employer account. Use a separate number for staff access.');
+    }
+    if (!user) {
+      user = await prisma.user.create({
+        data: { tenantId: config.defaultTenantId, phone: normalized, role: 'ADMIN', isActive: true },
+        include: { worker: true, employer: true },
+      });
+    } else if (user.role !== 'ADMIN' || !user.isActive) {
+      user = await prisma.user.update({ where: { id: user.id }, data: { role: 'ADMIN', isActive: true }, include: { worker: true, employer: true } });
+    }
+    const tokens = await this.issueTokens({ id: user.id, role: user.role, tenantId: user.tenantId });
+    await logAudit({ tenantId: user.tenantId, actorId: user.id, action: 'staff.login', resource: 'user', resourceId: user.id });
+    return { ...tokens, role: user.role };
+  }
+
+  private async issueTokens(user: { id: string; role: UserRole; tenantId: string }) {
+    const payload: JwtPayload = { userId: user.id, role: user.role, tenantId: user.tenantId };
+    const accessToken = jwt.sign(payload, config.jwt.secret, {
+      expiresIn: config.jwt.expiry as jwt.SignOptions['expiresIn'],
+    });
+    const refreshToken = crypto.randomUUID();
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+    await prisma.refreshToken.create({ data: { token: refreshToken, userId: user.id, expiresAt } });
+    return { accessToken, refreshToken };
   }
 
   async refreshAccessToken(refreshToken: string): Promise<{ accessToken: string }> {

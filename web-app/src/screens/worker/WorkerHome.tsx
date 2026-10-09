@@ -1,236 +1,248 @@
 /**
- * Worker Home (web) — desktop-shape shifts feed with full async states.
- *
- * The feed is REAL (GET /shifts/available) for signed-in accounts: skeletons
- * while loading, empty state when nothing is nearby, retry on failure, and a
- * clearly-labelled sample feed for demo sessions.
- *
- * NOTE (honesty): the left "ledger" pane is still sample data until the
- * payments/comms rails are live (per project scope). It is labelled as such.
+ * Worker Home (web) — your ledger + shifts near you. All real:
+ *   GET /me/worker          ledger (shifts done, show-up, rating, this month)
+ *   GET /shifts/available   nearby open shifts (browser location if allowed,
+ *                           Nairobi CBD otherwise — Klokd never stores it)
+ *   GET /me/shifts          which shifts you've already applied to
  */
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { GlassCard, FadeUp, LiveDot } from '../../components/KlokdLayout';
-import { Eyebrow, Avatar } from '../../components/Primitives';
+import { GlassCard, FadeUp } from '../../components/KlokdLayout';
+import { Eyebrow, Avatar, GradientBtn, GhostBtn, StatusPill } from '../../components/Primitives';
 import { ShiftCardSkeleton, ErrorState, EmptyState } from '../../components/States';
+import { Notice } from '../../components/Form';
 import { colors, spacing, radius } from '../../theme';
-import { useShifts } from '../../hooks/useShifts';
+import { useApiData, useApiAction } from '../../hooks/useApiData';
 import { useAuth } from '../../context/AuthContext';
 import { navigate } from '../../navigation/router';
+import { kes, when, hours } from '../../lib/format';
 
-const STATUS_LABEL: Record<string, string> = {
-  live: 'Live from Klokd API',
-  empty: 'Live · nothing nearby right now',
-  demo: 'Sample feed · demo data',
-  error: 'Feed unavailable',
-};
+export interface WorkerMe {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  verificationStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
+  kycTier: number;
+  skills: string[];
+  certificates: number;
+  consent: { identity: boolean; location: boolean; at: string | null };
+  showUpRate: number | null;
+  rating: number | null;
+  ratingCount: number;
+  completedShifts: number;
+  upcomingShifts: number;
+  monthEarningsKes: number;
+  monthShifts: number;
+  paymentsLive: boolean;
+  memberSince: string;
+}
+
+interface FeedShift {
+  id: string;
+  role: string;
+  startTime: string;
+  endTime: string;
+  rateKes: number;
+  locationName: string | null;
+  distanceMeters?: number;
+  description: string | null;
+  employer: { businessName: string; ratingAggregate: number | null; totalShifts: number } | null;
+}
+
+const CBD = { lat: -1.2864, lng: 36.8172 };
 
 export function WorkerHome() {
-  const { shifts, status, error, retry, apply, applying, appliedIds } = useShifts();
   const { account } = useAuth();
+  const me = useApiData<WorkerMe>('/me/worker');
+  const [where, setWhere] = useState<{ lat: number; lng: number; label: string }>({ ...CBD, label: 'Nairobi CBD' });
+  const feed = useApiData<FeedShift[]>(`/shifts/available?lat=${where.lat}&lng=${where.lng}&radiusKm=25`, { pollMs: 60_000 });
+  const mine = useApiData<{ applied: { shift: { id: string } }[]; offers: { id: string }[] }>('/me/shifts');
+  const act = useApiAction();
+  const [applying, setApplying] = useState<string | null>(null);
+  const [applyErr, setApplyErr] = useState<{ id: string; msg: string } | null>(null);
 
-  // One transient apply error at a time — keyed by shift id so it renders on
-  // the offending card and clears on the next attempt.
-  const [applyError, setApplyError] = useState<{ id: string; msg: string } | null>(null);
+  const appliedIds = useMemo(() => new Set((mine.data?.applied ?? []).map(a => a.shift.id)), [mine.data]);
 
-  const handleApply = (id: string) => {
-    setApplyError(null);
-    apply(id).catch((e: Error) => setApplyError({ id, msg: e.message || 'Could not apply — try again.' }));
+  // Use the browser's location for distances when the worker allows it.
+  const locate = () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      p => setWhere({ lat: p.coords.latitude, lng: p.coords.longitude, label: 'your location' }),
+      () => undefined,
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 300_000 }
+    );
   };
+  useEffect(() => {
+    try {
+      (navigator as any).permissions?.query({ name: 'geolocation' }).then((r: any) => r.state === 'granted' && locate());
+    } catch {
+      /* permissions API unavailable */
+    }
+  }, []);
+
+  const apply = async (id: string) => {
+    setApplying(id);
+    setApplyErr(null);
+    try {
+      await act(`/shifts/${id}/apply`);
+      mine.reload();
+    } catch (e: any) {
+      setApplyErr({ id, msg: e.message });
+    } finally {
+      setApplying(null);
+    }
+  };
+
+  const m = me.data;
+  const verified = m?.verificationStatus === 'APPROVED';
 
   return (
     <View style={styles.row}>
-      {/* Left: your ledger (sample data until payments rail ships) */}
       <FadeUp delay={0} style={styles.left}>
         <GlassCard variant="raised" padding={spacing.xl}>
           <View style={styles.ledgerHead}>
-            <Eyebrow color={colors.electric}>YOUR LEDGER · SAMPLE</Eyebrow>
-            <View style={styles.ledgerChip}>
-              <Text style={styles.ledgerChipText}>DEMO</Text>
-            </View>
+            <Eyebrow color={colors.electric}>YOUR LEDGER</Eyebrow>
             <Avatar initials={account?.initials ?? 'K'} size={30} tone="electric" />
           </View>
-          <Text style={styles.big}>KES 18,400</Text>
-          <Text style={styles.ledgerNote}>
-            Payments rails aren’t live yet — this pane shows sample figures.
-          </Text>
-
-          <View style={styles.nextPayout}>
-            <View style={styles.mpesaIcon}>
-              <Text style={styles.mpesaIconText}>M</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.nextPayoutLabel}>NEXT PAYOUT</Text>
-              <Text style={styles.nextPayoutValue}>KES 1,640 · within 18 min of clock-out</Text>
-            </View>
-          </View>
+          {me.status === 'error' ? (
+            <Text style={styles.note}>Couldn’t load your ledger. {me.error}</Text>
+          ) : (
+            <>
+              <Text style={styles.big}>{m ? kes(m.monthEarningsKes) : '—'}</Text>
+              <Text style={styles.note}>
+                {m ? `Earned this month from ${m.monthShifts} shift${m.monthShifts === 1 ? '' : 's'}, after statutory deductions.` : 'Loading…'}
+              </Text>
+              <View style={styles.stats}>
+                <Stat k={m ? String(m.completedShifts) : '—'} l="shifts done" />
+                <Stat k={m?.showUpRate != null ? `${Math.round(m.showUpRate)}%` : '—'} l="show-up" />
+                <Stat k={m?.rating != null ? `★ ${m.rating.toFixed(1)}` : '—'} l={m && m.ratingCount < 3 ? `rating (${m.ratingCount}/3)` : 'rating'} />
+              </View>
+              {m && !m.paymentsLive && (
+                <Text style={styles.small}>M-Pesa payouts start when Klokd payments go live. Your pay is tracked in the Pay tab until then.</Text>
+              )}
+            </>
+          )}
         </GlassCard>
+
+        {m && !verified && (
+          <View style={styles.verify}>
+            <Text style={styles.verifyH}>Verify your ID to apply for shifts.</Text>
+            <Text style={styles.verifyP}>It takes a minute: your National ID number is checked with the government register through Identiti.</Text>
+            <GradientBtn size="sm" onPress={() => navigate('/worker/profile')}>Verify my ID</GradientBtn>
+          </View>
+        )}
+        {(mine.data?.offers.length ?? 0) > 0 && (
+          <Pressable onPress={() => navigate('/worker/shifts')} style={styles.offer}>
+            <Text style={styles.offerH}>
+              {mine.data!.offers.length} shift{mine.data!.offers.length === 1 ? '' : 's'} waiting for your answer →
+            </Text>
+          </Pressable>
+        )}
       </FadeUp>
 
-      {/* Right: shifts feed */}
-      <FadeUp delay={120} style={styles.right}>
+      <View style={styles.right}>
         <View style={styles.feedHead}>
           <View>
-            <Eyebrow>
-              {status === 'demo' ? 'SAMPLE FEED · DEMO' : 'NEAR YOU · NAIROBI'}
-            </Eyebrow>
+            <Eyebrow>SHIFTS NEAR YOU</Eyebrow>
             <Text style={styles.h2}>
-              {status === 'live' && `${shifts.length} shifts open near you.`}
-              {status === 'loading' && 'Finding shifts near you…'}
-              {status === 'empty' && 'No shifts open right now.'}
-              {status === 'demo' && 'Sample shifts.'}
-              {status === 'error' && 'Feed unavailable.'}
+              {feed.status === 'ready' ? `${feed.data!.length} open within 25 km of ${where.label}` : 'Finding shifts…'}
             </Text>
           </View>
-          <View style={styles.liveRow}>
-            <LiveDot color={status === 'error' ? colors.error : status === 'demo' ? colors.warning : colors.electric} />
-            <Text style={styles.liveText}>{STATUS_LABEL[status]}</Text>
-          </View>
+          {where.label !== 'your location' && <GhostBtn size="sm" onPress={locate}>Use my location</GhostBtn>}
         </View>
 
-        {status === 'loading' && (
-          <View style={styles.stack}>
-            <ShiftCardSkeleton />
-            <ShiftCardSkeleton />
-            <ShiftCardSkeleton />
-          </View>
-        )}
-
-        {status === 'error' && (
-          <ErrorState
-            title="Couldn’t load shifts."
-            detail={error ?? 'The Klokd API didn’t answer.'}
-            onRetry={retry}
-          />
-        )}
-
-        {status === 'empty' && (
-          <EmptyState
-            title="No shifts open nearby."
-            detail="New shifts are posted throughout the day. We’ll show them here the moment they go live."
-          />
-        )}
-
-        {(status === 'live' || status === 'demo') && (
-          <View style={styles.stack}>
-            {shifts.map((s, i) => (
-              <FadeUp key={s.id} delay={200 + i * 60}>
-                <View style={styles.shiftRow}>
-                  <GlassCard
-                    interactive
-                    variant={s.highlighted ? 'electric' : 'default'}
-                    style={styles.shiftCard}
-                  >
-                    <View style={styles.shiftLeft}>
-                      <Text style={styles.shiftRole}>{s.role}</Text>
-                      <Text style={styles.shiftVenue}>{s.venue}</Text>
-                      <View style={styles.shiftMetaRow}>
-                        <Text style={styles.shiftMeta}>{s.date} · {s.time}</Text>
-                        <View style={styles.shiftDot} />
-                        <Text style={styles.shiftMeta}>{s.area} · {s.dist}</Text>
-                      </View>
-                    </View>
-                    <View style={styles.shiftMid}>
-                      <Text style={styles.empMetaK}>{s.rating != null ? `★ ${s.rating.toFixed(1)}` : 'New'}</Text>
-                      <Text style={styles.empMetaL}>{s.shifts} shifts hired</Text>
-                    </View>
-                    <View style={styles.shiftRight}>
-                      <Text style={styles.shiftPay}>KES {s.pay.toLocaleString()}</Text>
-                      {(() => {
-                        const isApplied = appliedIds.has(s.id);
-                        const isApplying = applying.has(s.id);
-                        return (
-                          <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={`Apply to ${s.role} at ${s.venue}`}
-                            disabled={isApplied || isApplying}
-                            onPress={() =>
-                              status === 'demo'
-                                ? navigate('/signin?persona=worker')
-                                : handleApply(s.id)
-                            }
-                            style={({ hovered }: any) => [
-                              styles.applyBtn,
-                              isApplied && styles.applyBtnDone,
-                              (hovered || s.highlighted) && !isApplied && !isApplying && styles.applyBtnHot,
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.applyBtnText,
-                                isApplied && styles.applyBtnTextDone,
-                              ]}
-                            >
-                              {isApplied ? 'Applied ✓' : isApplying ? 'Applying…' : s.highlighted ? 'Apply now →' : 'View →'}
-                            </Text>
-                          </Pressable>
-                        );
-                      })()}
-                      {applyError?.id === s.id && (
-                        <Text style={styles.applyErr} numberOfLines={2}>{applyError.msg}</Text>
-                      )}
-                    </View>
-                  </GlassCard>
-                </View>
-              </FadeUp>
+        {feed.status === 'loading' && (
+          <View style={styles.list}>
+            {[0, 1, 2].map(i => (
+              <GlassCard key={i} padding={spacing.lg}>
+                <ShiftCardSkeleton />
+              </GlassCard>
             ))}
           </View>
         )}
-
-        {status === 'live' && (
-          <View style={styles.seeAll}>
-            <Text style={styles.seeAllText}>Pull to refresh on mobile · this feed auto-loads live</Text>
+        {feed.status === 'error' && <ErrorState title="Couldn’t load shifts." detail={feed.error ?? undefined} onRetry={feed.reload} />}
+        {feed.status === 'ready' && feed.data!.length === 0 && (
+          <EmptyState title="No open shifts nearby right now." detail="New shifts appear here the moment a business posts them. Check back soon." />
+        )}
+        {feed.status === 'ready' && feed.data!.length > 0 && (
+          <View style={styles.list}>
+            {feed.data!.map((s, i) => {
+              const applied = appliedIds.has(s.id);
+              return (
+                <FadeUp key={s.id} delay={Math.min(i, 6) * 40}>
+                  <GlassCard padding={spacing.lg}>
+                    <Pressable onPress={() => navigate(`/worker/shifts/${s.id}`)} accessibilityRole="link">
+                      <View style={styles.cardTop}>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={styles.role}>{s.role}</Text>
+                          <Text style={styles.venue}>
+                            {s.employer?.businessName ?? 'Venue'} · {s.locationName ?? 'Nairobi'}
+                            {s.distanceMeters != null ? ` · ${(s.distanceMeters / 1000).toFixed(1)} km` : ''}
+                          </Text>
+                          <Text style={styles.meta}>{when(s.startTime, s.endTime)} · {hours(s.startTime, s.endTime)}</Text>
+                        </View>
+                        <Text style={styles.pay}>{kes(s.rateKes)}</Text>
+                      </View>
+                    </Pressable>
+                    <View style={styles.cardActions}>
+                      {s.employer?.ratingAggregate != null && (
+                        <StatusPill tone="neutral">★ {s.employer.ratingAggregate.toFixed(1)} venue</StatusPill>
+                      )}
+                      <View style={{ flex: 1 }} />
+                      {applied ? (
+                        <StatusPill tone="mint">applied</StatusPill>
+                      ) : (
+                        <GradientBtn size="sm" disabled={!verified || applying === s.id} onPress={() => apply(s.id)}>
+                          {applying === s.id ? 'Applying…' : 'Apply'}
+                        </GradientBtn>
+                      )}
+                    </View>
+                    {applyErr?.id === s.id && <Notice tone="err">{applyErr.msg}</Notice>}
+                  </GlassCard>
+                </FadeUp>
+              );
+            })}
           </View>
         )}
-      </FadeUp>
+      </View>
+    </View>
+  );
+}
+
+function Stat({ k, l }: { k: string; l: string }) {
+  return (
+    <View style={styles.stat}>
+      <Text style={styles.statK}>{k}</Text>
+      <Text style={styles.statL}>{l}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', gap: spacing.lg, flexWrap: 'wrap', alignItems: 'flex-start' },
-  left: { flex: 1, minWidth: 300, maxWidth: 380 },
-  right: { flex: 2, minWidth: 320, gap: spacing.sm },
-
-  ledgerHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  ledgerChip: { flex: 1, alignItems: 'flex-start' },
-  ledgerChipText: { color: colors.warning, fontSize: 9.5, fontWeight: '900', letterSpacing: 0.8, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(255,179,71,0.35)', backgroundColor: 'rgba(255,179,71,0.10)', overflow: 'hidden' },
-  ledgerNote: { color: colors.white55, fontSize: 12, lineHeight: 17, marginTop: 6, marginBottom: spacing.md },
-  big: { color: colors.white, fontSize: 36, fontWeight: '900', letterSpacing: -1.4 },
-
-  nextPayout: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderRadius: radius.lg, backgroundColor: 'rgba(0,229,160,0.05)', borderWidth: 1, borderColor: 'rgba(0,229,159,0.25)', marginTop: spacing.md },
-  mpesaIcon: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#00A859', alignItems: 'center', justifyContent: 'center' },
-  mpesaIconText: { color: '#fff', fontSize: 15, fontWeight: '900' },
-  nextPayoutLabel: { color: colors.electric, fontSize: 9.5, fontWeight: '900', letterSpacing: 0.7 },
-  nextPayoutValue: { color: colors.white, fontSize: 13, fontWeight: '800', marginTop: 3 },
-
-  feedHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: spacing.md, flexWrap: 'wrap', gap: spacing.sm },
-  h2: { color: colors.white, fontSize: 24, fontWeight: '900', letterSpacing: -1, marginTop: 6 },
-  liveRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  liveText: { color: colors.white60, fontSize: 11.5, fontWeight: '700' },
-
-  stack: { gap: spacing.sm },
-
-  shiftRow: {},
-  shiftCard: { flexDirection: 'row', alignItems: 'center', padding: spacing.lg, gap: spacing.md, flexWrap: 'wrap' },
-  shiftLeft: { flex: 2, minWidth: 200 },
-  shiftRole: { color: colors.white, fontSize: 15, fontWeight: '900', letterSpacing: -0.3 },
-  shiftVenue: { color: colors.white75, fontSize: 13, marginTop: 2, fontWeight: '700' },
-  shiftMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' },
-  shiftMeta: { color: colors.white55, fontSize: 11.5, fontWeight: '600' },
-  shiftDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: colors.white25 },
-  shiftMid: { width: 120 },
-  empMetaK: { color: colors.white, fontSize: 13, fontWeight: '800' },
-  empMetaL: { color: colors.white50, fontSize: 11, marginTop: 2, fontWeight: '600' },
-  shiftRight: { alignItems: 'flex-end', minWidth: 120 },
-  shiftPay: { color: colors.white, fontSize: 18, fontWeight: '900', letterSpacing: -0.5 },
-  applyBtn: { marginTop: 8, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(0,229,160,0.4)', backgroundColor: 'rgba(0,229,160,0.10)' },
-  applyBtnHot: { borderColor: colors.electric, backgroundColor: 'rgba(0,229,160,0.18)' },
-  applyBtnDone: { borderColor: 'rgba(255,255,255,0.18)', backgroundColor: 'rgba(255,255,255,0.06)' },
-  applyBtnText: { color: colors.electric, fontSize: 12, fontWeight: '800', letterSpacing: -0.2 },
-  applyBtnTextDone: { color: colors.white60 },
-  applyErr: { color: colors.error, fontSize: 10.5, fontWeight: '700', marginTop: 6, maxWidth: 140, textAlign: 'right' },
-
-  seeAll: { alignSelf: 'center', paddingVertical: spacing.md },
-  seeAllText: { color: colors.white45, fontSize: 12, fontWeight: '700' },
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xl, alignItems: 'flex-start' },
+  left: { flex: 1, minWidth: 280, maxWidth: 420, gap: spacing.md },
+  right: { flex: 2, minWidth: 300 },
+  ledgerHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  big: { color: colors.white, fontSize: 32, fontWeight: '900', letterSpacing: -1.4, marginTop: spacing.md },
+  note: { color: colors.white60, fontSize: 12.5, lineHeight: 18, marginTop: 4 },
+  small: { color: colors.white50, fontSize: 11.5, lineHeight: 16, marginTop: spacing.md },
+  stats: { flexDirection: 'row', marginTop: spacing.lg, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.white06 },
+  stat: { flex: 1 },
+  statK: { color: colors.white, fontSize: 17, fontWeight: '900', letterSpacing: -0.4 },
+  statL: { color: colors.white50, fontSize: 10.5, fontWeight: '800', marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
+  verify: { padding: spacing.lg, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.warnAlpha['25'], backgroundColor: colors.warnAlpha['12'], gap: 8 },
+  verifyH: { color: colors.white, fontSize: 14.5, fontWeight: '900' },
+  verifyP: { color: colors.white70, fontSize: 12.5, lineHeight: 18 },
+  offer: { padding: spacing.lg, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.electricAlpha['35'], backgroundColor: colors.electricAlpha['08'] },
+  offerH: { color: colors.electric, fontSize: 14, fontWeight: '900' },
+  feedHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: spacing.md, gap: spacing.md, flexWrap: 'wrap' },
+  h2: { color: colors.white, fontSize: 19, fontWeight: '900', letterSpacing: -0.6, marginTop: 6 },
+  list: { gap: spacing.sm },
+  cardTop: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },
+  role: { color: colors.white, fontSize: 16, fontWeight: '900', letterSpacing: -0.4 },
+  venue: { color: colors.white70, fontSize: 12.5, fontWeight: '700', marginTop: 3 },
+  meta: { color: colors.white50, fontSize: 12, fontWeight: '600', marginTop: 3 },
+  pay: { color: colors.electric, fontSize: 17, fontWeight: '900', letterSpacing: -0.4 },
+  cardActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.white06 },
 });

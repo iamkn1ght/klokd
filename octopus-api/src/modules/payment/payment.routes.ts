@@ -86,9 +86,16 @@ router.get('/reconciliation/:year/:month', authenticate, authorize('ADMIN'), asy
   res.json({ success: true, data: result });
 });
 
-// Admin: retry a failed payment
+// Worker answers the Identiti step-up OTP for a large payout.
+router.post('/:paymentId/step-up', authenticate, authorize('WORKER'), async (req: Request, res: Response) => {
+  const { code } = z.object({ code: z.string().regex(/^\d{6}$/, 'Enter the 6-digit code') }).parse(req.body);
+  const result = await paymentService.completeStepUp(req.params.paymentId as string, req.user!.userId, code);
+  res.json({ success: true, data: result });
+});
+
+// Admin: retry a failed payout (re-runs it through Kipkiren Pay).
 router.post('/retry/:paymentId', authenticate, authorize('ADMIN'), async (req: Request, res: Response) => {
-  const result = await paymentService.handlePaymentFailure(req.params.paymentId as string);
+  const result = await paymentService.retryPayout(req.params.paymentId as string, req.user!.userId);
   res.json({ success: true, data: result });
 });
 
