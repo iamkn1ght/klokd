@@ -333,7 +333,7 @@ export function GlassCard({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ink },
-  orbClip: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' },
+  orbClip: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden', ...(Platform.OS === 'web' ? ({ clipPath: 'inset(0)', contain: 'paint' } as any) : {}) },
   dotsLayer: { position: 'absolute', top: 0, left: 0, right: 0, height: 780, overflow: 'hidden' },
   orb: { position: 'absolute', borderRadius: 999, overflow: 'hidden' },
   orbA: { top: -200, right: -200, width: 760, height: 760 },

@@ -35,27 +35,27 @@ const NAV: { key: SectionKey; label: string }[] = [
 ];
 
 const PROOF = [
-  { icon: 'shield', title: 'Verified workers', body: 'National ID and selfie checked once, before the first shift.' },
-  { icon: 'mpesa', title: 'M-Pesa payouts', body: 'Wages go straight to M-Pesa after clock-out.' },
+  { icon: 'shield', title: 'Verified workers', body: 'National ID checked once with the government register, before the first shift.' },
+  { icon: 'mpesa', title: 'Clear pay', body: 'Every shift shows pay and statutory deductions. M-Pesa payouts switch on with Klokd payments.' },
   { icon: 'doc', title: 'Compliant contracts', body: 'Employment Act s.9 contract for every shift.' },
 ] as const;
 
 const WORKER_STEPS = [
-  { t: 'Verify once', d: 'National ID and a selfie, one time. Every employer on Klokd sees you as verified.' },
+  { t: 'Verify once', d: 'Your National ID, checked once with the government register. Every employer on Klokd sees you as verified.' },
   { t: 'Pick a shift', d: 'Nearby shifts with the pay shown up front. Review the contract, then accept.' },
-  { t: 'Get paid', d: 'Clock out and the pay goes to your M-Pesa, with a payslip showing every deduction.' },
+  { t: 'Get paid', d: 'Clock out and see your pay with every deduction. It goes to your M-Pesa once Klokd payments are live.' },
 ];
 
 const EMPLOYER_STEPS = [
   { t: 'Verify your business', d: 'KRA PIN and WIBA cover, once. Then you can post.' },
-  { t: 'Post and fund', d: 'Role, time and rate in a couple of minutes. Wages are held in escrow before the shift.' },
-  { t: 'Pick and release', d: 'Choose from verified applicants. Confirm clock-out and the escrow pays the worker.' },
+  { t: 'Post a shift', d: 'Role, time, area and pay in a couple of minutes. Verified workers nearby can apply straight away.' },
+  { t: 'Pick and approve', d: 'Choose from verified applicants, give the start PIN on arrival, then check the hours and approve the pay.' },
 ];
 
 const BUILT_IN = [
   { k: 'Contract', l: 'Generated for every shift, accepted before it starts' },
   { k: 'PAYE · NSSF · SHIF', l: 'Calculated on every payslip' },
-  { k: 'Escrow', l: 'Wages funded before the shift, released on clock-out' },
+  { k: 'Check-in', l: 'Location at arrival plus your start PIN, never tracked in between' },
   { k: 'Data', l: 'Built to Kenya’s Data Protection Act 2019' },
 ];
 
@@ -158,9 +158,9 @@ export function LandingScreen({ onSignIn }: { onSignIn: () => void }) {
 
           <FadeUp delay={220}>
             <Text style={[styles.subhead, mobile && styles.subheadMobile]}>
-              Klokd is Kenya’s verified hospitality shift marketplace. Workers verify once
-              and get paid to M-Pesa. Employers fund wages up front, pick a verified worker
-              and release pay on clock-out, with the paperwork handled.
+              Klokd is a verified hospitality shift marketplace for Nairobi. Workers verify
+              once and check in with their phone. Businesses pick a verified worker, give
+              them a start PIN on arrival and approve the hours, with the paperwork handled.
             </Text>
           </FadeUp>
 
