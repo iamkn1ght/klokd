@@ -25,6 +25,13 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
   const employer = await prisma.employer.findUnique({ where: { userId: req.user!.userId } });
 
   const raterRole = req.user!.role;
+  // Only the two people on the shift can rate it, once each.
+  const isParty =
+    (raterRole === 'WORKER' && !!worker && shift.workerId === worker.id) ||
+    (raterRole === 'EMPLOYER' && !!employer && shift.employerId === employer.id);
+  if (!isParty) throw new AppError(404, 'Shift not found');
+  const existing = await prisma.rating.findUnique({ where: { shiftId_raterRole: { shiftId: shift.id, raterRole } } });
+  if (existing) throw new AppError(409, 'You’ve already rated this shift.');
 
   const rating = await prisma.rating.create({
     data: {

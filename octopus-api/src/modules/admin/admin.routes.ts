@@ -4,6 +4,8 @@ import { authenticate, authorize } from '../../middleware/auth';
 import prisma from '../../config/database';
 import { reconciliationService } from '../payment/reconciliation.service';
 import { AppError } from '../../middleware/errorHandler';
+import { isPaymentRailLive } from '../payment/payment.service';
+import { notificationService } from '../notification/notification.service';
 
 const router = Router();
 
@@ -336,136 +338,219 @@ router.get('/breaches', authenticate, authorize('ADMIN'), async (req: Request, r
 
 router.get('/stats', authenticate, authorize('ADMIN'), async (req: Request, res: Response) => {
   const tenantId = req.user!.tenantId;
-
-  const [workerCount, employerCount, shiftCount, paymentSum] = await Promise.all([
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const [
+    workers, verifiedWorkers, employers, verifiedEmployers, totalShifts, openShifts, liveShifts, shiftsToday,
+    awaiting, approved, paid, openDisputes, flagged, waitlist, openDataRequests, paymentSum,
+  ] = await Promise.all([
     prisma.worker.count({ where: { tenantId } }),
+    prisma.worker.count({ where: { tenantId, verificationStatus: 'APPROVED' } }),
     prisma.employer.count({ where: { tenantId } }),
+    prisma.employer.count({ where: { tenantId, kraPin: { not: null }, wibaPolicyRef: { not: null } } }),
     prisma.shift.count({ where: { tenantId } }),
-    prisma.payment.aggregate({
-      where: { tenantId, status: 'COMPLETED' },
-      _sum: { grossKes: true, netKes: true, platformFeeKes: true },
-    }),
+    prisma.shift.count({ where: { tenantId, status: 'POSTED' } }),
+    prisma.shift.count({ where: { tenantId, status: 'ACTIVE' } }),
+    prisma.shift.count({ where: { tenantId, startTime: { gte: today }, status: { not: 'CANCELLED' } } }),
+    prisma.shiftSettlement.aggregate({ where: { tenantId, status: 'AWAITING_APPROVAL' }, _sum: { employerTotalKes: true }, _count: true }),
+    prisma.shiftSettlement.aggregate({ where: { tenantId, status: 'APPROVED' }, _sum: { netKes: true, platformFeeKes: true }, _count: true }),
+    prisma.shiftSettlement.aggregate({ where: { tenantId, status: 'PAID' }, _sum: { netKes: true, platformFeeKes: true }, _count: true }),
+    prisma.dispute.count({ where: { tenantId, status: { in: ['OPEN', 'UNDER_REVIEW'] } } }),
+    prisma.attendanceEvent.count({ where: { tenantId, NOT: { flags: '[]' }, review: null } }),
+    prisma.earlyAccessRequest.count(),
+    prisma.dataRequest.count({ where: { tenantId, status: 'OPEN' } }),
+    prisma.payment.aggregate({ where: { tenantId, status: 'COMPLETED' }, _sum: { grossKes: true, netKes: true, platformFeeKes: true } }),
   ]);
-
   res.json({
     success: true,
     data: {
-      workers: workerCount,
-      employers: employerCount,
-      totalShifts: shiftCount,
+      workers, verifiedWorkers, employers, verifiedEmployers,
+      totalShifts, openShifts, liveShifts, shiftsToday,
+      awaitingApproval: { count: awaiting._count, totalKes: awaiting._sum.employerTotalKes ?? 0 },
+      approvedUnpaid: { count: approved._count, netKes: approved._sum.netKes ?? 0, feesKes: approved._sum.platformFeeKes ?? 0 },
+      paid: { count: paid._count, netKes: paid._sum.netKes ?? 0, feesKes: paid._sum.platformFeeKes ?? 0 },
+      openDisputes, flaggedAttendance: flagged, waitlist, openDataRequests,
       totalGrossKes: paymentSum._sum.grossKes || 0,
       totalNetKes: paymentSum._sum.netKes || 0,
       totalRevenueKes: paymentSum._sum.platformFeeKes || 0,
+      paymentsLive: isPaymentRailLive(),
     },
   });
 });
 
-// ─── Seed Demo Data (one-time, protected by JWT secret) ─
+// ─── Audit log ──────────────────────────────────────────
 
-router.post('/seed-demo', async (req: Request, res: Response) => {
-  const { secret } = req.body || {};
-  if (secret !== process.env.JWT_SECRET) {
-    res.status(403).json({ success: false, error: 'Invalid secret' });
-    return;
-  }
-
-  const TENANT = 'klokd-ke-default';
-  const crypto = require('crypto');
-
-  // Check if already seeded
-  const existing = await prisma.employer.count({ where: { tenantId: TENANT } });
-  if (existing > 0) {
-    res.json({ success: true, message: `Already seeded (${existing} employers exist)` });
-    return;
-  }
-
-  const businesses = [
-    'The Brew Bistro', 'Java House', 'Artcaffe', 'Big Square', 'Mama Oliech',
-    'Carnivore Restaurant', 'Talisman', 'Nyama Mama', 'About Thyme', 'Tin Roof Cafe',
-  ];
-  const firstNames = ['Akinyi', 'Wanjiku', 'Kamau', 'Otieno', 'Njeri', 'Mwangi', 'Achieng', 'Odhiambo', 'Wambui', 'Kipchoge'];
-  const skills = ['Waiter', 'Barista', 'Chef', 'Cashier', 'Security', 'Cleaner'];
-  const locations = [
-    { name: 'Westlands', lat: -1.2636, lng: 36.8036 },
-    { name: 'Kilimani', lat: -1.2864, lng: 36.7830 },
-    { name: 'Karen', lat: -1.3197, lng: 36.7112 },
-    { name: 'CBD', lat: -1.2864, lng: 36.8172 },
-    { name: 'Lavington', lat: -1.2783, lng: 36.7700 },
-  ];
-
-  // Seed 10 employers
-  for (let i = 0; i < 10; i++) {
-    const phone = `+2547${String(20000000 + i).padStart(8, '0')}`;
-    const user = await prisma.user.create({ data: { tenantId: TENANT, phone, role: 'EMPLOYER' } });
-    await prisma.employer.create({
-      data: {
-        tenantId: TENANT, userId: user.id, businessName: businesses[i],
-        kraPin: `P0${String(51234567 + i)}A`, contactPerson: firstNames[i],
-        wibaPolicyRef: `POL-2026-${String(i + 1).padStart(3, '0')}`, wibaInsurer: 'Jubilee',
-        wibaPolicyExpiry: new Date('2027-12-31'),
-        mpesaMethod: 'paybill', mpesaAccountEnc: Buffer.from(phone).toString('base64'),
-      },
-    });
-  }
-
-  // Seed 30 workers
-  for (let i = 0; i < 30; i++) {
-    const phone = `+2547${String(10000000 + i).padStart(8, '0')}`;
-    const user = await prisma.user.create({ data: { tenantId: TENANT, phone, role: 'WORKER' } });
-    const workerSkills = [skills[i % skills.length], skills[(i + 1) % skills.length]];
-    await prisma.worker.create({
-      data: {
-        tenantId: TENANT, userId: user.id,
-        firstName: firstNames[i % firstNames.length], lastName: 'K.',
-        idNumberHash: crypto.createHash('sha256').update(`ID-${i}`).digest('hex'),
-        verificationStatus: 'APPROVED', skills: JSON.stringify(workerSkills),
-        consentIdentity: true, consentGps: true, consentedAt: new Date(),
-        mpesaNumberEnc: Buffer.from(phone).toString('base64'),
-        showUpRate: 75 + Math.floor(Math.random() * 25),
-        ratingAggregate: 3.5 + Math.random() * 1.5, ratingCount: 3 + Math.floor(Math.random() * 15),
-        totalShifts: Math.floor(Math.random() * 50),
-      },
-    });
-  }
-
-  // Seed minimum wages
-  for (const sector of skills) {
-    await prisma.minimumWage.create({
-      data: { tenantId: TENANT, sector: sector.toLowerCase(), location: 'nairobi', rateKes: 1000, effectiveFrom: new Date() },
-    });
-  }
-
-  // Seed 15 available shifts
-  const employers = await prisma.employer.findMany({ where: { tenantId: TENANT }, take: 10 });
-  for (let i = 0; i < 15; i++) {
-    const emp = employers[i % employers.length];
-    const loc = locations[i % locations.length];
-    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1 + (i % 3));
-    const start = new Date(tomorrow); start.setHours(8 + (i % 3) * 4, 0, 0, 0);
-    const end = new Date(start); end.setHours(start.getHours() + 5);
-
-    await prisma.shift.create({
-      data: {
-        tenantId: TENANT, employerId: emp.id,
-        role: skills[i % skills.length], description: `${skills[i % skills.length]} needed at ${emp.businessName}`,
-        date: tomorrow, startTime: start, endTime: end,
-        rateKes: 1200 + (i % 5) * 200,
-        locationLat: loc.lat + (Math.random() - 0.5) * 0.01,
-        locationLng: loc.lng + (Math.random() - 0.5) * 0.01,
-        locationName: loc.name, geoHash: `kzf${i}`,
-        status: 'POSTED',
-      },
-    });
-  }
-
-  // Create admin user
-  const adminUser = await prisma.user.create({ data: { tenantId: TENANT, phone: '+254700000001', role: 'ADMIN' } });
-
+router.get('/audit', authenticate, authorize('ADMIN'), async (req: Request, res: Response) => {
+  const { limit, before, q } = z
+    .object({ limit: z.coerce.number().int().positive().max(200).default(50), before: z.string().optional(), q: z.string().optional() })
+    .parse(req.query);
+  const rows = await prisma.auditLog.findMany({
+    where: {
+      tenantId: req.user!.tenantId,
+      ...(before ? { createdAt: { lt: new Date(before) } } : {}),
+      ...(q ? { OR: [{ action: { contains: q } }, { resource: { contains: q } }, { resourceId: { contains: q } }] } : {}),
+    },
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+  });
+  const actorIds = [...new Set(rows.map(r => r.actorId))].filter(id => id.length === 36);
+  const users = await prisma.user.findMany({
+    where: { id: { in: actorIds } },
+    select: { id: true, role: true, worker: { select: { firstName: true, lastName: true } }, employer: { select: { businessName: true } } },
+  });
+  const actors = new Map(
+    users.map(u => [
+      u.id,
+      u.worker ? `${u.worker.firstName} ${u.worker.lastName.charAt(0)}. (worker)` : u.employer ? `${u.employer.businessName} (employer)` : `Klokd ${u.role.toLowerCase()}`,
+    ])
+  );
+  const parse = (m: string | null) => {
+    if (!m) return null;
+    try {
+      return JSON.parse(m);
+    } catch {
+      return m;
+    }
+  };
   res.json({
     success: true,
-    message: '10 employers, 30 workers, 15 shifts, 6 min wage rates, 1 admin seeded',
-    adminPhone: '+254700000001',
+    data: rows.map(r => ({
+      id: r.id,
+      at: r.createdAt,
+      actor: actors.get(r.actorId) ?? r.actorId,
+      action: r.action,
+      resource: r.resource,
+      resourceId: r.resourceId,
+      metadata: parse(r.metadata),
+    })),
   });
 });
+
+// ─── Verification queue ─────────────────────────────────
+
+router.get('/verification', authenticate, authorize('ADMIN'), async (req: Request, res: Response) => {
+  const tenantId = req.user!.tenantId;
+  const [workers, employers] = await Promise.all([
+    prisma.worker.findMany({
+      where: { tenantId, verificationStatus: { not: 'APPROVED' } },
+      include: { user: { select: { isActive: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    }),
+    prisma.employer.findMany({
+      where: { tenantId, OR: [{ kraPin: null }, { wibaPolicyRef: null }, { wibaPolicyExpiry: { lt: new Date() } }] },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    }),
+  ]);
+  res.json({
+    success: true,
+    data: {
+      workers: workers.map(w => ({
+        workerId: w.id,
+        userId: w.userId,
+        name: `${w.firstName} ${w.lastName}`,
+        status: w.verificationStatus,
+        kycTier: w.kycTier,
+        hasIdentiti: !!w.accountUuid,
+        joined: w.createdAt,
+        active: w.user.isActive,
+      })),
+      employers: employers.map(e => ({
+        employerId: e.id,
+        userId: e.userId,
+        businessName: e.businessName,
+        hasKraPin: !!e.kraPin,
+        wiba: !e.wibaPolicyRef ? 'missing' : e.wibaPolicyExpiry && e.wibaPolicyExpiry < new Date() ? 'expired' : 'confirmed',
+        joined: e.createdAt,
+      })),
+    },
+  });
+});
+
+// ─── Pay: settlements + payouts ─────────────────────────
+
+router.get('/settlements', authenticate, authorize('ADMIN'), async (req: Request, res: Response) => {
+  const { status } = z.object({ status: z.string().optional() }).parse(req.query);
+  const rows = await prisma.shiftSettlement.findMany({
+    where: { tenantId: req.user!.tenantId, ...(status ? { status } : {}) },
+    include: {
+      shift: {
+        select: {
+          id: true, role: true, startTime: true, locationName: true, status: true,
+          employer: { select: { businessName: true } },
+          worker: { select: { firstName: true, lastName: true } },
+          escrow: { select: { status: true } },
+          payment: { select: { id: true, status: true, mpesaRef: true, retryCount: true } },
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+  });
+  res.json({
+    success: true,
+    data: {
+      paymentsLive: isPaymentRailLive(),
+      rows: rows.map(r => ({
+        shiftId: r.shiftId,
+        date: r.shift.startTime,
+        role: r.shift.role,
+        employer: r.shift.employer.businessName,
+        worker: r.shift.worker ? `${r.shift.worker.firstName} ${r.shift.worker.lastName.charAt(0)}.` : null,
+        grossKes: r.grossKes,
+        netKes: r.netKes,
+        feeKes: r.platformFeeKes,
+        totalKes: r.employerTotalKes,
+        status: r.status,
+        approvedBy: r.approvedBy === 'auto' ? 'auto' : r.approvedBy ? 'person' : null,
+        approveBy: r.approveBy,
+        escrow: r.shift.escrow?.status ?? null,
+        payment: r.shift.payment,
+      })),
+    },
+  });
+});
+
+// ─── Data subject requests ──────────────────────────────
+
+router.get('/data-requests', authenticate, authorize('ADMIN'), async (req: Request, res: Response) => {
+  const rows = await prisma.dataRequest.findMany({
+    where: { tenantId: req.user!.tenantId },
+    orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+    take: 200,
+  });
+  const users = await prisma.user.findMany({
+    where: { id: { in: rows.map(r => r.userId) } },
+    select: { id: true, role: true, worker: { select: { firstName: true, lastName: true } }, employer: { select: { businessName: true } } },
+  });
+  const who = new Map(users.map(u => [u.id, u.worker ? `${u.worker.firstName} ${u.worker.lastName}` : u.employer?.businessName ?? u.role]));
+  res.json({
+    success: true,
+    data: rows.map(r => ({ ...r, who: who.get(r.userId) ?? r.userId, dueBy: new Date(r.createdAt.getTime() + 30 * 86_400_000) })),
+  });
+});
+
+router.patch('/data-requests/:id', authenticate, authorize('ADMIN'), async (req: Request, res: Response) => {
+  const { status, resolution } = z.object({ status: z.enum(['DONE', 'REJECTED']), resolution: z.string().min(5) }).parse(req.body);
+  const row = await prisma.dataRequest.update({
+    where: { id: req.params.id as string },
+    data: { status, resolution, resolvedBy: req.user!.userId, resolvedAt: new Date() },
+  });
+  await prisma.auditLog.create({
+    data: { tenantId: req.user!.tenantId, actorId: req.user!.userId, action: `dpa.request.${status.toLowerCase()}`, resource: 'data_request', resourceId: row.id },
+  });
+  void notificationService
+    .send({
+      tenantId: req.user!.tenantId,
+      userId: row.userId,
+      type: 'dpa.request_resolved',
+      title: status === 'DONE' ? 'Your data request is done' : 'About your data request',
+      body: resolution,
+    })
+    .catch(() => undefined);
+  res.json({ success: true, data: row });
+});
+
 
 export default router;

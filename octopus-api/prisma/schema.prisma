@@ -225,6 +225,8 @@ model Shift {
   pinAttempts   Int         @default(0) @map("pin_attempts")
   // No-show watcher stage: 0 none · 1 late warning sent · 2 no-show raised.
   lateStage     Int         @default(0) @map("late_stage")
+  // Re-hire: the employer offered this shift straight to a worker from their team.
+  directOffer   Boolean     @default(false) @map("direct_offer")
   createdAt     DateTime    @default(now()) @map("created_at")
   updatedAt     DateTime    @updatedAt @map("updated_at")
 
@@ -284,6 +286,8 @@ model Contract {
   tenantId        String   @map("tenant_id")
   shiftId         String   @unique @map("shift_id")
   documentKey     String   @map("document_key")
+  // Rendered s.9 written particulars (plain text). Immutable once generated.
+  body            String?
   workerAcceptedAt  DateTime? @map("worker_accepted_at")
   employerAcceptedAt DateTime? @map("employer_accepted_at")
   retainUntil     DateTime @map("retain_until")
@@ -340,6 +344,8 @@ model Payment {
   // Deprecated per AD-K01 — kept for migration compatibility; do not write.
   darajaRef       String?       @map("daraja_ref")
   retryCount      Int           @default(0) @map("retry_count")
+  // Identiti step-up challenge the worker must answer before a large payout.
+  stepUpChallengeId String?     @map("step_up_challenge_id")
   paidAt          DateTime?     @map("paid_at")
   retainUntil     DateTime      @map("retain_until")
   createdAt       DateTime      @default(now()) @map("created_at")
@@ -442,10 +448,14 @@ model Notification {
   sent      Boolean  @default(false)
   sentAt    DateTime? @map("sent_at")
   failedAt  DateTime? @map("failed_at")
+  readAt    DateTime? @map("read_at")
+  // Optional deep link for the apps (e.g. a shift id).
+  shiftId   String?  @map("shift_id")
   createdAt DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id])
 
+  @@index([userId, createdAt])
   @@map("notifications")
 }
 
@@ -684,7 +694,8 @@ model ShiftSettlement {
   netKes           Int       @map("net_kes")
   platformFeeKes   Int       @map("platform_fee_kes")
   employerTotalKes Int       @map("employer_total_kes")
-  status           String    @default("AWAITING_APPROVAL") // AWAITING_APPROVAL | APPROVED | DISPUTED | PAID
+  status           String    @default("AWAITING_APPROVAL") // AWAITING_APPROVAL | APPROVED | DISPUTED | PAID | VOID
+  paymentId        String?   @map("payment_id")
   approveBy        DateTime  @map("approve_by")
   approvedAt       DateTime? @map("approved_at")
   approvedBy       String?   @map("approved_by") // employer userId | 'auto'
@@ -696,4 +707,38 @@ model ShiftSettlement {
 
   @@index([status, approveBy])
   @@map("shift_settlements")
+}
+
+// ─── PUSH TOKENS ────────────────────────────────────────
+// Expo push tokens registered by the apps. Notifications go to every token
+// a user has; tokens Expo reports as unregistered are deleted.
+
+model PushToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  platform  String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("push_tokens")
+}
+
+// ─── DATA SUBJECT REQUESTS (DPA 2019) ───────────────────
+
+model DataRequest {
+  id         String    @id @default(uuid())
+  tenantId   String    @map("tenant_id")
+  userId     String    @map("user_id")
+  type       String    // ACCESS | RECTIFICATION | DELETION
+  details    String?
+  status     String    @default("OPEN") // OPEN | DONE | REJECTED
+  resolution String?
+  resolvedBy String?   @map("resolved_by")
+  resolvedAt DateTime? @map("resolved_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([tenantId, status])
+  @@map("data_requests")
 }

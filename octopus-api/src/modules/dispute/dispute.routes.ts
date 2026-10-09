@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { attendanceService } from '../attendance/attendance.service';
+import { notificationService } from '../notification/notification.service';
+import { refundEscrowIfFunded } from '../payment/payment.service';
 import { z } from 'zod';
 import { authenticate, authorize } from '../../middleware/auth';
 import prisma from '../../config/database';
@@ -25,6 +27,8 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
   const employer = await prisma.employer.findUnique({ where: { userId: req.user!.userId } });
   const isParty = (!!worker && shift.workerId === worker.id) || (!!employer && shift.employerId === employer.id);
   if (!isParty) throw new AppError(404, 'Shift not found');
+  const already = await prisma.dispute.findUnique({ where: { shiftId: data.shiftId } });
+  if (already) throw new AppError(409, 'A problem has already been reported for this shift. Klokd is looking into it.');
 
   const dispute = await prisma.dispute.create({
     data: {
@@ -82,6 +86,29 @@ router.get('/shift/:shiftId', authenticate, async (req: Request, res: Response) 
   res.json({ success: true, data: dispute });
 });
 
+// Admin: every dispute, open first
+router.get('/admin/all', authenticate, authorize('ADMIN'), async (req: Request, res: Response) => {
+  const disputes = await prisma.dispute.findMany({
+    where: { tenantId: req.user!.tenantId },
+    include: {
+      shift: {
+        select: {
+          id: true, role: true, date: true, startTime: true, endTime: true, rateKes: true, locationName: true, status: true,
+          clockInAt: true, clockOutAt: true,
+          settlement: { select: { grossKes: true, netKes: true, workedMinutes: true, scheduledMinutes: true, status: true } },
+        },
+      },
+      worker: { select: { firstName: true, lastName: true } },
+      employer: { select: { businessName: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+  });
+  const rank: Record<string, number> = { OPEN: 0, UNDER_REVIEW: 1 };
+  disputes.sort((a, b) => (rank[a.status] ?? 2) - (rank[b.status] ?? 2));
+  res.json({ success: true, data: disputes });
+});
+
 // Admin: list all open disputes
 router.get('/admin/open', authenticate, authorize('ADMIN'), async (req: Request, res: Response) => {
   const disputes = await prisma.dispute.findMany({
@@ -131,23 +158,45 @@ router.patch('/:id/resolve', authenticate, authorize('ADMIN'), async (req: Reque
     },
   });
 
-  // Execute the payment action
-  if (data.action === 'release_payment') {
-    // Move shift back to COMPLETED so payment can release
-    await prisma.shift.update({
-      where: { id: dispute.shiftId },
-      data: { status: 'COMPLETED' },
-    });
-    // Payment release handled separately via /payments/release/:shiftId
-  } else if (data.action === 'reverse_escrow' && dispute.shift.escrow) {
-    await prisma.escrow.update({
-      where: { id: dispute.shift.escrow.id },
-      data: { status: 'REFUNDED', releasedAt: new Date() },
-    });
+  if (data.action === 'partial_payment' && !data.partialAmountKes) {
+    throw new AppError(422, 'Enter the amount to pay for a partial payment.');
+  }
+
+  // Execute the payment action. Pay itself goes out through the payout sweep
+  // (Kipkiren Pay) once the settlement is approved.
+  if (data.action === 'release_payment' || data.action === 'partial_payment') {
+    if (dispute.shift.status === 'DISPUTED') {
+      await prisma.shift.update({ where: { id: dispute.shiftId }, data: { status: 'COMPLETED' } });
+    }
+  } else if (data.action === 'reverse_escrow') {
+    await refundEscrowIfFunded(dispute.shiftId, req.user!.tenantId, req.user!.userId);
     await prisma.shift.update({
       where: { id: dispute.shiftId },
       data: { status: 'CANCELLED' },
     });
+  }
+  await attendanceService.applyDisputeResolution(dispute.shiftId, req.user!.userId, data.action, data.partialAmountKes);
+
+  // Tell both parties the outcome.
+  const parties = await prisma.shift.findUnique({
+    where: { id: dispute.shiftId },
+    include: { worker: { select: { userId: true } }, employer: { select: { userId: true } } },
+  });
+  const outcome =
+    data.action === 'release_payment' ? 'Pay will go out as calculated.'
+    : data.action === 'partial_payment' ? `Pay was adjusted to KES ${data.partialAmountKes!.toLocaleString()}.`
+    : 'No pay is due for this shift; the employer’s funds are returned.';
+  for (const uid of [parties?.worker?.userId, parties?.employer.userId].filter((x): x is string => !!x)) {
+    void notificationService
+      .send({
+        tenantId: req.user!.tenantId,
+        userId: uid,
+        type: 'dispute.resolved',
+        title: 'Your reported problem is resolved',
+        body: `${outcome} ${data.resolution}`,
+        shiftId: dispute.shiftId,
+      })
+      .catch(() => undefined);
   }
 
   // Log the resolution

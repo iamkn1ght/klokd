@@ -153,6 +153,14 @@ export const config = {
 
   defaultTenantId: 'klokd-ke-default',
 
+  // Staff who may sign in to the admin console (E.164, comma-separated),
+  // e.g. ADMIN_PHONES=+254712345678,+254798765432
+  adminPhones: (process.env.ADMIN_PHONES || '')
+    .split(',')
+    .map(p => p.trim())
+    .filter(Boolean)
+    .map(p => (p.startsWith('+') ? p : p.startsWith('0') ? `+254${p.slice(1)}` : p.startsWith('254') ? `+${p}` : p)),
+
   // Sandbox-only escape hatch. When the Identiti rail is unreachable,
   // requestOtp mints a local placeholder account_uuid (acc_local_*) so the
   // auth flow stays testable end-to-end. Defaults OFF; never enable in

@@ -211,12 +211,26 @@ export class AuthService {
     pendingOtps.delete(challengeId);
     otpAttempts.delete(normalized);
 
+    // Staff: only numbers on the ADMIN_PHONES list may take the admin role,
+    // and asking for it from any other number is refused outright.
+    if (role === 'ADMIN') {
+      if (!config.adminPhones.includes(normalized)) {
+        throw new AppError(403, 'This number isn’t on the Klokd staff list.');
+      }
+      if (user.role !== 'ADMIN' || !user.isActive) {
+        user = await prisma.user.update({ where: { id: user.id }, data: { role: 'ADMIN', isActive: true } });
+        await prisma.auditLog.create({
+          data: { tenantId: user.tenantId, actorId: user.id, action: 'staff.granted', resource: 'user', resourceId: user.id },
+        });
+      }
+    }
+
     // First successful verify activates the user and stamps their role.
     // The `role` in the request is an intent at registration — NOT a way to
     // flip roles on every login: a WORKER tapping "I hire workers" used to be
     // silently rewritten to EMPLOYER here. Returning users keep their stored
     // role; changes are a support/compliance action.
-    const justActivated = !user.isActive;
+    const justActivated = !user.isActive && role !== 'ADMIN';
     if (justActivated) {
       user = await prisma.user.update({
         where: { id: user.id },

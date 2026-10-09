@@ -8,6 +8,7 @@ import { logAudit } from '../../utils/auditLogger';
 import type { IdentitiWebhookPayload } from './identiti.dto';
 import type { TodokuWebhookPayload } from './todoku.dto';
 import type { PaymentRailWebhookPayload } from './payment-rail.dto';
+import { paymentService } from '../payment/payment.service';
 import type { HelpanWebhookPayload } from './helpan.dto';
 
 // Klokd v3 — Rail webhook ingress.
@@ -167,15 +168,13 @@ router.post(
           break;
         }
         case 'PAYOUT_COMPLETED': {
-          await prisma.payment.updateMany({
-            where: { paymentRailRef: payload.data.payoutId },
-            data: {
-              status: 'COMPLETED',
-              paidAt: new Date(payload.occurredAt),
-              // KP uses mpesa_conversation_id for payouts (vs mpesa_receipt for topups).
-              mpesaRef: payload.data.mpesaConversationId,
-            },
-          });
+          // Payment → COMPLETED, settlement + shift → PAID, worker notified.
+          // KP uses mpesa_conversation_id for payouts (vs mpesa_receipt for topups).
+          await paymentService.markPayoutCompleted(
+            payload.data.payoutId,
+            new Date(payload.occurredAt),
+            payload.data.mpesaConversationId
+          );
           break;
         }
         case 'PAYOUT_FAILED': {

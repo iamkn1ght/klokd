@@ -1,4 +1,5 @@
-import { DarajaService } from '../src/modules/payment/daraja.service';
+import { PaymentService, isPaymentRailLive, refundEscrowIfFunded } from '../src/modules/payment/payment.service';
+import { config } from '../src/config';
 import { ReconciliationService } from '../src/modules/payment/reconciliation.service';
 
 // Mock Supabase
@@ -23,7 +24,9 @@ jest.mock('../src/config/database', () => ({
       create: jest.fn(),
       update: jest.fn(),
       updateMany: jest.fn(),
+      findUnique: jest.fn(),
     },
+    shiftSettlement: { findMany: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     shift: {
       findUnique: jest.fn(),
       update: jest.fn(),
@@ -40,33 +43,30 @@ jest.mock('../src/config/database', () => ({
 
 import prisma from '../src/config/database';
 
-describe('DarajaService (sandbox)', () => {
-  const service = new DarajaService();
+describe('Kipkiren Pay guards', () => {
+  const saved = { ...config.paymentRail };
+  afterEach(() => Object.assign(config.paymentRail, saved));
 
-  it('should return STK Push refs', async () => {
-    const result = await service.stkPush({
-      phoneNumber: '254722400500',
-      amountKes: 1800,
-      accountRef: 'SHIFT-001',
-      description: 'Escrow funding',
-      callbackUrl: 'https://api.klokd.co.ke/callback',
-    });
-    expect(result.checkoutRequestId).toBeTruthy();
-    expect(typeof result.checkoutRequestId).toBe('string');
-    expect(result.merchantRequestId).toBeTruthy();
+  it('treats the rail as not live until base URL and credentials are set', () => {
+    Object.assign(config.paymentRail, { baseUrl: '', appId: '', appSecret: '' });
+    expect(isPaymentRailLive()).toBe(false);
+    Object.assign(config.paymentRail, { baseUrl: 'https://kp.example', appId: 'klokd', appSecret: 's' });
+    expect(isPaymentRailLive()).toBe(true);
   });
 
-  it.skip('should return B2C refs (requires security credential)', async () => {
-    const result = await service.b2cPayment({
-      phoneNumber: '254722400500',
-      amountKes: 1642,
-      remarks: 'Shift payment',
-      occasion: 'SHIFT-001',
-      resultUrl: 'https://api.klokd.co.ke/callback/b2c',
-      timeoutUrl: 'https://api.klokd.co.ke/callback/timeout',
+  it('refuses to pay out while the rail is not live', async () => {
+    Object.assign(config.paymentRail, { baseUrl: '', appId: '', appSecret: '' });
+    await expect(new PaymentService().disbursePayment('shift-1', 'tenant')).rejects.toMatchObject({
+      statusCode: 503,
+      railCode: 'PAYMENT_RAIL_NOT_LIVE',
     });
-    expect(result.conversationId).toBeTruthy();
-    expect(typeof result.conversationId).toBe('string');
+  });
+
+  it('payout sweep and refunds are no-ops while the rail is not live', async () => {
+    Object.assign(config.paymentRail, { baseUrl: '', appId: '', appSecret: '' });
+    expect(await new PaymentService().payoutApprovedSettlements()).toBe(0);
+    await refundEscrowIfFunded('shift-1', 'tenant', 'actor');
+    expect((prisma as any).escrow.findUnique).not.toHaveBeenCalled();
   });
 });
 

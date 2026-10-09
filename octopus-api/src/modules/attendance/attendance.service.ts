@@ -6,6 +6,8 @@ import { calculateDistance, toGeoHash } from '../../utils/geoUtils';
 import { logAudit } from '../../utils/auditLogger';
 import { complianceService } from '../compliance/compliance.service';
 import { notificationService } from '../notification/notification.service';
+import { paymentService, isPaymentRailLive, refundEscrowIfFunded } from '../payment/payment.service';
+import { TODOKU_TEMPLATES } from '../rails';
 
 /**
  * Attendance — the Uber-style on-site flow:
@@ -98,7 +100,14 @@ export class AttendanceService {
   }
 
   /** Compliance gates an override can never bypass. */
-  private async complianceGates(shift: { employerId: string; tenantId: string }, worker: { verificationStatus: string }) {
+  private async complianceGates(shift: { id?: string; employerId: string; tenantId: string }, worker: { verificationStatus: string }) {
+    // Once Kipkiren Pay is live, nobody starts work on an unfunded shift.
+    if (isPaymentRailLive() && shift.id) {
+      const escrow = await prisma.escrow.findUnique({ where: { shiftId: shift.id } });
+      if (escrow?.status !== 'FUNDED') {
+        throw new AppError(409, 'The employer hasn’t funded this shift’s pay yet. They’ve been asked to.', true, 'ESCROW_NOT_FUNDED');
+      }
+    }
     if (worker.verificationStatus !== 'APPROVED') {
       throw new AppError(403, 'The worker’s ID verification isn’t complete.', true, 'KYC_TIER_INSUFFICIENT');
     }
@@ -123,6 +132,17 @@ export class AttendanceService {
       geofenceResult: distanceM <= config.platform.gpsClockInRadiusMeters ? 'inside' : 'outside',
       flags,
     };
+  }
+
+  /** Show-up rate = shifts started ÷ (started + no-shows), from the ledger. */
+  private async refreshShowUpRate(workerId: string | null) {
+    if (!workerId) return;
+    const [started, noShows] = await Promise.all([
+      prisma.attendanceEvent.count({ where: { workerId, type: { in: ['STARTED', 'OVERRIDE_START'] } } }),
+      prisma.attendanceEvent.count({ where: { workerId, type: 'NO_SHOW' } }),
+    ]);
+    if (started + noShows === 0) return;
+    await prisma.worker.update({ where: { id: workerId }, data: { showUpRate: Math.round((started / (started + noShows)) * 1000) / 10 } });
   }
 
   /** The start PIN, created when the employer picks the worker. */
@@ -196,6 +216,7 @@ export class AttendanceService {
       tenantId: shift.tenantId,
       userId: shift.employer.userId,
       type: 'attendance.arrived',
+      shiftId: shift.id,
       title: `${workerDisplayName(worker)} has arrived`,
       body: `${worker.firstName} is at the venue for the ${shift.role} shift. Give them your start PIN to begin.`,
     }).catch(err => console.error('[ATTENDANCE] arrive notify failed:', err));
@@ -265,6 +286,7 @@ export class AttendanceService {
       tenantId: shift.tenantId,
       userId: shift.worker.userId,
       type: 'attendance.override_start',
+      shiftId: shift.id,
       title: 'Your shift has started',
       body: `${shift.employer.businessName} started your ${shift.role} shift for you. If that’s wrong, report it in the app.`,
     }).catch(err => console.error('[ATTENDANCE] override notify failed:', err));
@@ -327,11 +349,14 @@ export class AttendanceService {
       reason,
     });
 
+    await this.refreshShowUpRate(workerId);
+
     if (method !== 'employer_override') {
       void notificationService.send({
         tenantId: shift.tenantId,
         userId: shift.employer.userId,
         type: 'attendance.started',
+        shiftId: shift.id,
         title: 'Shift started',
         body: 'Your worker has started the shift.',
       }).catch(err => console.error('[ATTENDANCE] start notify failed:', err));
@@ -442,6 +467,7 @@ export class AttendanceService {
       tenantId: shift.tenantId,
       userId: shift.employer.userId,
       type: 'attendance.clocked_out',
+      shiftId: shift.id,
       title: `${workerDisplayName(worker)} finished the shift`,
       body: `Check the hours and approve pay of KES ${shift.rateKes.toLocaleString()}. It approves automatically in ${config.platform.escrowAutoReleaseHours} hours unless you report a problem.`,
     }).catch(err => console.error('[ATTENDANCE] clock-out notify failed:', err));
@@ -489,9 +515,53 @@ export class AttendanceService {
       });
       n++;
     }
-    // PENDING (Kipkiren Pay): APPROVED settlements are paid out by
-    // paymentService.disbursePayment once escrow holds are funded on the rail.
+    // APPROVED settlements are paid out by paymentService.payoutApprovedSettlements
+    // (same watcher tick) once Kipkiren Pay is live and the hold is funded.
     return n;
+  }
+
+  /**
+   * Apply an admin's dispute decision to the pay due.
+   *   release_payment → approve as calculated
+   *   partial_payment → approve a reduced amount (deductions recalculated)
+   *   reverse_escrow  → no pay; the hold is refunded
+   */
+  async applyDisputeResolution(
+    shiftId: string,
+    adminId: string,
+    action: 'release_payment' | 'partial_payment' | 'reverse_escrow',
+    partialAmountKes?: number
+  ) {
+    const s = await prisma.shiftSettlement.findUnique({ where: { shiftId } });
+    if (!s) return;
+    if (action === 'reverse_escrow') {
+      await prisma.shiftSettlement.update({ where: { id: s.id }, data: { status: 'VOID', approvedAt: new Date(), approvedBy: adminId } });
+      return;
+    }
+    if (action === 'partial_payment' && partialAmountKes != null) {
+      const gross = Math.min(Math.round(partialAmountKes), s.grossKes);
+      const d = await complianceService.calculateDeductions(s.tenantId, gross);
+      const fee = Math.round((gross * config.platform.feePercent) / 100);
+      await prisma.shiftSettlement.update({
+        where: { id: s.id },
+        data: {
+          grossKes: gross,
+          payeKes: d.payeKes,
+          nssfTier1Kes: d.nssfTier1Kes,
+          nssfTier2Kes: d.nssfTier2Kes,
+          shifKes: d.shifKes,
+          ahlKes: d.ahlKes,
+          netKes: d.netKes,
+          platformFeeKes: fee,
+          employerTotalKes: gross + fee,
+          status: 'APPROVED',
+          approvedAt: new Date(),
+          approvedBy: adminId,
+        },
+      });
+      return;
+    }
+    await prisma.shiftSettlement.update({ where: { id: s.id }, data: { status: 'APPROVED', approvedAt: new Date(), approvedBy: adminId } });
   }
 
   /** A dispute pauses the settlement. */
@@ -551,6 +621,14 @@ export class AttendanceService {
             userId: shift.worker.userId,
             accountUuid: shift.worker.accountUuid,
             type: 'attendance.late_warning',
+            shiftId: shift.id,
+            templateId: TODOKU_TEMPLATES.SHIFT_REMINDER_WA,
+            templateVariables: {
+              worker_name: shift.worker.firstName,
+              role: shift.role,
+              venue: shift.employer.businessName,
+              time: shift.startTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Africa/Nairobi' }),
+            },
             title: 'Your shift has started',
             body: `Your ${shift.role} shift at ${shift.employer.businessName} started ${minsLate} min ago. Check in when you arrive.`,
           }).catch(() => undefined);
@@ -559,15 +637,18 @@ export class AttendanceService {
           tenantId: shift.tenantId,
           userId: shift.employer.userId,
           type: 'attendance.late_warning',
+          shiftId: shift.id,
           title: `${name} is running late`,
           body: `${name} hasn’t checked in for the ${shift.role} shift yet. We’ve reminded them.`,
         }).catch(() => undefined);
       } else {
         noShows++;
+        await this.refreshShowUpRate(shift.workerId);
         void notificationService.send({
           tenantId: shift.tenantId,
           userId: shift.employer.userId,
           type: 'attendance.no_show',
+          shiftId: shift.id,
           title: `${name} hasn’t shown up`,
           body: `It’s ${minsLate} min past the start of the ${shift.role} shift. Wait, find a replacement, or cancel — open the shift to choose.`,
         }).catch(() => undefined);
@@ -575,6 +656,7 @@ export class AttendanceService {
     }
 
     const approved = await this.autoApproveDue();
+    await paymentService.payoutApprovedSettlements();
     return { warned, noShows, approved };
   }
 
@@ -598,6 +680,9 @@ export class AttendanceService {
     if (action === 'wait') return prisma.shift.findUnique({ where: { id: shift.id } });
 
     const noShowWorkerId = shift.workerId;
+    // The hold names the no-show worker as payee: refund it either way; a
+    // replacement gets a fresh hold when they're picked.
+    await refundEscrowIfFunded(shift.id, shift.tenantId, userId);
     if (action === 'cancel') {
       const updated = await prisma.shift.update({ where: { id: shift.id }, data: { status: 'CANCELLED' } });
       await prisma.shiftEvent.create({
@@ -611,7 +696,7 @@ export class AttendanceService {
     const [updated] = await prisma.$transaction([
       prisma.shift.update({
         where: { id: shift.id },
-        data: { status: 'POSTED', workerId: null, arrivedAt: null, startPin: null, pinAttempts: 0, lateStage: 0 },
+        data: { status: 'POSTED', workerId: null, directOffer: false, arrivedAt: null, startPin: null, pinAttempts: 0, lateStage: 0 },
       }),
       prisma.shiftApplication.updateMany({
         where: { shiftId: shift.id, status: 'REJECTED' },

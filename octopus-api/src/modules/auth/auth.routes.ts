@@ -26,7 +26,7 @@ const verifyOtpSchema = z.object({
   phone: z.string(),
   challengeId: z.string().min(1),
   code: z.string().length(6),
-  role: z.enum(['WORKER', 'EMPLOYER']),
+  role: z.enum(['WORKER', 'EMPLOYER', 'ADMIN']),
 });
 
 const refreshSchema = z.object({

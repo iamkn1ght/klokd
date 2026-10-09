@@ -64,8 +64,10 @@ jest.mock('../src/config/database', () => ({
     shift: { create: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
     shiftApplication: { create: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
     shiftEvent: { create: jest.fn() },
-    attendanceEvent: { create: jest.fn(), findFirst: jest.fn(), findMany: jest.fn() },
-    shiftSettlement: { create: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn() },
+    attendanceEvent: { create: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn().mockResolvedValue(0) },
+    pushToken: { findMany: jest.fn().mockResolvedValue([]), deleteMany: jest.fn() },
+    contract: { findUnique: jest.fn().mockResolvedValue(null), upsert: jest.fn(), update: jest.fn() },
+    shiftSettlement: { create: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn(), update: jest.fn() },
     escrow: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     payment: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
     dispute: { findUnique: jest.fn(), create: jest.fn() },
@@ -258,7 +260,7 @@ describe('E2E: Full Shift Lifecycle', () => {
     );
   });
 
-  it('6. Employer releases payment', async () => {
+  it('6. Releasing pay waits for Kipkiren Pay (settlement approved, payout refused until the rail is live)', async () => {
     const completedShift = { ...mockShift, status: 'COMPLETED', workerId: 'worker-1', escrow: mockEscrow, worker: mockWorker };
     mockPrisma.shift.findUnique.mockResolvedValue(completedShift);
 
@@ -266,8 +268,11 @@ describe('E2E: Full Shift Lifecycle', () => {
       .post('/api/v1/payments/release/shift-1')
       .set('Authorization', `Bearer ${token('EMPLOYER', 'user-e1')}`);
 
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe('PAYMENT_RAIL_NOT_LIVE');
+    expect(mockPrisma.shiftSettlement.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'APPROVED' }) })
+    );
   });
 
   // Rating tested in isolation in compliance.test.ts

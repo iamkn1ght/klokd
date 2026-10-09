@@ -23,6 +23,11 @@ jest.mock('../src/config/database', () => ({
       aggregate: jest.fn().mockResolvedValue({ _sum: { grossKes: 10000, netKes: 9000, platformFeeKes: 400 } }),
     },
     notification: { findMany: jest.fn().mockResolvedValue([]) },
+    shiftSettlement: { aggregate: jest.fn().mockResolvedValue({ _sum: {}, _count: 0 }) },
+    dispute: { count: jest.fn().mockResolvedValue(0) },
+    attendanceEvent: { count: jest.fn().mockResolvedValue(0) },
+    earlyAccessRequest: { count: jest.fn().mockResolvedValue(0) },
+    dataRequest: { count: jest.fn().mockResolvedValue(0) },
     analyticsEvent: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({ id: 'breach-1' }) },
   },
 }));
