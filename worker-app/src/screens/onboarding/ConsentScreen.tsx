@@ -1,6 +1,6 @@
 /**
- * Consent screen — Per-data-type tiles with DPA 2019 trust signals.
- * Ported 1:1 from claude-design/screens/onboarding.jsx
+ * Consent screen — what Klokd collects and why, then the two consents that
+ * are saved to the API (POST /me/consent) before ID verification.
  */
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
@@ -9,14 +9,15 @@ import { GradientBtn, Eyebrow, StepProgress } from '../../components/Primitives'
 import { AmbientOrbs, FadeUp, SafeTop } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { colors } from '../../theme';
+import { useApi } from '../../hooks/useApi';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
 
 const ITEMS = [
-  { name: 'National ID', meta: 'Front, back, selfie', use: "Verify it's you. Stored encrypted for 3 years.", who: 'Employers see: verified badge only.', icon: 'id' as const },
-  { name: 'Location (GPS)', meta: 'Clock-in only', use: "Proves you're at the venue. Never tracked off-shift.", who: 'Employers see: clock-in confirmed only.', icon: 'pin' as const },
-  { name: 'M-Pesa number', meta: 'For payment', use: 'Receive earnings after every shift.', who: 'Employers see: never.', icon: 'mpesa' as const },
-  { name: 'Shift history', meta: 'Your reputation', use: 'Builds your rating, show-up rate, portable record.', who: 'Employers see: rating & show-up rate.', icon: 'clock' as const },
+  { name: 'National ID', meta: 'Checked once', use: 'Your ID number is checked with the government register (IPRS) by Identiti. Klokd never stores your ID number or photos.', who: 'Businesses see: an ID-verified badge only.', icon: 'id' as const },
+  { name: 'Location (GPS)', meta: 'Check-in and clock-out only', use: "Read once when you tap “I’ve arrived” and “Clock out” to show you're at the venue. Never tracked in between.", who: 'Businesses see: that you checked in, and how far away.', icon: 'pin' as const },
+  { name: 'Phone number', meta: 'Your sign-in', use: 'Your M-Pesa pay goes to the number you signed in with, through Kipkiren Pay. Klokd doesn’t keep a separate M-Pesa number.', who: 'Businesses see: never.', icon: 'mpesa' as const },
+  { name: 'Shift history', meta: 'Your reputation', use: 'Builds your rating and show-up rate.', who: 'Businesses see: rating (after 3 reviews) and show-up rate.', icon: 'clock' as const },
 ];
 
 function ConsentToggle({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
@@ -54,6 +55,9 @@ export function ConsentScreen({ navigation }: Props) {
   const [idOK, setIdOK] = useState(false);
   const [gpsOK, setGpsOK] = useState(false);
   const ready = idOK && gpsOK;
+  const { post } = useApi();
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   return (
     <View style={styles.screen}>
@@ -94,9 +98,9 @@ export function ConsentScreen({ navigation }: Props) {
 
         <FadeUp delay={500} style={styles.agreeBox}>
           <Eyebrow style={{ marginBottom: 10 }}>I agree to share</Eyebrow>
-          <ConsentToggle label="My identity documents" on={idOK} onPress={() => setIdOK(!idOK)} />
+          <ConsentToggle label="Check my ID with the register" on={idOK} onPress={() => setIdOK(!idOK)} />
           <View style={{ height: 8 }} />
-          <ConsentToggle label="My GPS at clock-in" on={gpsOK} onPress={() => setGpsOK(!gpsOK)} />
+          <ConsentToggle label="My location at check-in and clock-out" on={gpsOK} onPress={() => setGpsOK(!gpsOK)} />
         </FadeUp>
 
         <FadeUp delay={580}>
@@ -109,8 +113,22 @@ export function ConsentScreen({ navigation }: Props) {
       </ScrollView>
 
       <View style={styles.footer}>
-        <GradientBtn disabled={!ready} onPress={() => navigation.navigate('VerifyID')}>
-          {ready ? 'Continue' : 'Agree to both to continue'}
+        {saveError ? <Text style={{ color: colors.warning, fontSize: 12.5, marginBottom: 10, textAlign: 'center' }}>{saveError}</Text> : null}
+        <GradientBtn
+          disabled={!ready || saving}
+          onPress={async () => {
+            setSaving(true);
+            setSaveError(null);
+            try {
+              await post('/me/consent', { identity: idOK, location: gpsOK });
+              navigation.navigate('VerifyID');
+            } catch (e: any) {
+              setSaveError(e?.message ?? 'Couldn’t save your consent. Try again.');
+            }
+            setSaving(false);
+          }}
+        >
+          {saving ? 'Saving…' : ready ? 'Continue' : 'Agree to both to continue'}
         </GradientBtn>
       </View>
     </View>

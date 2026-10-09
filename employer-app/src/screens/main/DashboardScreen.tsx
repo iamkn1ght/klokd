@@ -1,173 +1,139 @@
 /**
- * Employer Dashboard — Escrow balance card + stats + open shifts + matched + activity ticker.
- * Ported 1:1 from claude-design/screens/employer-main.jsx (EmpDashboard)
+ * Dashboard — all real:
+ *   GET /employer/overview            pay committed, spend, show-up, approvals
+ *   GET /identity/employers/profile   verification banner
+ *   GET /attendance/feed              live activity at your venues
+ *   GET /me/notifications             unread count
  */
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Label, StatusPill } from '../../components/Primitives';
-import { AmbientOrbs, SafeTop } from '../../components/KlokdLayout';
-import { EmpHeader, StatTile, WorkerCard, EscrowMeter, Worker } from '../../components/EmployerPrimitives';
+import { GradientBtn, Label } from '../../components/Primitives';
+import { AmbientOrbs, SafeTop, FadeUp } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
-import { IE } from '../../components/IconsEmployer';
-import { colors, typography, gradients } from '../../theme';
+import { useData } from '../../hooks/useData';
+import { useAuth } from '../../context/AuthContext';
+import { colors } from '../../theme';
+import { kes, time, greeting, day } from '../../lib/format';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
 
-const EMP_WORKERS: Worker[] = [
-  { id: 'w1', name: 'Akinyi O.', initials: 'AO', rating: 4.8, shifts: 47, showUp: 94, verified: true, badge: 'Worked here 3× · last Fri', avatarBg: ['#5B4A8A', '#2B1F52'], match: 98 },
-  { id: 'w2', name: 'Kevin M.', initials: 'KM', rating: 4.7, shifts: 62, showUp: 96, verified: true, badge: 'Top 5% in Westlands', avatarBg: ['#3B6E5E', '#1B3E34'], match: 94 },
-  { id: 'w3', name: 'Njeri W.', initials: 'NW', rating: 4.9, shifts: 31, showUp: 97, verified: true, badge: 'Worked similar venues', avatarBg: ['#8A5B3B', '#4E2E1B'], match: 91 },
-];
-
-const EMP_SHIFTS = [
-  { id: 'es1', role: 'Waiter', date: 'Tonight', time: '5:00 – 10:00 PM', pay: 1800, needed: 3, filled: 2 },
-  { id: 'es2', role: 'Barista', date: 'Tomorrow', time: '7:00 AM – 2:00 PM', pay: 2100, needed: 2, filled: 2 },
-  { id: 'es3', role: 'Waiter', date: 'Fri', time: '6:00 – 11:00 PM', pay: 2200, needed: 4, filled: 1 },
-];
-
-function EmpShiftRow({ shift, onPress }: { shift: typeof EMP_SHIFTS[0]; onPress?: () => void }) {
-  const done = shift.filled >= shift.needed;
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.85}
-      style={{
-        padding: 14,
-        borderRadius: 14,
-        backgroundColor: done ? 'rgba(0,229,160,0.04)' : 'rgba(255,255,255,0.025)',
-        borderWidth: 1, borderColor: done ? 'rgba(0,229,160,0.2)' : colors.white06,
-        flexDirection: 'row', alignItems: 'center', gap: 12,
-      }}
-    >
-      <View style={{ flex: 1 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-          <Text style={styles.shiftRole}>{shift.role}</Text>
-          {done ? <StatusPill tone="mint">Filled</StatusPill> : <StatusPill tone="volt">Filling</StatusPill>}
-        </View>
-        <Text style={styles.shiftMeta}>{shift.date} · {shift.time}</Text>
-      </View>
-      <View style={{ flexDirection: 'row', gap: 3 }}>
-        {Array.from({ length: shift.needed }).map((_, i) => (
-          <View key={i} style={{
-            width: 7, height: 16, borderRadius: 2,
-            backgroundColor: i < shift.filled ? colors.electric : colors.white08,
-          }} />
-        ))}
-      </View>
-      <View style={{ alignItems: 'flex-end', minWidth: 68 }}>
-        <Text style={styles.shiftRatio}>{shift.filled}/{shift.needed}</Text>
-        <Text style={styles.shiftPay}>KES {shift.pay}</Text>
-      </View>
-    </TouchableOpacity>
-  );
+export interface EmployerProfile {
+  businessName: string;
+  contactPerson: string | null;
+  kraPinMasked: string | null;
+  wiba: { status: 'missing' | 'expired' | 'confirmed'; insurer: string | null; policyRef: string | null; expiresAt: string | null };
+  canPostShifts: boolean;
 }
 
+interface Overview {
+  shiftsThisWeek: number;
+  openShifts: number;
+  committedKes: number;
+  committedShifts: number;
+  spentThisWeekKes: number;
+  awaitingApproval: number;
+  showUpRate: number | null;
+  paymentsLive: boolean;
+}
+
+interface FeedItem { id: string; type: string; at: string; shiftId: string; role: string; worker: string | null }
+
+const FEED: Record<string, (w: string) => string> = {
+  ARRIVED: w => `${w} arrived`,
+  STARTED: w => `${w} started the shift`,
+  OVERRIDE_START: w => `You started ${w}’s shift without a PIN`,
+  PIN_LOCKED: w => `${w} got locked out of the PIN`,
+  CLOCKED_OUT: w => `${w} finished · approve pay`,
+  LATE_WARNING: w => `${w} is running late`,
+  NO_SHOW: w => `${w} hasn’t shown up`,
+  NO_SHOW_RESOLVED: () => 'No-show resolved',
+};
+
 export function DashboardScreen({ navigation }: Props) {
+  const { businessName } = useAuth();
+  const ov = useData<Overview>('/employer/overview', { pollMs: 60_000 });
+  const profile = useData<EmployerProfile>('/identity/employers/profile');
+  const feed = useData<FeedItem[]>('/attendance/feed', { pollMs: 20_000 });
+  const inbox = useData<{ unread: number }>('/me/notifications', { pollMs: 30_000 });
+  const [refreshing, setRefreshing] = useState(false);
+  const o = ov.data;
+  const p = profile.data;
+
+  const refresh = async () => {
+    setRefreshing(true);
+    await Promise.all([ov.reload(), profile.reload(), feed.reload(), inbox.reload()]);
+    setRefreshing(false);
+  };
+
   return (
     <View style={styles.screen}>
       <AmbientOrbs intensity="subtle" />
       <SafeTop />
-      <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
-        <EmpHeader greeting="Habari, Wanjiku" />
+      <ScrollView contentContainerStyle={{ paddingBottom: 30 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.volt} />}>
+        <View style={styles.headerRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.date}>{day(new Date())}</Text>
+            <Text style={styles.greeting} numberOfLines={1}>{greeting()}</Text>
+            <Text style={styles.biz} numberOfLines={1}>{p?.businessName ?? businessName ?? ''}</Text>
+          </View>
+          <TouchableOpacity style={styles.bell} onPress={() => navigation.navigate('Notifications')} accessibilityLabel="Notifications">
+            <Icons.bell color={colors.white} size={16} />
+            {(inbox.data?.unread ?? 0) > 0 && <View style={styles.bellDot} />}
+          </TouchableOpacity>
+        </View>
 
-        {/* Escrow balance */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 14 }}>
-          <LinearGradient
-            colors={[colors.electricAlpha['08'], colors.electricAlpha['03']]}
-            start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
-            style={styles.escrowCard}
-          >
-            <View style={styles.escrowHead}>
-              <Label color={colors.white50}>Escrow balance</Label>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                <Icons.shield color={colors.electric} size={11} />
-                <Text style={styles.held}>M-PESA HELD</Text>
-              </View>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
-              <Text style={styles.escrowAmount}>KES 42,300</Text>
-              <Text style={styles.escrowOf}>of 50,000</Text>
-            </View>
-            <View style={{ marginTop: 10 }}>
-              <EscrowMeter funded={50000} held={42300} committed={12600} />
-            </View>
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-              <TouchableOpacity activeOpacity={0.85} style={{ flex: 1 }}>
-                <LinearGradient
-                  colors={[gradients.cta[0], gradients.cta[1]]}
-                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                  style={styles.topUpBtn}
-                >
-                  <Text style={styles.topUpText}>Top up</Text>
-                </LinearGradient>
+        {p && !p.canPostShifts && (
+          <View style={styles.banner}>
+            <Text style={styles.bannerH}>Verify your business to post shifts</Text>
+            <Text style={styles.bannerP}>
+              {!p.kraPinMasked ? 'Add your KRA PIN' : 'KRA PIN on file'} · {p.wiba.status === 'confirmed' ? 'WIBA on file' : p.wiba.status === 'expired' ? 'renew your WIBA policy' : 'declare your WIBA policy'}
+            </Text>
+            <GradientBtn size="sm" onPress={() => navigation.navigate('Verify')}>Verify business</GradientBtn>
+          </View>
+        )}
+
+        <FadeUp delay={40} style={{ paddingHorizontal: 20, paddingTop: 16 }}>
+          <View style={styles.hero}>
+            <Label color={colors.volt}>Pay committed</Label>
+            <Text style={styles.big}>{o ? kes(o.committedKes) : '—'}</Text>
+            <Text style={styles.heroSub}>{o ? `${o.committedShifts} upcoming or open shift${o.committedShifts === 1 ? '' : 's'}, incl. 4% Klokd fee` : ''}</Text>
+            {o && o.awaitingApproval > 0 && (
+              <TouchableOpacity onPress={() => navigation.navigate('Pay')}>
+                <Text style={styles.approve}>{o.awaitingApproval} shift{o.awaitingApproval === 1 ? '' : 's'} to approve →</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.ledgerBtn} activeOpacity={0.7}>
-                <Text style={styles.ledgerText}>Ledger</Text>
-              </TouchableOpacity>
-            </View>
-          </LinearGradient>
+            )}
+            {o && !o.paymentsLive && <Text style={styles.heroNote}>M-Pesa funding switches on when Klokd payments go live; until then pay is tracked and approved here.</Text>}
+          </View>
+        </FadeUp>
+
+        <View style={styles.tiles}>
+          <Tile k={o ? String(o.shiftsThisWeek) : '—'} l="shifts this week" />
+          <Tile k={o ? kes(o.spentThisWeekKes) : '—'} l="spent this week" />
+          <Tile k={o?.showUpRate != null ? `${o.showUpRate}%` : '—'} l="show-up rate" />
         </View>
 
-        {/* Quick stats */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 14, flexDirection: 'row', gap: 8 }}>
-          <StatTile label="Today" value="7 workers" sub="4 clocked in · 3 expected" tone="mint" compact icon={<IE.users color={colors.electric} size={11} />} />
-          <StatTile label="This week" value="KES 58.2k" sub="paid to 14 workers" tone="volt" compact icon={<IE.trend color={colors.volt} size={11} />} />
+        <View style={{ paddingHorizontal: 20, marginTop: 8 }}>
+          <GradientBtn disabled={!p?.canPostShifts} onPress={() => navigation.navigate('PostShift')}>Post a shift</GradientBtn>
         </View>
 
-        {/* Open shifts */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <Label>Open shifts · {EMP_SHIFTS.length}</Label>
-            <TouchableOpacity onPress={() => navigation.navigate('PostShift')} activeOpacity={0.85}>
-              <LinearGradient
-                colors={[gradients.cta[0], gradients.cta[1]]}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                style={styles.newShiftBtn}
-              >
-                <IE.plus color={colors.ink} size={12} />
-                <Text style={styles.newShiftText}>New shift</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-          <View style={{ gap: 10 }}>
-            {EMP_SHIFTS.map(s => (
-              <EmpShiftRow key={s.id} shift={s} onPress={() => navigation.navigate('SelectWorker', { shift: s })} />
-            ))}
-          </View>
-        </View>
-
-        {/* Top matches */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 22 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <Label>Top matches · tonight's Waiter</Label>
-            <Text style={{ fontSize: 10.5, color: colors.electric, fontWeight: '700' }}>View all</Text>
-          </View>
-          <View style={{ gap: 8 }}>
-            {EMP_WORKERS.slice(0, 3).map(w => (
-              <WorkerCard key={w.id} worker={w} match={w.match} compact />
-            ))}
-          </View>
-        </View>
-
-        {/* Recent activity */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 22 }}>
-          <Label style={{ marginBottom: 10 }}>Recent activity</Label>
-          <View style={styles.activityCard}>
-            {[
-              { t: 'Akinyi O. clocked out', s: 'KES 1,800 released · 2m ago', d: colors.electric },
-              { t: 'Kevin M. confirmed shift', s: 'Tonight · Waiter · 11m ago', d: colors.volt },
-              { t: 'Escrow topped up', s: 'KES 20,000 · this morning', d: colors.white },
-            ].map((a, i) => (
-              <View key={i} style={[styles.activityRow, i < 2 && styles.activityBorder]}>
-                <View style={[styles.activityDot, { backgroundColor: a.d }]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.activityTitle}>{a.t}</Text>
-                  <Text style={styles.activitySub}>{a.s}</Text>
-                </View>
-              </View>
-            ))}
+        <View style={{ paddingHorizontal: 20, marginTop: 24 }}>
+          <Label color={colors.white60}>Live activity</Label>
+          <View style={{ marginTop: 10, gap: 8 }}>
+            {(feed.data ?? []).length === 0 && <Text style={styles.empty}>Workers arriving, starting and finishing show up here as it happens.</Text>}
+            {(feed.data ?? []).map(e => {
+              const alert = ['NO_SHOW', 'PIN_LOCKED', 'LATE_WARNING'].includes(e.type);
+              return (
+                <TouchableOpacity key={e.id} style={styles.feedRow} onPress={() => navigation.navigate('ShiftDetail', { id: e.shiftId })}>
+                  <View style={[styles.dot, { backgroundColor: alert ? colors.warning : colors.electric }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.feedText}>{(FEED[e.type] ?? (() => e.type))(e.worker ?? 'Your worker')}</Text>
+                    <Text style={styles.feedMeta}>{e.role}</Text>
+                  </View>
+                  <Text style={styles.feedAt}>{time(e.at)}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
       </ScrollView>
@@ -175,44 +141,39 @@ export function DashboardScreen({ navigation }: Props) {
   );
 }
 
+function Tile({ k, l }: { k: string; l: string }) {
+  return (
+    <View style={styles.tile}>
+      <Text style={styles.tileK} numberOfLines={1} adjustsFontSizeToFit>{k}</Text>
+      <Text style={styles.tileL}>{l}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ink },
-
-  escrowCard: {
-    paddingHorizontal: 16, paddingVertical: 14,
-    borderRadius: 18,
-    borderWidth: 1, borderColor: colors.electricAlpha['20'],
-  },
-  escrowHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  held: { fontSize: 9.5, color: colors.electric, fontWeight: '700', letterSpacing: 0.95 },
-  escrowAmount: { fontSize: 28, fontWeight: '900', color: colors.white, letterSpacing: -1.12, fontFamily: typography.mono },
-  escrowOf: { fontSize: 11, color: colors.white40 },
-  topUpBtn: { paddingVertical: 9, borderRadius: 10, alignItems: 'center' },
-  topUpText: { color: colors.ink, fontSize: 11.5, fontWeight: '800' },
-  ledgerBtn: { flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: colors.white04, borderWidth: 0.5, borderColor: colors.white10, alignItems: 'center' },
-  ledgerText: { color: colors.white80, fontSize: 11.5, fontWeight: '600' },
-
-  newShiftBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 10, paddingVertical: 6,
-    borderRadius: 999,
-  },
-  newShiftText: { fontSize: 11, fontWeight: '800', color: colors.ink, letterSpacing: -0.11 },
-
-  shiftRole: { fontSize: 13, fontWeight: '800', color: colors.white, letterSpacing: -0.13 },
-  shiftMeta: { fontSize: 11, color: colors.white55 },
-  shiftRatio: { fontSize: 13, fontWeight: '900', color: colors.electric, letterSpacing: -0.26, fontFamily: typography.mono },
-  shiftPay: { fontSize: 10, color: colors.white45, fontFamily: typography.mono },
-
-  activityCard: {
-    paddingHorizontal: 14, paddingVertical: 12,
-    borderRadius: 14,
-    backgroundColor: colors.white02,
-    borderWidth: 0.5, borderColor: colors.white06,
-  },
-  activityRow: { flexDirection: 'row', gap: 10, paddingVertical: 6 },
-  activityBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.white05 },
-  activityDot: { width: 6, height: 6, borderRadius: 3, marginTop: 6 },
-  activityTitle: { fontSize: 12, fontWeight: '700', color: colors.white },
-  activitySub: { fontSize: 10.5, color: colors.white50 },
+  headerRow: { paddingHorizontal: 20, paddingTop: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  date: { fontSize: 12.5, color: colors.white55, fontWeight: '600' },
+  greeting: { fontSize: 26, fontWeight: '900', color: colors.white, letterSpacing: -0.9, marginTop: 2 },
+  biz: { fontSize: 13, color: colors.volt, fontWeight: '800', marginTop: 2 },
+  bell: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.white05, alignItems: 'center', justifyContent: 'center' },
+  bellDot: { position: 'absolute', top: 8, right: 9, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.volt, borderWidth: 1.5, borderColor: colors.ink },
+  banner: { marginHorizontal: 20, marginTop: 14, padding: 14, borderRadius: 16, backgroundColor: 'rgba(255,179,71,0.10)', borderWidth: 1, borderColor: 'rgba(255,179,71,0.28)', gap: 8 },
+  bannerH: { fontSize: 14, fontWeight: '900', color: colors.white },
+  bannerP: { fontSize: 12, color: colors.white70 },
+  hero: { padding: 18, borderRadius: 18, backgroundColor: colors.voltAlpha['07'], borderWidth: 1, borderColor: colors.voltAlpha['25'] },
+  big: { fontSize: 32, fontWeight: '900', color: colors.white, letterSpacing: -1.1, marginTop: 6 },
+  heroSub: { fontSize: 12, color: colors.white65, marginTop: 3 },
+  heroNote: { fontSize: 11.5, color: colors.white55, marginTop: 10, lineHeight: 16 },
+  approve: { color: colors.warning, fontSize: 13, fontWeight: '800', marginTop: 10 },
+  tiles: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, marginTop: 12, marginBottom: 12 },
+  tile: { flex: 1, padding: 12, borderRadius: 14, backgroundColor: colors.white03, borderWidth: 1, borderColor: colors.white08 },
+  tileK: { fontSize: 16, fontWeight: '900', color: colors.white },
+  tileL: { fontSize: 10, color: colors.white55, marginTop: 3, textTransform: 'uppercase', letterSpacing: 0.4 },
+  empty: { color: colors.white55, fontSize: 12.5, lineHeight: 18 },
+  feedRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 14, backgroundColor: colors.white03 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  feedText: { color: colors.white, fontSize: 13.5, fontWeight: '700' },
+  feedMeta: { color: colors.white55, fontSize: 11.5, marginTop: 2 },
+  feedAt: { color: colors.white55, fontSize: 12, fontWeight: '700' },
 });

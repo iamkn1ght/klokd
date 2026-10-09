@@ -1,174 +1,100 @@
 /**
- * Employer Pay tab — Escrow hero + top-up/withdraw + full ledger (in/out/refund) + export.
- * Ported 1:1 from claude-design/screens/employer-tabs.jsx (EmpPayTab)
+ * Pay & billing — GET /employer/billing. What's waiting for your check,
+ * approved, paid and committed, with every shift's line.
  */
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Label } from '../../components/Primitives';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { StatusPill } from '../../components/Primitives';
 import { AmbientOrbs, SafeTop } from '../../components/KlokdLayout';
-import { EscrowMeter } from '../../components/EmployerPrimitives';
-import { Icons } from '../../components/Icons';
-import { colors, typography, gradients } from '../../theme';
+import { useData } from '../../hooks/useData';
+import { colors } from '../../theme';
+import { kes, day, hm, time } from '../../lib/format';
 
-type LedgerTone = 'in' | 'out' | 'refund';
+type Props = { navigation: NativeStackNavigationProp<any> };
 
-interface LedgerRow {
-  d: string; t: string; s: string; k: number; tone: LedgerTone;
+interface Billing {
+  paymentsLive: boolean;
+  totals: { awaitingApprovalKes: number; approvedUnpaidKes: number; paidKes: number; committedKes: number };
+  lines: { shiftId: string; date: string; role: string; worker: string | null; workedMinutes: number; grossKes: number; feeKes: number; totalKes: number; status: string; approveBy: string; mpesaRef: string | null }[];
 }
 
-const LEDGER: LedgerRow[] = [
-  { d: '3 Apr', t: 'Released · Akinyi O.', s: 'Waiter · 5h · tonight', k: -1800, tone: 'out' },
-  { d: '3 Apr', t: 'Escrow top-up', s: 'M-Pesa · Till 504-221', k: +20000, tone: 'in' },
-  { d: '2 Apr', t: 'Released · Kevin M.', s: 'Dishwasher · 5h', k: -1600, tone: 'out' },
-  { d: '2 Apr', t: 'Released · 3 workers', s: 'Brunch shift · Sat', k: -5400, tone: 'out' },
-  { d: '31 Mar', t: 'Refund · flagged', s: 'Brian K. no-show · auto', k: +1800, tone: 'refund' },
-  { d: '30 Mar', t: 'Released · Njeri W.', s: 'Kitchen · 6h', k: -2400, tone: 'out' },
-];
+const PILL: Record<string, { label: string; tone: 'mint' | 'warn' | 'err' | 'neutral' }> = {
+  AWAITING_APPROVAL: { label: 'Check needed', tone: 'warn' },
+  APPROVED: { label: 'Approved', tone: 'mint' },
+  PAID: { label: 'Paid', tone: 'mint' },
+  DISPUTED: { label: 'Disputed', tone: 'err' },
+  VOID: { label: 'Not payable', tone: 'neutral' },
+};
 
-function MiniStat({ l, v, c }: { l: string; v: string; c: string }) {
-  return (
-    <View>
-      <Text style={styles.miniLabel}>{l}</Text>
-      <Text style={[styles.miniValue, { color: c }]}>{v}</Text>
-    </View>
-  );
-}
-
-export function PayScreen() {
+export function PayScreen({ navigation }: Props) {
+  const q = useData<Billing>('/employer/billing', { pollMs: 60_000 });
+  const d = q.data;
   return (
     <View style={styles.screen}>
       <AmbientOrbs intensity="subtle" />
       <SafeTop />
-      <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
-        <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
-          <Text style={styles.title}>Pay</Text>
-          <Text style={styles.sub}>Escrow + M-Pesa ledger</Text>
-        </View>
-
-        {/* Escrow hero */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
-          <LinearGradient
-            colors={[colors.electricAlpha['07'], colors.electricAlpha['03']]}
-            start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
-            style={styles.hero}
-          >
-            <Label color={colors.white50}>Escrow balance</Label>
-            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 6, marginBottom: 14 }}>
-              <Text style={styles.kes}>KES</Text>
-              <Text style={styles.heroAmount}>42,300</Text>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 30, gap: 12 }}>
+        <Text style={styles.h1}>Pay & billing</Text>
+        {q.status === 'loading' && <ActivityIndicator color={colors.volt} style={{ marginTop: 40 }} />}
+        {q.status === 'error' && <Text style={styles.err}>{q.error}</Text>}
+        {d && (
+          <>
+            {!d.paymentsLive && <Text style={styles.note}>M-Pesa funding and payouts switch on when Klokd payments (Kipkiren Pay) go live. Until then every shift’s pay is calculated, approved and recorded here.</Text>}
+            <View style={styles.tiles}>
+              <Tile k={kes(d.totals.awaitingApprovalKes)} l="to check" warn={d.totals.awaitingApprovalKes > 0} />
+              <Tile k={kes(d.totals.approvedUnpaidKes)} l="approved" />
             </View>
-            <EscrowMeter funded={50000} held={42300} committed={12600} showLabels={false} />
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
-              <View style={{ flex: 1 }}><MiniStat l="Committed" v="12,600" c={colors.electric} /></View>
-              <View style={{ flex: 1 }}><MiniStat l="Available" v="29,700" c={colors.white} /></View>
-              <View style={{ flex: 1 }}><MiniStat l="Released 30d" v="184k" c={colors.volt} /></View>
+            <View style={styles.tiles}>
+              <Tile k={kes(d.totals.paidKes)} l="paid" />
+              <Tile k={kes(d.totals.committedKes)} l="committed" />
             </View>
-          </LinearGradient>
-        </View>
-
-        {/* Actions */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 14, flexDirection: 'row', gap: 8 }}>
-          <TouchableOpacity activeOpacity={0.85} style={{ flex: 1 }}>
-            <LinearGradient
-              colors={[gradients.cta[0], gradients.cta[1]]}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              style={styles.topupBtn}
-            >
-              <Text style={styles.topupText}>Top up escrow</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.withdrawBtn} activeOpacity={0.7}>
-            <Text style={styles.withdrawText}>Withdraw</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Ledger */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
-          <Label style={{ marginBottom: 10 }}>Ledger · April</Label>
-          <View style={styles.ledger}>
-            {LEDGER.map((r, i) => (
-              <View key={i} style={[styles.ledgerRow, i < LEDGER.length - 1 && styles.ledgerBorder]}>
-                <View style={[
-                  styles.ledgerIcon,
-                  { backgroundColor: r.tone === 'in' ? 'rgba(0,229,160,0.13)' : r.tone === 'refund' ? 'rgba(188,255,78,0.14)' : colors.white04 },
-                ]}>
-                  <Text style={{
-                    color: r.tone === 'in' ? colors.electric : r.tone === 'refund' ? colors.volt : colors.white50,
-                    fontWeight: '900', fontSize: 16,
-                  }}>
-                    {r.tone === 'in' ? '↓' : r.tone === 'refund' ? '↩' : '↑'}
-                  </Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.ledgerTitle}>{r.t}</Text>
-                  <View style={{ flexDirection: 'row', gap: 6 }}>
-                    <Text style={styles.ledgerMeta}>{r.d}</Text>
-                    <Text style={styles.ledgerMeta}>·</Text>
-                    <Text style={styles.ledgerMeta}>{r.s}</Text>
+            <Text style={styles.small}>The CSV export for your accountant is on klokd.co.ke → Pay & billing.</Text>
+            {d.lines.length === 0 && <Text style={styles.empty}>Each shift appears here when your worker clocks out.</Text>}
+            {d.lines.map(l => {
+              const pill = PILL[l.status] ?? { label: l.status, tone: 'neutral' as const };
+              return (
+                <TouchableOpacity key={l.shiftId} style={styles.row} onPress={() => navigation.navigate('ShiftDetail', { id: l.shiftId })}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.title}>{l.role} · {l.worker ?? '—'}</Text>
+                    <Text style={styles.meta}>{day(l.date)} · {hm(l.workedMinutes)}{l.status === 'AWAITING_APPROVAL' ? ` · auto-approves ${time(l.approveBy)}` : ''}{l.mpesaRef ? ` · ${l.mpesaRef}` : ''}</Text>
                   </View>
-                </View>
-                <Text style={{
-                  fontSize: 13,
-                  fontWeight: '800',
-                  color: r.k > 0 ? colors.electric : colors.white,
-                  fontFamily: typography.mono,
-                  letterSpacing: -0.13,
-                }}>
-                  {r.k > 0 ? '+' : ''}{r.k.toLocaleString()}
-                </Text>
-              </View>
-            ))}
-          </View>
-
-          <TouchableOpacity style={styles.exportBtn} activeOpacity={0.7}>
-            <Icons.download color={colors.white60} size={12} />
-            <Text style={styles.exportText}>Export for accountant · PDF</Text>
-          </TouchableOpacity>
-        </View>
+                  <View style={{ alignItems: 'flex-end', gap: 5 }}>
+                    <Text style={styles.total}>{kes(l.totalKes)}</Text>
+                    <StatusPill tone={pill.tone}>{pill.label}</StatusPill>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </>
+        )}
       </ScrollView>
+    </View>
+  );
+}
+
+function Tile({ k, l, warn }: { k: string; l: string; warn?: boolean }) {
+  return (
+    <View style={styles.tile}>
+      <Text style={[styles.tileK, warn && { color: colors.warning }]} numberOfLines={1} adjustsFontSizeToFit>{k}</Text>
+      <Text style={styles.tileL}>{l}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ink },
-  title: { fontSize: 20, fontWeight: '900', letterSpacing: -0.6, color: colors.white },
-  sub: { fontSize: 11, color: colors.white50, marginTop: 2 },
-
-  hero: {
-    padding: 16,
-    borderRadius: 18,
-    borderWidth: 1, borderColor: colors.electricAlpha['20'],
-  },
-  kes: { fontSize: 13, color: colors.white50, fontWeight: '700' },
-  heroAmount: { fontSize: 34, fontWeight: '900', color: colors.white, letterSpacing: -1.36, fontFamily: typography.mono },
-  miniLabel: { fontSize: 9.5, color: colors.white45, letterSpacing: 0.95, textTransform: 'uppercase', fontWeight: '700', marginBottom: 4 },
-  miniValue: { fontSize: 14, fontWeight: '800', letterSpacing: -0.28, fontFamily: typography.mono },
-
-  topupBtn: { paddingVertical: 11, borderRadius: 12, alignItems: 'center' },
-  topupText: { color: colors.ink, fontSize: 12, fontWeight: '800' },
-  withdrawBtn: { flex: 1, paddingVertical: 11, borderRadius: 12, backgroundColor: colors.white04, borderWidth: 0.5, borderColor: colors.white10, alignItems: 'center' },
-  withdrawText: { color: colors.white80, fontSize: 12, fontWeight: '600' },
-
-  ledger: {
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    backgroundColor: colors.white02,
-    borderWidth: 0.5, borderColor: colors.white06,
-  },
-  ledgerRow: { flexDirection: 'row', gap: 12, paddingVertical: 12, alignItems: 'center' },
-  ledgerBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.white05 },
-  ledgerIcon: { width: 32, height: 32, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  ledgerTitle: { fontSize: 12.5, fontWeight: '700', color: colors.white, letterSpacing: -0.13 },
-  ledgerMeta: { fontSize: 10.5, color: colors.white45 },
-
-  exportBtn: {
-    marginTop: 14, paddingVertical: 11,
-    borderRadius: 12,
-    backgroundColor: colors.white03,
-    borderWidth: 0.5, borderColor: colors.white08,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-  },
-  exportText: { fontSize: 12, fontWeight: '600', color: colors.white70 },
+  h1: { fontSize: 28, fontWeight: '900', color: colors.white, letterSpacing: -0.9, marginTop: 8 },
+  err: { color: colors.warning },
+  note: { color: colors.white65, fontSize: 12.5, lineHeight: 18 },
+  small: { color: colors.white55, fontSize: 11.5 },
+  empty: { color: colors.white60, fontSize: 13, textAlign: 'center', marginTop: 10 },
+  tiles: { flexDirection: 'row', gap: 8 },
+  tile: { flex: 1, padding: 14, borderRadius: 14, backgroundColor: colors.white03, borderWidth: 1, borderColor: colors.white08 },
+  tileK: { fontSize: 18, fontWeight: '900', color: colors.white },
+  tileL: { fontSize: 10.5, color: colors.white55, marginTop: 3, textTransform: 'uppercase', letterSpacing: 0.4 },
+  row: { flexDirection: 'row', gap: 10, padding: 14, borderRadius: 16, backgroundColor: colors.white03, borderWidth: 1, borderColor: colors.white08 },
+  title: { fontSize: 14, fontWeight: '800', color: colors.white },
+  meta: { fontSize: 11.5, color: colors.white55, marginTop: 3 },
+  total: { fontSize: 15, fontWeight: '900', color: colors.white },
 });

@@ -1,142 +1,171 @@
 /**
- * Pay tab — Hero ledger + full statutory breakdown (PAYE/NSSF/SHIF/AHL) + recent payouts.
- * Ported 1:1 from claude-design/screens/main.jsx
+ * Pay — GET /me/earnings. This month's take-home, every shift's breakdown
+ * (PAYE, NSSF, SHIF, housing levy) and where its payout stands. Large
+ * payouts that need confirming take the Identiti OTP here.
  */
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Label } from '../../components/Primitives';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, TextInput } from 'react-native';
+import { StatusPill, Label, GradientBtn } from '../../components/Primitives';
 import { AmbientOrbs, SafeTop } from '../../components/KlokdLayout';
+import { useData } from '../../hooks/useData';
+import { useApi } from '../../hooks/useApi';
 import { colors, typography } from '../../theme';
+import { kes, day, hm, monthLabel, time } from '../../lib/format';
 
-function DeductRow({ label, v, note, bold, ahlOn }: { label: React.ReactNode; v: number; note?: string; bold?: boolean; ahlOn?: boolean }) {
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6 }}>
-      <View style={{ flex: 1 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
-          {typeof label === 'string' ? (
-            <Text style={{ fontSize: 12, fontWeight: bold ? '800' : '600', color: bold ? colors.white : colors.white75 }}>{label}</Text>
-          ) : label}
-        </View>
-        {note && <Text style={{ fontSize: 9.5, color: colors.white35, marginTop: 1 }}>{note}</Text>}
-      </View>
-      <Text style={{ fontSize: 12.5, fontWeight: '700', color: bold ? colors.white : colors.white85, fontFamily: typography.mono }}>
-        − KES {v.toLocaleString()}
-      </Text>
-    </View>
-  );
+interface Earnings {
+  paymentsLive: boolean;
+  months: { month: string; shifts: number; grossKes: number; deductionsKes: number; netKes: number; paidKes: number }[];
+  shifts: {
+    shiftId: string;
+    role: string;
+    venue: string;
+    date: string;
+    workedMinutes: number;
+    grossKes: number;
+    payeKes: number;
+    nssfKes: number;
+    shifKes: number;
+    ahlKes: number;
+    netKes: number;
+    status: string;
+    approveBy: string;
+    paidAt: string | null;
+    payment: { id: string; status: string; mpesaRef: string | null; needsConfirmation: boolean } | null;
+  }[];
 }
 
-const PAYOUTS = [
-  { d: '3 Apr', r: 'Waiter', n: '1,642', ref: 'QAB7X2K1P9' },
-  { d: '2 Apr', r: 'Barista', n: '1,915', ref: 'QAB6R8L2M4' },
-  { d: '31 Mar', r: 'Waiter', n: '1,642', ref: 'QAB5K3N8C2' },
-  { d: '28 Mar', r: 'Cashier', n: '1,460', ref: 'QAB4F9X1Y7' },
-];
+const STATE: Record<string, { label: string; tone: 'mint' | 'warn' | 'err' | 'neutral' }> = {
+  AWAITING_APPROVAL: { label: 'Venue checking', tone: 'warn' },
+  APPROVED: { label: 'Approved', tone: 'mint' },
+  PAID: { label: 'Paid', tone: 'mint' },
+  DISPUTED: { label: 'On hold', tone: 'err' },
+  VOID: { label: 'Not payable', tone: 'neutral' },
+};
 
 export function PayScreen() {
-  const [ahl] = useState(false);
-  const gross = 84210, paye = 2340, nssf = 5050, shif = 2315;
-  const ahlD = ahl ? Math.round(gross * 0.015) : 0;
-  const net = gross - paye - nssf - shif - ahlD;
+  const q = useData<Earnings>('/me/earnings', { pollMs: 60_000 });
+  const [open, setOpen] = useState<string | null>(null);
+  const d = q.data;
+  const month = d?.months[0];
 
   return (
     <View style={styles.screen}>
       <AmbientOrbs intensity="subtle" />
       <SafeTop />
-      <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
-        <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
-          <Text style={styles.title}>Your pay</Text>
-          <Text style={styles.sub}>April · 12 shifts completed</Text>
-        </View>
-
-        {/* Hero ledger */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 14 }}>
-          <LinearGradient
-            colors={[colors.electricAlpha['07'], 'rgba(0,229,160,0.01)']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 0, y: 1 }}
-            style={styles.hero}
-          >
-            <Label color={colors.white55} style={{ marginBottom: 6 }}>Net this month</Label>
-            <Text style={styles.heroKES}>KES {net.toLocaleString()}</Text>
-            <Text style={styles.heroSub}>Gross KES {gross.toLocaleString()} · − KES {(gross - net).toLocaleString()} deducted</Text>
-          </LinearGradient>
-        </View>
-
-        {/* Statutory */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
-          <Label style={{ marginBottom: 10 }}>Statutory deductions</Label>
-          <View style={styles.statCard}>
-            <DeductRow label="PAYE · tax" v={paye} note="2025/26 bands" />
-            <DeductRow label="NSSF · Tier I + II" v={nssf} note="6% · employer matches" />
-            <DeductRow label="SHIF · health" v={shif} note="2.75% of gross" />
-            <DeductRow
-              label={
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: colors.white75 }}>AHL · housing</Text>
-                  <View style={[styles.ahlBadge, { backgroundColor: ahl ? 'rgba(255,179,71,0.12)' : colors.white05 }]}>
-                    <Text style={{ fontSize: 9.5, color: ahl ? colors.warning : colors.white40, fontWeight: '700' }}>{ahl ? 'ON' : 'SUSPENDED'}</Text>
-                  </View>
-                </View>
-              }
-              v={ahlD}
-              note="1.5% · toggle above"
-            />
-            <View style={styles.divider} />
-            <DeductRow label="Total deducted" v={gross - net} bold />
-          </View>
-        </View>
-
-        {/* Recent payouts */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
-          <Label style={{ marginBottom: 10 }}>Recent payouts</Label>
-          {PAYOUTS.map((p, i) => (
-            <View key={i} style={styles.payoutRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.payoutRole}>{p.r} · {p.d}</Text>
-                <Text style={styles.payoutRef}>M-Pesa · {p.ref}</Text>
-              </View>
-              <Text style={styles.payoutKES}>KES {p.n}</Text>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 30 }}>
+        <Text style={styles.h1}>Pay</Text>
+        {q.status === 'loading' && <ActivityIndicator color={colors.electric} style={{ marginTop: 40 }} />}
+        {q.status === 'error' && <Text style={styles.err}>{q.error}</Text>}
+        {d && (
+          <>
+            <View style={styles.hero}>
+              <Label color={colors.white55}>{month ? `Take-home · ${monthLabel(month.month)}` : 'Take-home this month'}</Label>
+              <Text style={styles.big}>{kes(month?.netKes ?? 0)}</Text>
+              <Text style={styles.heroSub}>
+                {month ? `${month.shifts} shift${month.shifts === 1 ? '' : 's'} · ${kes(month.deductionsKes)} statutory deductions` : 'Your pay appears here when you clock out.'}
+              </Text>
             </View>
-          ))}
-        </View>
+            {!d.paymentsLive && (
+              <Text style={styles.note}>
+                M-Pesa payouts through Klokd start when our payment partner (Kipkiren Pay) goes live. Approved pay is recorded here and paid out in order once it switches on.
+              </Text>
+            )}
+            <View style={{ gap: 10, marginTop: 18 }}>
+              {d.shifts.length === 0 && <Text style={styles.empty}>No pay yet. Finish a shift and it appears here.</Text>}
+              {d.shifts.map(s => {
+                const st = STATE[s.status] ?? { label: s.status, tone: 'neutral' as const };
+                const isOpen = open === s.shiftId;
+                return (
+                  <TouchableOpacity key={s.shiftId} activeOpacity={0.9} onPress={() => setOpen(isOpen ? null : s.shiftId)} style={styles.row}>
+                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.title}>{s.role} · {s.venue}</Text>
+                        <Text style={styles.meta}>{day(s.date)} · {hm(s.workedMinutes)} worked</Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end', gap: 5 }}>
+                        <Text style={styles.net}>{kes(s.netKes)}</Text>
+                        <StatusPill tone={st.tone}>{st.label}</StatusPill>
+                      </View>
+                    </View>
+                    {isOpen && (
+                      <View style={{ marginTop: 10 }}>
+                        <Line k="Shift pay" v={kes(s.grossKes)} />
+                        <Line k="PAYE" v={`− ${kes(s.payeKes)}`} />
+                        <Line k="NSSF" v={`− ${kes(s.nssfKes)}`} />
+                        <Line k="SHIF" v={`− ${kes(s.shifKes)}`} />
+                        <Line k="Housing levy" v={`− ${kes(s.ahlKes)}`} />
+                        <Line k="You receive" v={kes(s.netKes)} />
+                        <Text style={styles.meta}>
+                          {s.status === 'AWAITING_APPROVAL' && `Approved automatically at ${time(s.approveBy)} unless the venue reports a problem.`}
+                          {s.status === 'APPROVED' && 'Approved; queued for M-Pesa payout.'}
+                          {s.status === 'PAID' && `Paid${s.payment?.mpesaRef ? ` · M-Pesa ref ${s.payment.mpesaRef}` : ''}.`}
+                          {s.status === 'DISPUTED' && 'On hold while Klokd reviews a reported problem.'}
+                        </Text>
+                        {s.payment?.needsConfirmation && <ConfirmPayout paymentId={s.payment.id} onDone={q.reload} />}
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </>
+        )}
       </ScrollView>
+    </View>
+  );
+}
+
+function ConfirmPayout({ paymentId, onDone }: { paymentId: string; onDone: () => void }) {
+  const { post } = useApi();
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  return (
+    <View style={styles.confirm}>
+      <Text style={styles.title}>Confirm this payout</Text>
+      <Text style={styles.meta}>Large payouts need the one-time code sent to your phone.</Text>
+      <TextInput value={code} onChangeText={t => setCode(t.replace(/\D/g, '').slice(0, 6))} keyboardType="number-pad" placeholder="6-digit code" placeholderTextColor={colors.white35} style={styles.code} />
+      <GradientBtn size="sm" disabled={busy || code.length !== 6} onPress={async () => {
+        setBusy(true);
+        setErr(null);
+        try {
+          await post(`/payments/${paymentId}/step-up`, { code });
+          onDone();
+        } catch (e: any) {
+          setErr(e?.message ?? 'Couldn’t confirm.');
+        }
+        setBusy(false);
+      }}>Confirm payout</GradientBtn>
+      {err ? <Text style={styles.err}>{err}</Text> : null}
+    </View>
+  );
+}
+
+function Line({ k, v }: { k: string; v: string }) {
+  return (
+    <View style={styles.line}>
+      <Text style={styles.lineK}>{k}</Text>
+      <Text style={styles.lineV}>{v}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ink },
-  title: { fontSize: 22, fontWeight: '900', letterSpacing: -0.66, color: colors.white, marginBottom: 2 },
-  sub: { fontSize: 11, color: colors.white50 },
-
-  hero: {
-    paddingHorizontal: 16, paddingVertical: 16,
-    borderRadius: 18,
-    borderWidth: 1, borderColor: colors.electricAlpha['25'],
-  },
-  heroKES: { fontSize: 34, fontWeight: '900', color: colors.electric, letterSpacing: -1.36, fontFamily: typography.mono, lineHeight: 36 },
-  heroSub: { fontSize: 11, color: colors.white55, marginTop: 6 },
-
-  statCard: {
-    paddingHorizontal: 14, paddingVertical: 10,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.025)',
-    borderWidth: 1, borderColor: colors.white06,
-  },
-  ahlBadge: { marginLeft: 4, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 },
-  divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.white08, marginVertical: 6 },
-
-  payoutRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 14, paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: colors.white02,
-    borderWidth: 1, borderColor: colors.white04,
-    marginBottom: 6,
-  },
-  payoutRole: { fontSize: 12, fontWeight: '700', color: colors.white },
-  payoutRef: { fontSize: 10, color: colors.white40, fontFamily: typography.mono, marginTop: 1 },
-  payoutKES: { fontSize: 13, fontWeight: '900', color: colors.electric, fontFamily: typography.mono },
+  h1: { fontSize: 28, fontWeight: '900', color: colors.white, letterSpacing: -0.9, marginTop: 8 },
+  err: { color: colors.warning, marginTop: 10 },
+  hero: { marginTop: 16, padding: 18, borderRadius: 18, backgroundColor: colors.electricAlpha['06'], borderWidth: 1, borderColor: colors.electricAlpha['25'] },
+  big: { fontSize: 34, fontWeight: '900', color: colors.white, letterSpacing: -1.2, marginTop: 6 },
+  heroSub: { fontSize: 12, color: colors.white65, marginTop: 4 },
+  note: { fontSize: 12, color: colors.white60, lineHeight: 17, marginTop: 12 },
+  empty: { color: colors.white60, fontSize: 13, textAlign: 'center', marginTop: 20 },
+  row: { padding: 14, borderRadius: 16, backgroundColor: colors.white03, borderWidth: 1, borderColor: colors.white08 },
+  title: { fontSize: 14, fontWeight: '800', color: colors.white },
+  meta: { fontSize: 11.5, color: colors.white55, marginTop: 3, lineHeight: 16 },
+  net: { fontSize: 15, fontWeight: '900', color: colors.white },
+  line: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
+  lineK: { color: colors.white65, fontSize: 12.5 },
+  lineV: { color: colors.white, fontSize: 12.5, fontWeight: '700' },
+  confirm: { marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: 'rgba(255,179,71,0.10)', gap: 8 },
+  code: { borderWidth: 1, borderColor: colors.white15, borderRadius: 10, padding: 10, color: colors.white, fontFamily: typography.mono, fontSize: 16 },
 });

@@ -1,6 +1,18 @@
-const BASE_URL = __DEV__
-  ? 'http://10.0.2.2:3000/api/v1'
-  : 'https://klokd-production.up.railway.app/api/v1';
+/**
+ * API client for Klokd backend.
+ *
+ * Base URL resolution:
+ *   1. EXPO_PUBLIC_API_URL (origin, no path) — set when pointing at a local
+ *      or tunnelled API during development.
+ *   2. Deployed Railway API — the default everywhere. A physical phone can
+ *      never reach the dev machine's localhost, so the deployed API is the
+ *      only safe default for real devices.
+ */
+const API_ORIGIN =
+  process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') ||
+  'https://klokd-production.up.railway.app';
+
+const BASE_URL = `${API_ORIGIN}/api/v1`;
 
 interface ApiOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -20,6 +32,10 @@ export async function api<T = unknown>(path: string, options: ApiOptions = {}): 
   });
 
   const data = await res.json();
-  if (!res.ok || !data.success) throw new Error(data.error || `API error ${res.status}`);
+
+  if (!res.ok || data.success === false) {
+    throw new Error(data.error || `API error ${res.status}`);
+  }
+
   return data.data ?? data;
 }

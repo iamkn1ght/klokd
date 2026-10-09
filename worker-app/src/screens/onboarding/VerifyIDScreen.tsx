@@ -75,7 +75,8 @@ function Field({
 const ID_RE = /^[0-9]{7,9}$/;
 const DOB_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-export function VerifyIDScreen({ navigation }: Props) {
+export function VerifyIDScreen({ navigation, route }: Props & { route?: { params?: { fromMain?: boolean } } }) {
+  const fromMain = !!route?.params?.fromMain;
   const { post } = useApi();
   const [nationalId, setNationalId] = useState('');
   const [nameFirst, setNameFirst] = useState('');
@@ -99,7 +100,9 @@ export function VerifyIDScreen({ navigation }: Props) {
         dateOfBirth,
       });
       setLoading(false);
-      navigation.navigate('Skills');
+      // From the Me tab / Home banner: go back to where they came from.
+      if (fromMain) navigation.goBack();
+      else navigation.navigate('Skills');
     } catch (e) {
       setLoading(false);
       setSubmitError((e as Error).message || 'Verification failed. Check your details and try again.');

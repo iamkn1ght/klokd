@@ -168,7 +168,7 @@ export function ActiveShiftScreen({ navigation, route }: Props) {
 
         {message ? <Text style={styles.message}>{message}</Text> : null}
 
-        <TouchableOpacity style={styles.disputeBtn} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.disputeBtn} activeOpacity={0.7} onPress={() => shiftId && navigation.navigate('ReportProblem', { id: shiftId })}>
           <Icons.dispute color={colors.warning} size={13} />
           <Text style={styles.disputeText}>Something's wrong with this shift</Text>
         </TouchableOpacity>

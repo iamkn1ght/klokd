@@ -1,49 +1,88 @@
 /**
- * Shift Detail — Hero + earnings block + details grid + employer + guarantee + contract.
- * Ported 1:1 from claude-design/screens/main.jsx
+ * Shift detail — one shift, from applying to rating it. All real:
+ *   GET  /shifts/:id                  details + your application state
+ *   GET  /attendance/shifts/:id       your check-in record + pay (once assigned)
+ *   GET  /shifts/:id/contract         written particulars (s.9)
+ *   POST /shifts/:id/apply|withdraw|accept|decline|worker-cancel
+ *   POST /ratings                     rate the venue after the shift
  */
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, TextInput } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { LinearGradient } from 'expo-linear-gradient';
-import { GradientBtn, IconBtn, Label, StatusPill } from '../../components/Primitives';
+import { GradientBtn, IconBtn, StatusPill, Label } from '../../components/Primitives';
 import { AmbientOrbs, SafeTop } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
+import { useData } from '../../hooks/useData';
+import { useApi } from '../../hooks/useApi';
 import { colors, typography } from '../../theme';
+import { kes, day, time, hm } from '../../lib/format';
 
-type Shift = {
+type Props = { navigation: NativeStackNavigationProp<any>; route: { params?: { id?: string; shift?: { id: string } } } };
+
+interface ShiftInfo {
+  id: string;
   role: string;
-  venue: string;
-  area: string;
-  date: string;
-  time: string;
-  pay: number;
-  dist: string;
-  rating: number;
-  shifts: number;
-};
+  description: string | null;
+  startTime: string;
+  endTime: string;
+  rateKes: number;
+  locationName: string | null;
+  status: string;
+  workerId: string | null;
+  directOffer: boolean;
+  myApplication: string | null;
+  employer: { businessName: string; ratingAggregate: number | null; totalShifts: number };
+}
 
-type Props = {
-  navigation: NativeStackNavigationProp<any>;
-  route?: { params?: { shift?: Shift } };
-};
-
-function DetailTile({ label, v, sub }: { label: string; v: string; sub: string }) {
-  return (
-    <View style={styles.tile}>
-      <Text style={styles.tileLabel}>{label}</Text>
-      <Text style={styles.tileV}>{v}</Text>
-      <Text style={styles.tileSub}>{sub}</Text>
-    </View>
-  );
+interface Attendance {
+  shift: { status: string; arrivedAt: string | null; clockInAt: string | null };
+  settlement: { status: string; grossKes: number; netKes: number; deductionsKes: number; approveBy: string; workedMinutes: number } | null;
 }
 
 export function ShiftDetailScreen({ navigation, route }: Props) {
-  const shift = route?.params?.shift || {
-    role: 'Waiter', venue: 'The Brew Bistro', area: 'Westlands',
-    date: 'Tonight', time: '5:00 – 10:00 PM', pay: 1800, dist: '0.8 km', rating: 4.8, shifts: 23,
+  const id = route.params?.id ?? route.params?.shift?.id ?? null;
+  const shift = useData<ShiftInfo>(id ? `/shifts/${id}` : null);
+  const assigned = !!shift.data && shift.data.status !== 'POSTED' && !!shift.data.workerId;
+  const att = useData<Attendance>(assigned ? `/attendance/shifts/${id}` : null);
+  const pending = useData<{ shiftId: string }[]>('/me/ratings/pending');
+  const { post } = useApi();
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [contract, setContract] = useState<string | null>(null);
+  const [stars, setStars] = useState(0);
+  const [comment, setComment] = useState('');
+  const [rated, setRated] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const { get } = useApi();
+
+  const run = async (fn: () => Promise<unknown>, ok: string, after?: () => void) => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      await fn();
+      setMsg({ ok: true, text: ok });
+      await Promise.all([shift.reload(), att.reload(), pending.reload()]);
+      after?.();
+    } catch (e: any) {
+      setMsg({ ok: false, text: e?.message ?? 'Something went wrong.' });
+    }
+    setBusy(false);
   };
-  const gross = shift.pay;
+
+  const loadContract = async () => {
+    try {
+      const c = await get<{ body: string }>(`/shifts/${id}/contract`);
+      setContract(c.body);
+    } catch (e: any) {
+      setMsg({ ok: false, text: e?.message ?? 'Couldn’t load the contract.' });
+    }
+  };
+
+  if (!id) return null;
+  const s = shift.data;
+  const status = att.data?.shift.status ?? s?.status;
+  const settlement = att.data?.settlement;
+  const needsRating = !rated && (pending.data ?? []).some(p => p.shiftId === id);
 
   return (
     <View style={styles.screen}>
@@ -53,90 +92,163 @@ export function ShiftDetailScreen({ navigation, route }: Props) {
         <IconBtn onPress={() => navigation.goBack()}>
           <Icons.back color={colors.white} size={14} />
         </IconBtn>
-        <Label>Shift details</Label>
+        {s && <StatusPill tone={status === 'CONFIRMED' ? 'warn' : status === 'CANCELLED' ? 'neutral' : 'mint'}>{label(status!)}</StatusPill>}
         <View style={{ width: 38 }} />
       </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }}>
-        {/* Hero */}
-        <View style={{ marginBottom: 16 }}>
-          <StatusPill tone="mint">Open · matches you</StatusPill>
-          <Text style={styles.role}>{shift.role}</Text>
-          <Text style={styles.venue}>{shift.venue} · {shift.area}</Text>
+      {shift.status === 'loading' && <ActivityIndicator color={colors.electric} style={{ marginTop: 60 }} />}
+      {shift.status === 'error' && (
+        <View style={styles.pad}>
+          <Text style={styles.h1}>Couldn’t load this shift</Text>
+          <Text style={styles.p}>{shift.error}</Text>
+          <TouchableOpacity onPress={shift.reload}><Text style={styles.link}>Try again</Text></TouchableOpacity>
         </View>
+      )}
 
-        {/* Earnings block */}
-        <LinearGradient
-          colors={[colors.electricAlpha['08'], colors.electricAlpha['04']]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={styles.earnings}
-        >
-          <Label color={colors.white50} style={{ marginBottom: 6 }}>You'll earn</Label>
-          <Text style={styles.bigKES}>KES {gross.toLocaleString()}</Text>
-          <Text style={styles.earningsSub}>
-            After statutory deductions (PAYE, NSSF, SHIF) · paid to M-Pesa within 30 min of clock-out
-          </Text>
-        </LinearGradient>
-
-        {/* Details grid */}
-        <View style={styles.grid}>
-          <DetailTile label="When" v={shift.date} sub={shift.time} />
-          <DetailTile label="Where" v={shift.area} sub={shift.dist + ' away'} />
-          <DetailTile label="Duration" v="5 hours" sub="5 PM – 10 PM" />
-          <DetailTile label="Rate" v={`KES ${Math.round(gross / 5)}/hr`} sub="Above minimum" />
-        </View>
-
-        {/* Employer */}
-        <Label style={{ marginBottom: 8 }}>Employer</Label>
-        <View style={styles.empCard}>
-          <View style={styles.empAvatar}>
-            <Text style={styles.empInitials}>TB</Text>
+      {s && (
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}>
+          <Label color={colors.electric}>{s.employer.businessName}</Label>
+          <Text style={styles.h1}>{s.role}</Text>
+          <Text style={styles.pay}>{kes(s.rateKes)}</Text>
+          <View style={styles.facts}>
+            <Fact icon={<Icons.calendar color={colors.white70} size={14} />} text={`${day(s.startTime)} · ${time(s.startTime)}–${time(s.endTime)}`} />
+            <Fact icon={<Icons.pin color={colors.white70} size={14} />} text={s.locationName ?? 'Nairobi'} />
+            {s.employer.ratingAggregate != null && <Fact icon={<Icons.star color={colors.volt} size={12} />} text={`${s.employer.ratingAggregate.toFixed(1)} venue rating · ${s.employer.totalShifts} shifts`} />}
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.empName}>{shift.venue}</Text>
-            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-              <View style={{ flexDirection: 'row', gap: 3, alignItems: 'center' }}>
-                <Icons.star color={colors.volt} size={10} />
-                <Text style={styles.empMeta}>{shift.rating}</Text>
-              </View>
-              <Text style={styles.empMeta}>·</Text>
-              <Text style={styles.empMeta}>{shift.shifts} shifts posted</Text>
+          {s.description ? <Text style={styles.notes}>{s.description}</Text> : null}
+
+          {msg && <Text style={[styles.msg, { color: msg.ok ? colors.electric : colors.warning }]}>{msg.text}</Text>}
+
+          {status === 'POSTED' && (
+            <View style={styles.block}>
+              {s.myApplication === 'PENDING' ? (
+                <>
+                  <Text style={styles.blockH}>You’ve applied</Text>
+                  <Text style={styles.p}>The business picks from applicants. You’ll get a notification if it’s you.</Text>
+                  <TouchableOpacity disabled={busy} onPress={() => run(() => post(`/shifts/${id}/withdraw`), 'Application withdrawn.')}>
+                    <Text style={styles.link}>Withdraw my application</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.blockH}>Want this shift?</Text>
+                  <Text style={styles.p}>Apply and the business can pick you. Pay goes to your M-Pesa after the shift.</Text>
+                  <GradientBtn disabled={busy} onPress={() => run(() => post(`/shifts/${id}/apply`), 'Applied. We’ll let you know if you’re picked.')}>
+                    {busy ? 'Applying…' : 'Apply for this shift'}
+                  </GradientBtn>
+                </>
+              )}
             </View>
-          </View>
-          <StatusPill tone="mint">WIBA ✓</StatusPill>
-        </View>
+          )}
 
-        {/* Payment guarantee */}
-        <View style={styles.guarantee}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-            <Icons.mpesa color={colors.electric} size={14} />
-            <Label color={colors.electric}>Payment guarantee</Label>
-          </View>
-          <Text style={styles.guaranteeHead}>KES {gross.toLocaleString()} is held in escrow before your shift starts.</Text>
-          <Text style={styles.guaranteeSub}>
-            If Brew Bistro doesn't confirm within 4 hours of clock-out, Klokd releases your pay automatically.
-          </Text>
-        </View>
+          {status === 'CONFIRMED' && (
+            <View style={[styles.block, styles.blockHi]}>
+              <Text style={styles.blockH}>{s.directOffer ? `${s.employer.businessName} wants you back` : 'You got the shift'}</Text>
+              <Text style={styles.p}>Confirm so they know you’re coming. Confirming accepts the written particulars below.</Text>
+              {contract ? <Text style={styles.contract}>{contract}</Text> : (
+                <TouchableOpacity onPress={loadContract}><Text style={styles.link}>Read the contract</Text></TouchableOpacity>
+              )}
+              <View style={{ height: 12 }} />
+              <GradientBtn disabled={busy} onPress={() => run(() => post(`/shifts/${id}/accept`), 'Confirmed. See you there.')}>I’ll be there</GradientBtn>
+              <TouchableOpacity disabled={busy} onPress={() => run(() => post(`/shifts/${id}/decline`), 'Declined. It’s gone back to other workers.')} style={{ marginTop: 14 }}>
+                <Text style={[styles.link, { color: colors.white70 }]}>Decline</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
-        <TouchableOpacity style={styles.contractBtn} activeOpacity={0.7}>
-          <Text style={styles.contractText}>Preview employment contract</Text>
-          <Icons.chevron color={colors.white40} size={12} />
-        </TouchableOpacity>
-      </ScrollView>
+          {status === 'ACCEPTED' && (
+            <View style={[styles.block, styles.blockHi]}>
+              <Text style={styles.blockH}>{att.data?.shift.arrivedAt ? 'Checked in — get the start PIN' : 'You’re confirmed'}</Text>
+              <Text style={styles.p}>Check in from an hour before the start, at the venue. The manager gives you a 4-digit PIN to start.</Text>
+              <GradientBtn onPress={() => navigation.navigate('ClockIn', { shift: { id } })}>{att.data?.shift.arrivedAt ? 'Enter start PIN' : 'Check in at the venue'}</GradientBtn>
+              {!att.data?.shift.arrivedAt && (
+                <TouchableOpacity
+                  disabled={busy}
+                  style={{ marginTop: 14 }}
+                  onPress={() => (confirmCancel ? run(() => post(`/shifts/${id}/worker-cancel`), 'Cancelled. The business has been told.') : setConfirmCancel(true))}
+                >
+                  <Text style={[styles.link, { color: colors.warning }]}>{confirmCancel ? 'Tap again to cancel my shift' : 'I can’t make it'}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
 
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={styles.declineBtn}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.declineText}>Decline</Text>
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <GradientBtn onPress={() => navigation.navigate('ClockIn', { shift })}>Accept shift</GradientBtn>
-        </View>
-      </View>
+          {status === 'ACTIVE' && (
+            <View style={[styles.block, styles.blockHi]}>
+              <Text style={styles.blockH}>You’re on shift</Text>
+              <GradientBtn onPress={() => navigation.navigate('ActiveShift', { shift: { id } })}>Open the shift timer</GradientBtn>
+            </View>
+          )}
+
+          {settlement && (
+            <View style={styles.block}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={styles.blockH}>Your pay</Text>
+                <StatusPill tone={settlement.status === 'DISPUTED' ? 'err' : settlement.status === 'AWAITING_APPROVAL' ? 'warn' : 'mint'}>
+                  {settlement.status === 'AWAITING_APPROVAL' ? 'venue checking' : settlement.status.toLowerCase()}
+                </StatusPill>
+              </View>
+              <Line k="Hours worked" v={hm(settlement.workedMinutes)} />
+              <Line k="Shift pay" v={kes(settlement.grossKes)} />
+              <Line k="Statutory deductions" v={`− ${kes(settlement.deductionsKes)}`} />
+              <Line k="You receive" v={kes(settlement.netKes)} strong />
+              <Text style={styles.small}>
+                {settlement.status === 'AWAITING_APPROVAL' && `Approved automatically at ${time(settlement.approveBy)} unless the venue reports a problem.`}
+                {settlement.status === 'APPROVED' && 'Approved. Sent to your M-Pesa once Klokd payments are live.'}
+                {settlement.status === 'PAID' && 'Paid to your M-Pesa.'}
+                {settlement.status === 'DISPUTED' && 'On hold while Klokd reviews a reported problem.'}
+              </Text>
+            </View>
+          )}
+
+          {needsRating && (
+            <View style={styles.block}>
+              <Text style={styles.blockH}>Rate {s.employer.businessName}</Text>
+              <View style={{ flexDirection: 'row', gap: 10, marginVertical: 10 }}>
+                {[1, 2, 3, 4, 5].map(n => (
+                  <TouchableOpacity key={n} onPress={() => setStars(n)} accessibilityLabel={`${n} stars`}>
+                    <Text style={{ fontSize: 32, color: n <= stars ? colors.volt : colors.white25 }}>★</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TextInput value={comment} onChangeText={setComment} placeholder="Comment (optional)" placeholderTextColor={colors.white35} style={styles.input} multiline />
+              <View style={{ height: 10 }} />
+              <GradientBtn size="md" disabled={!stars || busy} onPress={() => run(() => post('/ratings', { shiftId: id, stars, comment: comment.trim() || undefined }), 'Thanks — your rating is in.', () => setRated(true))}>
+                Send rating
+              </GradientBtn>
+            </View>
+          )}
+
+          {['ACTIVE', 'COMPLETED', 'PAID'].includes(status ?? '') && (
+            <TouchableOpacity style={styles.dispute} onPress={() => navigation.navigate('ReportProblem', { id })}>
+              <Icons.dispute color={colors.warning} size={13} />
+              <Text style={styles.disputeText}>Something’s wrong with this shift</Text>
+            </TouchableOpacity>
+          )}
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
+function label(status: string) {
+  return ({ POSTED: 'OPEN', CONFIRMED: 'NEEDS YOUR ANSWER', ACCEPTED: 'CONFIRMED', ACTIVE: 'ON SHIFT', COMPLETED: 'DONE', PAID: 'PAID', DISPUTED: 'UNDER REVIEW', CANCELLED: 'CANCELLED' } as Record<string, string>)[status] ?? status;
+}
+
+function Fact({ icon, text }: { icon: React.ReactNode; text: string }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      {icon}
+      <Text style={{ color: colors.white75, fontSize: 13 }}>{text}</Text>
+    </View>
+  );
+}
+
+function Line({ k, v, strong }: { k: string; v: string; strong?: boolean }) {
+  return (
+    <View style={styles.line}>
+      <Text style={styles.lineK}>{k}</Text>
+      <Text style={[styles.lineV, strong && { color: colors.electric, fontWeight: '900' }]}>{v}</Text>
     </View>
   );
 }
@@ -144,77 +256,23 @@ export function ShiftDetailScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ink },
   header: { paddingHorizontal: 18, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-
-  role: { fontSize: 26, fontWeight: '900', letterSpacing: -0.78, color: colors.white, marginTop: 10, marginBottom: 4 },
-  venue: { fontSize: 13, color: colors.white70 },
-
-  earnings: {
-    padding: 16,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.electricAlpha['30'],
-    marginBottom: 14,
-  },
-  bigKES: { fontSize: 34, fontWeight: '900', color: colors.electric, letterSpacing: -1.36, fontFamily: typography.mono },
-  earningsSub: { fontSize: 11, color: colors.white55, marginTop: 4, lineHeight: 16.5 },
-
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
-  tile: {
-    width: '48%',
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.025)',
-    borderWidth: 1, borderColor: colors.white06,
-  },
-  tileLabel: { fontSize: 9.5, color: colors.white40, letterSpacing: 0.95, textTransform: 'uppercase', marginBottom: 4 },
-  tileV: { fontSize: 13, fontWeight: '700', color: colors.white, letterSpacing: -0.13 },
-  tileSub: { fontSize: 10, color: colors.white40, marginTop: 2 },
-
-  empCard: {
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: colors.white03,
-    borderWidth: 1, borderColor: colors.white06,
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    marginBottom: 14,
-  },
-  empAvatar: {
-    width: 40, height: 40, borderRadius: 11,
-    backgroundColor: colors.white05,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  empInitials: { fontSize: 13, fontWeight: '900', color: colors.white },
-  empName: { fontSize: 13, fontWeight: '700', color: colors.white, marginBottom: 2 },
-  empMeta: { fontSize: 10.5, color: colors.white50 },
-
-  guarantee: {
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: colors.electricAlpha['04'],
-    borderWidth: 1, borderColor: colors.electricAlpha['18'],
-    marginBottom: 14,
-  },
-  guaranteeHead: { fontSize: 11.5, color: colors.white, fontWeight: '600', marginBottom: 2 },
-  guaranteeSub: { fontSize: 10.5, color: colors.white55, lineHeight: 15.75 },
-
-  contractBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 11, paddingHorizontal: 14,
-    borderRadius: 11,
-    borderWidth: 1, borderColor: colors.white08,
-    backgroundColor: colors.white02,
-  },
-  contractText: { fontSize: 11.5, color: colors.white65, fontWeight: '600' },
-
-  footer: {
-    flexDirection: 'row', gap: 10,
-    paddingHorizontal: 20, paddingTop: 14, paddingBottom: 18,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.white06,
-  },
-  declineBtn: {
-    paddingHorizontal: 18, paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1, borderColor: colors.white08,
-  },
-  declineText: { fontSize: 13, color: colors.white55, fontWeight: '600' },
+  pad: { padding: 20 },
+  h1: { fontSize: 28, fontWeight: '900', color: colors.white, letterSpacing: -0.9, marginTop: 6 },
+  pay: { fontSize: 22, fontWeight: '900', color: colors.electric, marginTop: 4 },
+  facts: { gap: 8, marginTop: 14 },
+  notes: { color: colors.white75, fontSize: 13, lineHeight: 19, marginTop: 14 },
+  msg: { fontSize: 13, fontWeight: '700', marginTop: 16 },
+  block: { marginTop: 18, padding: 16, borderRadius: 18, backgroundColor: colors.white03, borderWidth: 1, borderColor: colors.white08 },
+  blockHi: { backgroundColor: colors.electricAlpha['06'], borderColor: colors.electricAlpha['25'] },
+  blockH: { fontSize: 16, fontWeight: '900', color: colors.white },
+  p: { fontSize: 12.5, color: colors.white65, lineHeight: 18, marginTop: 6, marginBottom: 12 },
+  link: { color: colors.electric, fontSize: 13.5, fontWeight: '800', textAlign: 'center' },
+  contract: { color: colors.white75, fontSize: 11.5, lineHeight: 17, fontFamily: typography.mono, padding: 12, borderRadius: 12, backgroundColor: colors.ink, borderWidth: 1, borderColor: colors.white08 },
+  line: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: colors.white06 },
+  lineK: { color: colors.white65, fontSize: 13 },
+  lineV: { color: colors.white, fontSize: 13, fontWeight: '700' },
+  small: { color: colors.white55, fontSize: 11.5, lineHeight: 16, marginTop: 8 },
+  input: { minHeight: 60, borderWidth: 1, borderColor: colors.white12, borderRadius: 12, padding: 12, color: colors.white, fontSize: 14, backgroundColor: colors.ink },
+  dispute: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 22, padding: 12 },
+  disputeText: { fontSize: 12.5, color: colors.warning, fontWeight: '700' },
 });

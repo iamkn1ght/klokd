@@ -7,7 +7,9 @@ import { MainTabNavigator } from './MainTabNavigator';
 import { ShiftDetailScreen } from '../screens/shift/ShiftDetailScreen';
 import { ClockInScreen } from '../screens/shift/ClockInScreen';
 import { ActiveShiftScreen } from '../screens/shift/ActiveShiftScreen';
-import { PaymentConfirmedScreen } from '../screens/shift/PaymentConfirmedScreen';
+import { ReportProblemScreen } from '../screens/shift/ReportProblemScreen';
+import { NotificationsScreen } from '../screens/main/NotificationsScreen';
+import { VerifyIDScreen } from '../screens/onboarding/VerifyIDScreen';
 import { colors } from '../theme';
 
 export type RootStackParamList = {
@@ -16,7 +18,9 @@ export type RootStackParamList = {
   ShiftDetail: undefined;
   ClockIn: undefined;
   ActiveShift: undefined;
-  PaymentConfirmed: undefined;
+  ReportProblem: undefined;
+  Notifications: undefined;
+  VerifyIDMain: undefined;
 };
 
 const Stack = createNativeStackNavigator<any>();
@@ -32,9 +36,7 @@ export function RootNavigator() {
     );
   }
 
-  // Set via env: EXPO_PUBLIC_DEMO_MODE=true skips auth
-  const demoMode = process.env.EXPO_PUBLIC_DEMO_MODE === 'true';
-  const showOnboarding = demoMode ? false : (!isAuthenticated || isNewUser);
+  const showOnboarding = !isAuthenticated || isNewUser;
 
   // State-driven auth routing (canonical react-navigation pattern):
   // when isAuthenticated / isNewUser change, the rendered screen set
@@ -56,7 +58,9 @@ export function RootNavigator() {
           <Stack.Screen name="ShiftDetail" component={ShiftDetailScreen} />
           <Stack.Screen name="ClockIn" component={ClockInScreen} />
           <Stack.Screen name="ActiveShift" component={ActiveShiftScreen} />
-          <Stack.Screen name="PaymentConfirmed" component={PaymentConfirmedScreen} />
+          <Stack.Screen name="ReportProblem" component={ReportProblemScreen} />
+          <Stack.Screen name="Notifications" component={NotificationsScreen} />
+          <Stack.Screen name="VerifyIDMain" component={VerifyIDScreen} />
         </>
       )}
     </Stack.Navigator>

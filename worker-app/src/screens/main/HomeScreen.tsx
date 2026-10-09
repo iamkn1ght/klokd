@@ -1,25 +1,53 @@
 /**
- * Home screen — "Your ledger" card + sorted shift feed.
- * Ported 1:1 from claude-design/screens/main.jsx
+ * Home — your ledger + shifts near you. All real:
+ *   GET /me/worker            ledger (shifts, show-up, rating, this month)
+ *   GET /shifts/available     open shifts near your phone's location
+ *   GET /me/shifts            offers waiting for your answer
+ *   GET /me/notifications     unread count on the bell
  */
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
-import { StatusPill, Label, VLine } from '../../components/Primitives';
+import { StatusPill, Label, VLine, GradientBtn } from '../../components/Primitives';
 import { AmbientOrbs, SafeTop, FadeUp } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
-import { useApi } from '../../hooks/useApi';
-import { colors, typography } from '../../theme';
+import { useData } from '../../hooks/useData';
+import { colors } from '../../theme';
+import { kes, when, greeting, day } from '../../lib/format';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
 
-const DEMO_SHIFTS = [
-  { id: 's1', role: 'Waiter', venue: 'The Brew Bistro', area: 'Westlands', date: 'Tonight', time: '5:00 – 10:00 PM', pay: 1800, dist: '0.8 km', rating: 4.8, shifts: 23, highlighted: true },
-  { id: 's2', role: 'Barista', venue: 'Java House · Sarit', area: 'Sarit Centre', date: 'Tomorrow', time: '7:00 AM – 2:00 PM', pay: 2100, dist: '1.6 km', rating: 4.6, shifts: 41 },
-  { id: 's3', role: 'Bartender', venue: 'Brew Bistro · Kilimani', area: 'Kilimani', date: 'Fri', time: '6:00 – 11:00 PM', pay: 2200, dist: '3.1 km', rating: 4.7, shifts: 12 },
-  { id: 's4', role: 'Cashier', venue: 'Artcaffe · Westgate', area: 'Westlands', date: 'Sat', time: '9:00 AM – 5:00 PM', pay: 1600, dist: '1.2 km', rating: 4.5, shifts: 67 },
-];
+export interface WorkerMe {
+  firstName: string;
+  lastName: string;
+  verificationStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
+  skills: string[];
+  consent: { identity: boolean; location: boolean; at: string | null };
+  showUpRate: number | null;
+  rating: number | null;
+  ratingCount: number;
+  completedShifts: number;
+  upcomingShifts: number;
+  monthEarningsKes: number;
+  monthShifts: number;
+  paymentsLive: boolean;
+  phone: string | null;
+  memberSince: string;
+}
+
+interface FeedShift {
+  id: string;
+  role: string;
+  startTime: string;
+  endTime: string;
+  rateKes: number;
+  locationName: string | null;
+  distanceMeters?: number;
+  employer: { businessName: string; ratingAggregate: number | null; totalShifts: number } | null;
+}
+
+const CBD = { lat: -1.2864, lng: 36.8172 };
 
 function Stat({ n, l, color, star }: { n: string; l: string; color: string; star?: boolean }) {
   return (
@@ -28,143 +56,129 @@ function Stat({ n, l, color, star }: { n: string; l: string; color: string; star
         <Text style={{ fontSize: 18, fontWeight: '900', color, letterSpacing: -0.36 }}>{n}</Text>
         {star && <Icons.star color={color} size={11} />}
       </View>
-      <Text style={{ fontSize: 9.5, color: colors.white40, letterSpacing: 0.76, textTransform: 'uppercase', marginTop: 3 }}>{l}</Text>
+      <Text style={{ fontSize: 9.5, color: colors.white55, letterSpacing: 0.76, textTransform: 'uppercase', marginTop: 3 }}>{l}</Text>
     </View>
-  );
-}
-
-function TimePill({ label, tone = 'neutral' }: { label: string; tone?: 'neutral' | 'volt' }) {
-  const map = {
-    neutral: { bg: colors.white05, c: colors.white65 },
-    volt: { bg: 'rgba(188,255,78,0.1)', c: colors.volt },
-  };
-  const t = map[tone];
-  return (
-    <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: t.bg }}>
-      <Text style={{ fontSize: 10.5, fontWeight: '600', color: t.c, letterSpacing: 0.21 }}>{label}</Text>
-    </View>
-  );
-}
-
-function ShiftCard({ shift, dim = 0, onPress }: { shift: typeof DEMO_SHIFTS[0]; dim?: number; onPress: () => void }) {
-  const isHi = shift.highlighted;
-  return (
-    <TouchableOpacity
-      activeOpacity={0.85}
-      onPress={onPress}
-      style={{
-        borderRadius: 16,
-        padding: 14,
-        backgroundColor: isHi ? 'rgba(0,229,160,0.035)' : 'rgba(255,255,255,0.025)',
-        borderWidth: 1,
-        borderColor: isHi ? colors.electricAlpha['40'] : colors.white06,
-        opacity: 1 - dim,
-      }}
-    >
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
-        <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-            <Text style={{ fontSize: 14, fontWeight: '800', color: colors.white, letterSpacing: -0.28 }}>{shift.role}</Text>
-            {isHi && <StatusPill tone="mint">New</StatusPill>}
-          </View>
-          <Text style={{ fontSize: 11.5, color: colors.white55, marginBottom: 3 }}>{shift.venue}</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-              <Icons.pin color={colors.white40} size={10} />
-              <Text style={{ fontSize: 10, color: colors.white40 }}>{shift.dist}</Text>
-            </View>
-            <Text style={{ fontSize: 10, color: colors.white25 }}>·</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-              <Icons.star color={colors.volt} size={10} />
-              <Text style={{ fontSize: 10, color: colors.white40 }}>{shift.rating}</Text>
-            </View>
-            <Text style={{ fontSize: 10, color: colors.white25 }}>·</Text>
-            <Text style={{ fontSize: 10, color: colors.white40 }}>{shift.shifts} shifts</Text>
-          </View>
-        </View>
-        <View style={{ alignItems: 'flex-end' }}>
-          <Text style={{ fontSize: 17, fontWeight: '900', color: colors.electric, letterSpacing: -0.34 }}>KES {shift.pay.toLocaleString()}</Text>
-          <Text style={{ fontSize: 10, color: colors.white45, marginTop: 2 }}>{shift.date}</Text>
-        </View>
-      </View>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-        <TimePill label={shift.time} />
-        <TimePill label={shift.area} />
-        {isHi && <TimePill label="Fills fast" tone="volt" />}
-      </View>
-    </TouchableOpacity>
   );
 }
 
 export function HomeScreen({ navigation }: Props) {
-  const [shifts, setShifts] = useState(DEMO_SHIFTS);
-  const { get } = useApi();
+  const [where, setWhere] = useState<{ lat: number; lng: number; mine: boolean }>({ ...CBD, mine: false });
+  const me = useData<WorkerMe>('/me/worker');
+  const feed = useData<FeedShift[]>(`/shifts/available?lat=${where.lat}&lng=${where.lng}&radiusKm=25`, { pollMs: 60_000 });
+  const mine = useData<{ offers: { id: string }[]; applied: { shift: { id: string } }[] }>('/me/shifts');
+  const inbox = useData<{ unread: number }>('/me/notifications', { pollMs: 30_000 });
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        let lat = -1.2921, lng = 36.8219;
-        if (status === 'granted') {
-          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-          lat = loc.coords.latitude;
-          lng = loc.coords.longitude;
-        }
-        await get(`/shifts/available?lat=${lat}&lng=${lng}&radiusKm=10`);
-      } catch {}
+        const { status } = await Location.getForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        setWhere({ lat: loc.coords.latitude, lng: loc.coords.longitude, mine: true });
+      } catch {
+        /* stay on the city-wide feed */
+      }
     })();
   }, []);
+
+  const refresh = async () => {
+    setRefreshing(true);
+    await Promise.all([me.reload(), feed.reload(), mine.reload(), inbox.reload()]);
+    setRefreshing(false);
+  };
+
+  const m = me.data;
+  const applied = new Set((mine.data?.applied ?? []).map(a => a.shift.id));
+  const offers = mine.data?.offers.length ?? 0;
 
   return (
     <View style={styles.screen}>
       <AmbientOrbs intensity="subtle" />
       <SafeTop />
-      <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
-        {/* Header */}
+      <ScrollView contentContainerStyle={{ paddingBottom: 24 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.electric} />}>
         <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.date}>Thursday · 3 Apr</Text>
-            <Text style={styles.greeting}>Good morning, Akinyi</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.date}>{day(new Date())}</Text>
+            <Text style={styles.greeting} numberOfLines={1}>{greeting()}{m ? `, ${m.firstName}` : ''}</Text>
           </View>
-          <View style={{ position: 'relative' }}>
-            <TouchableOpacity style={styles.bellBtn}>
-              <Icons.bell color={colors.white} size={16} />
-            </TouchableOpacity>
-            <View style={styles.bellDot} />
-          </View>
+          <TouchableOpacity style={styles.bellBtn} onPress={() => navigation.navigate('Notifications')} accessibilityLabel="Notifications">
+            <Icons.bell color={colors.white} size={16} />
+            {(inbox.data?.unread ?? 0) > 0 && <View style={styles.bellDot} />}
+          </TouchableOpacity>
         </View>
 
-        {/* Ledger card */}
         <FadeUp delay={60} style={{ paddingHorizontal: 20, paddingTop: 14 }}>
           <View style={styles.ledger}>
             <View style={styles.ledgerHead}>
-              <Label color={colors.white40}>Your ledger · 47 shifts</Label>
-              <Text style={styles.verified}>VERIFIED</Text>
+              <Label color={colors.white55}>This month · {m ? kes(m.monthEarningsKes) : '—'}</Label>
+              {m?.verificationStatus === 'APPROVED' ? <Text style={styles.verified}>ID VERIFIED</Text> : null}
             </View>
             <View style={{ flexDirection: 'row' }}>
-              <Stat n="94%" l="show-up" color={colors.electric} />
+              <Stat n={m ? String(m.completedShifts) : '—'} l="shifts done" color={colors.white} />
               <VLine />
-              <Stat n="4.8" l="rating" color={colors.volt} star />
+              <Stat n={m?.showUpRate != null ? `${Math.round(m.showUpRate)}%` : '—'} l="show-up" color={colors.electric} />
               <VLine />
-              <Stat n="KES 84k" l="this month" color={colors.white} />
+              <Stat n={m?.rating != null ? m.rating.toFixed(1) : '—'} l={m && m.ratingCount < 3 ? `rating ${m.ratingCount}/3` : 'rating'} color={colors.volt} star={m?.rating != null} />
             </View>
+            {m && !m.paymentsLive && (
+              <Text style={styles.ledgerNote}>M-Pesa payouts start when Klokd payments go live. Your pay is tracked in the Pay tab.</Text>
+            )}
           </View>
         </FadeUp>
 
-        {/* Shift feed */}
+        {m && m.verificationStatus !== 'APPROVED' && (
+          <View style={styles.banner}>
+            <Text style={styles.bannerH}>Verify your ID to apply for shifts</Text>
+            <Text style={styles.bannerP}>Your ID number is checked with the government register through Identiti. It takes a minute.</Text>
+            <GradientBtn size="sm" onPress={() => navigation.navigate('VerifyIDMain', { fromMain: true })}>Verify my ID</GradientBtn>
+          </View>
+        )}
+        {offers > 0 && (
+          <TouchableOpacity style={[styles.banner, styles.offerBanner]} onPress={() => navigation.navigate('Shifts')}>
+            <Text style={styles.offerText}>{offers} shift{offers === 1 ? '' : 's'} waiting for your answer →</Text>
+          </TouchableOpacity>
+        )}
+
         <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <Label>Shifts near you · {shifts.length}</Label>
-            <Text style={{ fontSize: 10, color: colors.white35 }}>Sorted by distance</Text>
+            <Label color={colors.white60}>Shifts near you · {feed.data?.length ?? 0}</Label>
+            <Text style={{ fontSize: 10.5, color: colors.white55 }}>{where.mine ? 'Within 25 km of you' : 'Within 25 km of the CBD'}</Text>
           </View>
+
+          {feed.status === 'loading' && <ActivityIndicator color={colors.electric} style={{ marginTop: 24 }} />}
+          {feed.status === 'error' && (
+            <View style={styles.empty}>
+              <Text style={styles.emptyH}>Couldn’t load shifts</Text>
+              <Text style={styles.emptyP}>{feed.error}</Text>
+              <TouchableOpacity onPress={feed.reload}><Text style={styles.retry}>Try again</Text></TouchableOpacity>
+            </View>
+          )}
+          {feed.status === 'ready' && feed.data!.length === 0 && (
+            <View style={styles.empty}>
+              <Text style={styles.emptyH}>No open shifts nearby right now</Text>
+              <Text style={styles.emptyP}>New shifts appear the moment a business posts them. Pull down to refresh.</Text>
+            </View>
+          )}
           <View style={{ gap: 10 }}>
-            {shifts.map((s, i) => (
-              <FadeUp key={s.id} delay={140 + Math.min(i, 5) * 70}>
-                <ShiftCard
-                  shift={s}
-                  dim={i > 0 ? 0.06 * i : 0}
-                  onPress={() => navigation.navigate('ShiftDetail', { shift: s })}
-                />
+            {(feed.data ?? []).map((s, i) => (
+              <FadeUp key={s.id} delay={100 + Math.min(i, 5) * 60}>
+                <TouchableOpacity activeOpacity={0.85} onPress={() => navigation.navigate('ShiftDetail', { id: s.id })} style={styles.card}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10 }}>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        <Text style={styles.role}>{s.role}</Text>
+                        {applied.has(s.id) && <StatusPill tone="mint">Applied</StatusPill>}
+                      </View>
+                      <Text style={styles.venue}>{s.employer?.businessName ?? 'Venue'} · {s.locationName ?? 'Nairobi'}</Text>
+                      <Text style={styles.meta}>
+                        {when(s.startTime, s.endTime)}
+                        {s.distanceMeters != null ? ` · ${(s.distanceMeters / 1000).toFixed(1)} km` : ''}
+                      </Text>
+                    </View>
+                    <Text style={styles.pay}>{kes(s.rateKes)}</Text>
+                  </View>
+                </TouchableOpacity>
               </FadeUp>
             ))}
           </View>
@@ -176,27 +190,27 @@ export function HomeScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ink },
-  headerRow: { paddingHorizontal: 20, paddingTop: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  date: { fontSize: 12.5, color: colors.white45, marginBottom: 3, fontWeight: '600' },
+  headerRow: { paddingHorizontal: 20, paddingTop: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  date: { fontSize: 12.5, color: colors.white55, marginBottom: 3, fontWeight: '600' },
   greeting: { fontSize: 26, fontWeight: '900', letterSpacing: -0.9, color: colors.white },
-  bellBtn: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: colors.white05,
-    borderWidth: 0.5, borderColor: colors.white08,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  bellDot: {
-    position: 'absolute', top: 6, right: 6,
-    width: 7, height: 7, borderRadius: 3.5,
-    backgroundColor: colors.electric,
-    borderWidth: 1.5, borderColor: colors.ink,
-  },
-  ledger: {
-    borderRadius: 18,
-    padding: 16,
-    backgroundColor: colors.white03,
-    borderWidth: 1, borderColor: colors.white06,
-  },
-  ledgerHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  verified: { fontSize: 10, color: colors.electric, fontWeight: '700' },
+  bellBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.white05, borderWidth: 0.5, borderColor: colors.white08, alignItems: 'center', justifyContent: 'center' },
+  bellDot: { position: 'absolute', top: 8, right: 9, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.electric, borderWidth: 1.5, borderColor: colors.ink },
+  ledger: { borderRadius: 18, padding: 16, backgroundColor: colors.white03, borderWidth: 1, borderColor: colors.white06 },
+  ledgerHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  verified: { fontSize: 10, color: colors.electric, fontWeight: '800', letterSpacing: 0.6 },
+  ledgerNote: { fontSize: 11, color: colors.white55, marginTop: 12, lineHeight: 16 },
+  banner: { marginHorizontal: 20, marginTop: 14, padding: 14, borderRadius: 16, backgroundColor: 'rgba(255,179,71,0.10)', borderWidth: 1, borderColor: 'rgba(255,179,71,0.28)', gap: 8 },
+  bannerH: { fontSize: 14, fontWeight: '900', color: colors.white },
+  bannerP: { fontSize: 12, color: colors.white70, lineHeight: 17 },
+  offerBanner: { backgroundColor: colors.electricAlpha['08'], borderColor: colors.electricAlpha['35'] },
+  offerText: { color: colors.electric, fontSize: 13.5, fontWeight: '900' },
+  card: { borderRadius: 16, padding: 14, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: colors.white08 },
+  role: { fontSize: 15, fontWeight: '800', color: colors.white, letterSpacing: -0.28 },
+  venue: { fontSize: 12, color: colors.white70, marginBottom: 3 },
+  meta: { fontSize: 11, color: colors.white55 },
+  pay: { fontSize: 17, fontWeight: '900', color: colors.electric, letterSpacing: -0.34 },
+  empty: { padding: 18, borderRadius: 16, borderWidth: 1, borderColor: colors.white08, backgroundColor: colors.white03, alignItems: 'center' },
+  emptyH: { color: colors.white, fontSize: 14, fontWeight: '800' },
+  emptyP: { color: colors.white60, fontSize: 12, textAlign: 'center', marginTop: 4, lineHeight: 17 },
+  retry: { color: colors.electric, fontSize: 13, fontWeight: '800', marginTop: 10 },
 });

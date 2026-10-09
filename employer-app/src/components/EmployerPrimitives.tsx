@@ -16,7 +16,7 @@ export function EmpHeader({ greeting, venue, notif = 2, onBell, onVenue }: {
       <View style={{ flex: 1, minWidth: 0 }}>
         <TouchableOpacity onPress={onVenue} activeOpacity={0.7} style={styles.venuePill}>
           <View style={styles.venueDot} />
-          <Text style={styles.venueText} numberOfLines={1}>{venue || 'The Brew Bistro · Westlands'}</Text>
+          <Text style={styles.venueText} numberOfLines={1}>{venue || ''}</Text>
           <Icons.chevron color={colors.white40} size={10} dir="down" />
         </TouchableOpacity>
         <Text style={styles.greeting} numberOfLines={1}>{greeting}</Text>

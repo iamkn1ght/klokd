@@ -1,171 +1,213 @@
 /**
- * Me tab — Profile hero + portable reputation + grouped rows (Account/Privacy/Support).
- * Ported 1:1 from claude-design/screens/main.jsx
+ * Me — profile, reputation, skills, consent and data rights. All real:
+ *   GET  /me/worker            profile + reputation
+ *   PUT  /me/worker/skills     skills
+ *   POST /me/consent           identity + location consent
+ *   GET  /me/data              share a copy of your data
+ *   POST /me/data-requests     correction / deletion (DPA 2019)
  */
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useAuth } from '../../context/AuthContext';
-import { Label, VLine } from '../../components/Primitives';
+import React, { useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Share, Switch, TextInput } from 'react-native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Chip, Label, GradientBtn, StatusPill } from '../../components/Primitives';
 import { AmbientOrbs, SafeTop } from '../../components/KlokdLayout';
-import { Icons } from '../../components/Icons';
+import { useData } from '../../hooks/useData';
+import { useApi } from '../../hooks/useApi';
+import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../theme';
+import { day } from '../../lib/format';
+import type { WorkerMe } from './HomeScreen';
 
-function Stat({ n, l, color, star }: { n: string; l: string; color: string; star?: boolean }) {
-  return (
-    <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 4 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-        <Text style={{ fontSize: 18, fontWeight: '900', color, letterSpacing: -0.36 }}>{n}</Text>
-        {star && <Icons.star color={color} size={11} />}
-      </View>
-      <Text style={{ fontSize: 9.5, color: colors.white40, letterSpacing: 0.76, textTransform: 'uppercase', marginTop: 3 }}>{l}</Text>
-    </View>
-  );
-}
+type Props = { navigation: NativeStackNavigationProp<any> };
 
-export function ProfileScreen() {
+const SKILLS = ['Waiter', 'Barista', 'Bartender', 'Chef', 'Kitchen hand', 'Cashier', 'Cleaner', 'Security', 'Receptionist', 'Usher', 'Stock / warehouse', 'Events'];
+
+export function ProfileScreen({ navigation }: Props) {
+  const me = useData<WorkerMe>('/me/worker');
+  const requests = useData<{ id: string; type: string; status: string; resolution: string | null; createdAt: string }[]>('/me/data-requests');
+  const { put, post, get } = useApi();
   const { logout } = useAuth();
+  const [skills, setSkills] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [reqType, setReqType] = useState<'RECTIFICATION' | 'DELETION' | null>(null);
+  const [reqText, setReqText] = useState('');
 
-  const handleSignOut = () => {
-    Alert.alert('Sign out', 'Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign out', style: 'destructive', onPress: () => logout() },
-    ]);
+  useEffect(() => {
+    if (me.data) setSkills(me.data.skills);
+  }, [me.data]);
+
+  const m = me.data;
+  const dirty = !!m && skills.slice().sort().join() !== m.skills.slice().sort().join();
+
+  const act = async (fn: () => Promise<unknown>, ok: string) => {
+    setSaving(true);
+    setMsg(null);
+    try {
+      await fn();
+      setMsg({ ok: true, text: ok });
+      await Promise.all([me.reload(), requests.reload()]);
+    } catch (e: any) {
+      setMsg({ ok: false, text: e?.message ?? 'Something went wrong.' });
+    }
+    setSaving(false);
   };
 
-  const rows = [
-    {
-      g: 'Account', items: [
-        { k: 'Skills on file', v: 'Waiter, Barista, Bartender' },
-        { k: 'Certificates', v: 'Food handlers (2025)' },
-        { k: 'Phone & M-Pesa', v: '0722 ••• 500' },
-      ]
-    },
-    {
-      g: 'Privacy & Data', items: [
-        { k: 'Manage consent', v: 'ID · GPS' },
-        { k: 'Download my data', v: 'ZIP within 24 hrs' },
-        { k: 'Correct my information', v: '7-day review' },
-        { k: 'Delete my account', v: 'Payment records kept 7 yrs (law)', warn: true },
-      ]
-    },
-    {
-      g: 'Support', items: [
-        { k: 'Help centre', v: '' },
-        { k: 'Contact Klokd', v: 'WhatsApp · 9 AM – 9 PM' },
-        { k: 'Sign out', v: '', warn: true, action: handleSignOut },
-      ]
-    },
-  ];
+  const shareData = async () => {
+    try {
+      const data = await get('/me/data');
+      await Share.share({ title: 'My Klokd data', message: JSON.stringify(data, null, 2) });
+    } catch (e: any) {
+      setMsg({ ok: false, text: e?.message ?? 'Couldn’t export your data.' });
+    }
+  };
 
   return (
     <View style={styles.screen}>
       <AmbientOrbs intensity="subtle" />
       <SafeTop />
-      <ScrollView contentContainerStyle={{ paddingBottom: 30 }}>
-        {/* Profile hero */}
-        <View style={styles.hero}>
-          <LinearGradient
-            colors={[colors.electric, colors.volt]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.avatar}
-          >
-            <Text style={styles.avatarText}>AK</Text>
-          </LinearGradient>
-          <Text style={styles.name}>Akinyi Koech</Text>
-          <Text style={styles.subInfo}>Verified · ID ✓ · M-Pesa ✓</Text>
-          <View style={styles.badge}>
-            <Icons.shield color={colors.electric} size={11} />
-            <Text style={styles.badgeText}>Verified worker</Text>
-          </View>
-        </View>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+        {me.status === 'loading' && <ActivityIndicator color={colors.electric} style={{ marginTop: 40 }} />}
+        {me.status === 'error' && <Text style={styles.err}>{me.error}</Text>}
+        {m && (
+          <>
+            <Text style={styles.h1}>{m.firstName} {m.lastName}</Text>
+            <Text style={styles.meta}>{m.phone ?? ''} · on Klokd since {day(m.memberSince)}</Text>
+            {msg && <Text style={[styles.msg, { color: msg.ok ? colors.electric : colors.warning }]}>{msg.text}</Text>}
 
-        {/* Portable reputation */}
-        <View style={{ paddingHorizontal: 20 }}>
-          <View style={styles.repCard}>
-            <Label style={{ marginBottom: 10 }}>Your reputation · portable</Label>
-            <View style={{ flexDirection: 'row' }}>
-              <Stat n="94%" l="show-up" color={colors.electric} />
-              <VLine />
-              <Stat n="4.8" l="rating" color={colors.volt} star />
-              <VLine />
-              <Stat n="47" l="shifts" color={colors.white} />
+            <View style={styles.card}>
+              <Label color={colors.white55}>Reputation</Label>
+              <View style={styles.stats}>
+                <Stat k={String(m.completedShifts)} l="shifts done" />
+                <Stat k={m.showUpRate != null ? `${Math.round(m.showUpRate)}%` : '—'} l="show-up" />
+                <Stat k={m.rating != null ? `★ ${m.rating.toFixed(1)}` : '—'} l={`${m.ratingCount} reviews`} />
+              </View>
+              <Text style={styles.small}>Your rating shows to businesses after 3 reviews.</Text>
             </View>
-            <Text style={styles.repNote}>This record belongs to you. It stays with you across every employer on Klokd.</Text>
-          </View>
-        </View>
 
-        {/* Grouped rows */}
-        <View style={{ paddingHorizontal: 20 }}>
-          {rows.map((g, gi) => (
-            <View key={gi} style={{ marginBottom: 18 }}>
-              <Label style={{ marginBottom: 8 }}>{g.g}</Label>
-              <View style={styles.rowGroup}>
-                {g.items.map((it: any, i) => (
-                  <TouchableOpacity
-                    key={i}
-                    activeOpacity={0.7}
-                    onPress={it.action}
-                    style={[
-                      styles.row,
-                      i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.white05 },
-                    ]}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 12.5, fontWeight: '600', color: it.warn ? colors.warning : colors.white }}>{it.k}</Text>
-                      {it.v ? <Text style={styles.rowSub}>{it.v}</Text> : null}
-                    </View>
-                    <Icons.chevron color={colors.white30} size={12} />
-                  </TouchableOpacity>
+            <View style={styles.card}>
+              <View style={styles.cardHead}>
+                <Label color={colors.white55}>ID verification</Label>
+                <StatusPill tone={m.verificationStatus === 'APPROVED' ? 'mint' : 'warn'}>{m.verificationStatus === 'APPROVED' ? 'Verified' : 'To do'}</StatusPill>
+              </View>
+              {m.verificationStatus === 'APPROVED' ? (
+                <Text style={styles.p}>Verified with the government register (IPRS) through Identiti.</Text>
+              ) : (
+                <>
+                  <Text style={styles.p}>Businesses only pick verified workers.</Text>
+                  <GradientBtn size="sm" onPress={() => navigation.navigate('VerifyIDMain', { fromMain: true })}>Verify my ID</GradientBtn>
+                </>
+              )}
+            </View>
+
+            <View style={styles.card}>
+              <Label color={colors.white55}>Skills</Label>
+              <View style={styles.chips}>
+                {[...new Set([...SKILLS, ...m.skills])].map(k => (
+                  <Chip key={k} active={skills.includes(k)} onPress={() => setSkills(s => (s.includes(k) ? s.filter(x => x !== k) : [...s, k]))}>{k}</Chip>
                 ))}
               </View>
+              {dirty && <GradientBtn size="sm" disabled={saving} onPress={() => act(() => put('/me/worker/skills', { skills }), 'Skills saved.')}>Save skills</GradientBtn>}
             </View>
-          ))}
-          <Text style={styles.footer}>klokd · v1.0 · beta</Text>
-        </View>
+
+            <View style={styles.card}>
+              <Label color={colors.white55}>Consent</Label>
+              <Toggle
+                title="Identity checks"
+                detail="Lets Identiti check your ID with the government register."
+                value={m.consent.identity}
+                onChange={v => act(() => post('/me/consent', { identity: v, location: m.consent.location }), 'Consent updated.')}
+              />
+              <Toggle
+                title="Location at check-in and clock-out"
+                detail="Read once when you tap “I’ve arrived” and “Clock out”, never in between."
+                value={m.consent.location}
+                onChange={v => act(() => post('/me/consent', { identity: m.consent.identity, location: v }), 'Consent updated.')}
+              />
+            </View>
+
+            <View style={styles.card}>
+              <Label color={colors.white55}>Your data</Label>
+              <Text style={styles.p}>You can see, correct and ask us to delete what Klokd holds about you.</Text>
+              <TouchableOpacity onPress={shareData}><Text style={styles.link}>Get a copy of my data</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => setReqType('RECTIFICATION')}><Text style={styles.link}>Ask for a correction</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => setReqType('DELETION')}><Text style={[styles.link, { color: colors.warning }]}>Ask to delete my account</Text></TouchableOpacity>
+              {reqType && (
+                <View style={{ marginTop: 10, gap: 8 }}>
+                  <TextInput
+                    value={reqText}
+                    onChangeText={setReqText}
+                    placeholder={reqType === 'DELETION' ? 'Anything we should know? (optional)' : 'What should we correct?'}
+                    placeholderTextColor={colors.white35}
+                    multiline
+                    style={styles.input}
+                  />
+                  {reqType === 'DELETION' && <Text style={styles.small}>Pay and contract records are kept for 7 years by law; everything else is deleted.</Text>}
+                  <GradientBtn
+                    size="sm"
+                    disabled={saving || (reqType === 'RECTIFICATION' && reqText.trim().length < 5)}
+                    onPress={() => act(() => post('/me/data-requests', { type: reqType, details: reqText.trim() || undefined }), 'Request sent. We respond within 30 days.').then(() => { setReqType(null); setReqText(''); })}
+                  >
+                    Send request
+                  </GradientBtn>
+                </View>
+              )}
+              {(requests.data ?? []).map(r => (
+                <Text key={r.id} style={styles.small}>
+                  {r.type === 'DELETION' ? 'Deletion' : 'Correction'} · {day(r.createdAt)} · {r.status.toLowerCase()}{r.resolution ? ` — ${r.resolution}` : ''}
+                </Text>
+              ))}
+            </View>
+
+            <TouchableOpacity style={styles.signOut} onPress={logout}>
+              <Text style={styles.signOutText}>Sign out</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </ScrollView>
+    </View>
+  );
+}
+
+function Toggle({ title, detail, value, onChange }: { title: string; detail: string; value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <View style={styles.toggle}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.toggleH}>{title}</Text>
+        <Text style={styles.small}>{detail}</Text>
+      </View>
+      <Switch value={value} onValueChange={onChange} trackColor={{ true: colors.electric, false: colors.white15 }} thumbColor={value ? colors.ink : colors.white} />
+    </View>
+  );
+}
+
+function Stat({ k, l }: { k: string; l: string }) {
+  return (
+    <View style={{ flex: 1 }}>
+      <Text style={styles.statK}>{k}</Text>
+      <Text style={styles.statL}>{l}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ink },
-  hero: { alignItems: 'center', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14 },
-  avatar: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  avatarText: { fontSize: 26, fontWeight: '900', color: colors.ink, letterSpacing: -0.78 },
-  name: { fontSize: 20, fontWeight: '900', letterSpacing: -0.4, color: colors.white },
-  subInfo: { fontSize: 11, color: colors.white50, marginTop: 2 },
-  badge: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: 999,
-    backgroundColor: colors.electricAlpha['08'],
-    borderWidth: 1, borderColor: colors.electricAlpha['22'],
-    marginTop: 10,
-  },
-  badgeText: { fontSize: 10.5, fontWeight: '700', color: colors.electric, letterSpacing: 0.42, textTransform: 'uppercase' },
-
-  repCard: {
-    paddingHorizontal: 16, paddingVertical: 14,
-    borderRadius: 18,
-    backgroundColor: colors.white03,
-    borderWidth: 1, borderColor: colors.white06,
-    marginBottom: 14,
-  },
-  repNote: { marginTop: 10, fontSize: 10.5, color: colors.white40, lineHeight: 15.75 },
-
-  rowGroup: {
-    borderRadius: 14,
-    overflow: 'hidden',
-    borderWidth: 1, borderColor: colors.white06,
-  },
-  row: {
-    paddingHorizontal: 14, paddingVertical: 12,
-    backgroundColor: 'rgba(255,255,255,0.025)',
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-  },
-  rowSub: { fontSize: 10.5, color: colors.white40, marginTop: 1 },
-
-  footer: { textAlign: 'center', fontSize: 9.5, color: colors.white25, letterSpacing: 0.95, textTransform: 'uppercase', marginTop: 10 },
+  h1: { fontSize: 26, fontWeight: '900', color: colors.white, letterSpacing: -0.9, marginTop: 8 },
+  meta: { fontSize: 12.5, color: colors.white60, marginTop: 4 },
+  err: { color: colors.warning, marginTop: 20 },
+  msg: { fontSize: 13, fontWeight: '700', marginTop: 12 },
+  card: { marginTop: 16, padding: 16, borderRadius: 18, backgroundColor: colors.white03, borderWidth: 1, borderColor: colors.white08, gap: 8 },
+  cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  stats: { flexDirection: 'row', marginTop: 6 },
+  statK: { fontSize: 18, fontWeight: '900', color: colors.white },
+  statL: { fontSize: 10.5, color: colors.white55, marginTop: 2 },
+  p: { fontSize: 12.5, color: colors.white65, lineHeight: 18 },
+  small: { fontSize: 11.5, color: colors.white55, lineHeight: 16 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginVertical: 4 },
+  toggle: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+  toggleH: { fontSize: 14, fontWeight: '800', color: colors.white },
+  link: { color: colors.electric, fontSize: 13.5, fontWeight: '800', paddingVertical: 6 },
+  input: { minHeight: 60, borderWidth: 1, borderColor: colors.white12, borderRadius: 12, padding: 12, color: colors.white, fontSize: 14, backgroundColor: colors.ink },
+  signOut: { marginTop: 24, padding: 14, alignItems: 'center', borderRadius: 14, borderWidth: 1, borderColor: colors.white12 },
+  signOutText: { color: colors.white75, fontWeight: '800', fontSize: 14 },
 });
