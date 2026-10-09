@@ -4,7 +4,7 @@
  * (POST /payments/retry/:paymentId) once Kipkiren Pay is live.
  */
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { GlassCard } from '../../components/KlokdLayout';
 import { StatusPill, GhostBtn, Tone } from '../../components/Primitives';
 import { Chip, Notice } from '../../components/Form';
@@ -42,6 +42,8 @@ const TONE: Record<string, Tone> = { AWAITING_APPROVAL: 'warn', APPROVED: 'mint'
 
 export function PaymentsScreen() {
   const [stage, setStage] = useState('');
+  // The table needs ~840px; narrower screens get one card per shift.
+  const wide = useWindowDimensions().width >= 1100;
   const q = useApiData<{ paymentsLive: boolean; rows: Row[] }>(`/admin/settlements${stage ? `?status=${stage}` : ''}`, { pollMs: 60_000 });
   const act = useApiAction();
   const [msg, setMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
@@ -71,10 +73,30 @@ export function PaymentsScreen() {
       {q.status === 'loading' && <View style={styles.loading}><ActivityIndicator color={colors.electric} /></View>}
       {q.status === 'error' && <ErrorState title="Couldn’t load pay." detail={q.error ?? undefined} onRetry={q.reload} />}
       {q.status === 'ready' && q.data!.rows.length === 0 && <EmptyState title="Nothing at this stage." />}
-      {q.status === 'ready' && q.data!.rows.length > 0 && (
-        <View style={styles.scroll}>
-          <GlassCard padding={spacing.sm} style={{ minWidth: 820 }}>
-            <View style={[styles.row, styles.headRow]}>
+      {q.status === 'ready' && q.data!.rows.length > 0 && !wide && (
+        <View style={{ gap: spacing.sm }}>
+          {q.data!.rows.map(r => (
+            <GlassCard key={r.shiftId} padding={spacing.md}>
+              <View style={styles.cardTop}>
+                <Text style={styles.cardTitle}>{r.role} · {day(r.date)}</Text>
+                <StatusPill tone={TONE[r.status] ?? 'neutral'}>{r.status.toLowerCase().replace('_', ' ')}</StatusPill>
+              </View>
+              <Text style={styles.sub}>{r.employer} → {r.worker ?? '—'}</Text>
+              <View style={styles.cardRow}><Text style={styles.sub}>Employer pays</Text><Text style={styles.cardVal}>{kes(r.totalKes)}</Text></View>
+              <View style={styles.cardRow}><Text style={styles.sub}>Worker gets</Text><Text style={styles.cardVal}>{kes(r.netKes)}</Text></View>
+              <View style={styles.cardRow}>
+                <Text style={styles.sub}>Payout</Text>
+                <Text style={styles.cardVal}>{r.payment ? `${r.payment.status.toLowerCase()}${r.payment.mpesaRef ? ` · ${r.payment.mpesaRef}` : ''}` : r.escrow ? `hold ${r.escrow.toLowerCase()}` : 'no hold yet'}</Text>
+              </View>
+              {r.approvedBy && <Text style={styles.sub}>{r.approvedBy === 'auto' ? 'Auto-approved' : 'Approved by a person'}</Text>}
+              {r.payment?.status === 'FAILED' && <View style={{ flexDirection: 'row', marginTop: 6 }}><GhostBtn size="sm" onPress={() => retry(r.payment!.id)}>Retry</GhostBtn></View>}
+            </GlassCard>
+          ))}
+        </View>
+      )}
+      {q.status === 'ready' && q.data!.rows.length > 0 && wide && (
+        <GlassCard padding={spacing.sm}>
+          <View style={[styles.row, styles.headRow]}>
               {['Shift', 'Employer', 'Worker', 'Employer pays', 'Worker gets', 'Stage', 'Payout'].map(h => (
                 <Text key={h} style={[styles.cell, styles.headCell]}>{h}</Text>
               ))}
@@ -98,8 +120,7 @@ export function PaymentsScreen() {
                 </View>
               </View>
             ))}
-          </GlassCard>
-        </View>
+        </GlassCard>
       )}
     </View>
   );
@@ -108,10 +129,13 @@ export function PaymentsScreen() {
 const styles = StyleSheet.create({
   loading: { paddingVertical: 60, alignItems: 'center' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  scroll: { overflow: 'scroll' as any },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.white06 },
   headRow: { borderBottomColor: colors.white12 },
   cell: { flex: 1, color: colors.white85, fontSize: 12.5, paddingRight: spacing.sm, gap: 4 },
   headCell: { color: colors.white50, fontSize: 10.5, fontWeight: '900', letterSpacing: 0.6, textTransform: 'uppercase' },
-  sub: { color: colors.white50, fontSize: 11 },
+  sub: { color: colors.white50, fontSize: 11.5 },
+  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm, marginBottom: 4 },
+  cardTitle: { color: colors.white, fontSize: 14, fontWeight: '800', flexShrink: 1 },
+  cardRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm, paddingVertical: 3 },
+  cardVal: { color: colors.white85, fontSize: 12.5, fontWeight: '700', flexShrink: 1, textAlign: 'right' },
 });

@@ -12,6 +12,7 @@ import { Notice } from '../../components/Form';
 import { ErrorState, EmptyState } from '../../components/States';
 import { useApiData, useApiAction } from '../../hooks/useApiData';
 import { navigate } from '../../navigation/router';
+import { StatRow } from '../../components/StatRow';
 import { colors, spacing, radius, typography } from '../../theme';
 import { kes, day, hm, monthLabel, time } from '../../lib/format';
 
@@ -67,11 +68,13 @@ export function WorkerPay() {
         </Notice>
       )}
 
-      <View style={styles.tiles}>
-        <Tile k={kes(thisMonth?.netKes ?? 0)} l={thisMonth ? `take-home · ${monthLabel(thisMonth.month)}` : 'take-home this month'} />
-        <Tile k={kes(thisMonth?.deductionsKes ?? 0)} l="statutory deductions" />
-        <Tile k={kes(d.months.reduce((n, m) => n + m.paidKes, 0))} l="paid to M-Pesa, all time" />
-      </View>
+      <StatRow
+        items={[
+          { k: kes(thisMonth?.netKes ?? 0), l: thisMonth ? `take-home · ${monthLabel(thisMonth.month)}` : 'take-home this month' },
+          { k: kes(thisMonth?.deductionsKes ?? 0), l: 'statutory deductions' },
+          { k: kes(d.months.reduce((n, m) => n + m.paidKes, 0)), l: 'paid to M-Pesa' },
+        ]}
+      />
 
       {d.shifts.length === 0 ? (
         <EmptyState title="No pay yet." detail="Your pay appears here the moment you clock out of a shift." />

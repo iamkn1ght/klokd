@@ -17,6 +17,7 @@ import { Field, Chip } from '../../components/Form';
 import { ErrorState, EmptyState } from '../../components/States';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
+import { StatRow } from '../../components/StatRow';
 import { colors, spacing, radius } from '../../theme';
 
 interface FlaggedEvent {
@@ -108,20 +109,13 @@ export function AttendanceReviewScreen() {
 
   return (
     <View style={{ gap: spacing.xxl }}>
-      <View style={styles.kpiRow}>
-        {[
+      <StatRow
+        items={[
           { k: String(open.length), l: 'Flags to review', tone: open.length ? colors.warning : colors.electric },
-          { k: String(alerts.length), l: 'Employers over the override limit', tone: alerts.length ? colors.error : colors.electric },
-          { k: String(overrides.reduce((n, o) => n + o.overrides, 0)), l: 'PIN overrides · last 30 days', tone: colors.white },
-        ].map((s, i) => (
-          <FadeUp key={s.l} delay={i * 60} style={styles.kpiWrap}>
-            <GlassCard padding={spacing.lg}>
-              <Text style={[styles.kpiK, { color: s.tone }]}>{s.k}</Text>
-              <Text style={styles.kpiL}>{s.l}</Text>
-            </GlassCard>
-          </FadeUp>
-        ))}
-      </View>
+          { k: String(alerts.length), l: 'Over the override limit', tone: alerts.length ? colors.error : colors.electric },
+          { k: String(overrides.reduce((n, o) => n + o.overrides, 0)), l: 'PIN overrides · 30 days', tone: colors.white },
+        ]}
+      />
 
       {/* Override watch */}
       <View>

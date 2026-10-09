@@ -11,6 +11,7 @@ import { ErrorState } from '../../components/States';
 import { Notice } from '../../components/Form';
 import { useApiData } from '../../hooks/useApiData';
 import { navigate } from '../../navigation/router';
+import { StatRow } from '../../components/StatRow';
 import { colors, spacing, radius } from '../../theme';
 import { kes, ago } from '../../lib/format';
 
@@ -63,18 +64,9 @@ export function OverviewScreen() {
         </Notice>
       )}
 
-      <View style={styles.grid}>
-        {queues.map((q, i) => (
-          <FadeUp key={q.l} delay={i * 50} style={styles.cell}>
-            <Pressable onPress={() => navigate(q.to)} accessibilityRole="link">
-              <GlassCard interactive padding={spacing.lg}>
-                <Text style={[styles.big, { color: q.k > 0 ? colors.warning : colors.white }]}>{q.k}</Text>
-                <Text style={styles.label}>{q.l}</Text>
-              </GlassCard>
-            </Pressable>
-          </FadeUp>
-        ))}
-      </View>
+      <StatRow
+        items={queues.map(q => ({ k: String(q.k), l: q.l, tone: q.k > 0 ? colors.warning : colors.white, onPress: () => navigate(q.to) }))}
+      />
 
       <View style={styles.cols}>
         <View style={styles.col}>
@@ -155,7 +147,7 @@ const styles = StyleSheet.create({
   big: { fontSize: 30, fontWeight: '900', letterSpacing: -1 },
   label: { color: colors.white60, fontSize: 12, fontWeight: '700', marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.3 },
   cols: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xl },
-  col: { flex: 1, minWidth: 300 },
+  col: { flex: 1, minWidth: 260 },
   line: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.white06 },
   lineK: { color: colors.white65, fontSize: 13 },
   lineV: { color: colors.white, fontSize: 13, fontWeight: '800', textAlign: 'right', flexShrink: 1 },

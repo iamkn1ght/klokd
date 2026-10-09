@@ -186,8 +186,8 @@ function Line({ k, v }: { k: string; v: string }) {
 const styles = StyleSheet.create({
   loading: { paddingVertical: 80, alignItems: 'center' },
   split: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xl, alignItems: 'flex-start' },
-  listCol: { flex: 1, minWidth: 300, maxWidth: 440 },
-  detailCol: { flex: 1.4, minWidth: 320 },
+  listCol: { flex: 1, minWidth: 260, maxWidth: 440 },
+  detailCol: { flex: 1.4, minWidth: 260 },
   card: { padding: spacing.md, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.white10, backgroundColor: colors.white03 },
   cardActive: { borderColor: colors.electricAlpha['50'], backgroundColor: colors.electricAlpha['06'] },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm },

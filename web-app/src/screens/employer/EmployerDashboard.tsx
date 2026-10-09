@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
   verifyP: { color: colors.white70, fontSize: 12.5, marginTop: 3, fontWeight: '600' },
   headActions: { flexDirection: 'row', gap: spacing.sm },
   topRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg, alignItems: 'stretch' },
-  escrowWrap: { flex: 2, minWidth: 480 },
+  escrowWrap: { flex: 2, minWidth: 260 },
   kpiCol: { flex: 1, minWidth: 240, gap: spacing.md },
 
   escrowHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

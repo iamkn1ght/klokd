@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
   h1: { color: colors.white, fontSize: 26, fontWeight: '900', letterSpacing: -1, marginTop: 8 },
   p: { color: colors.white60, fontSize: 13.5, lineHeight: 20, marginTop: 6, maxWidth: 560 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
-  cell: { flex: 1, minWidth: 280, maxWidth: 420 },
+  cell: { flex: 1, minWidth: 260, maxWidth: 420 },
   top: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   name: { color: colors.white, fontSize: 15.5, fontWeight: '900' },
   meta: { color: colors.white55, fontSize: 12, marginTop: 3 },

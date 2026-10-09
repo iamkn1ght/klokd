@@ -13,6 +13,7 @@ import { useApiData } from '../../hooks/useApiData';
 import { useAuth } from '../../context/AuthContext';
 import { API_ORIGIN_EXPORT } from '../../services/api';
 import { navigate } from '../../navigation/router';
+import { StatRow } from '../../components/StatRow';
 import { colors, spacing } from '../../theme';
 import { kes, day, hm, time, downloadText } from '../../lib/format';
 
@@ -80,12 +81,14 @@ export function EmployerPay() {
         </Notice>
       )}
 
-      <View style={styles.tiles}>
-        <Tile k={kes(d.totals.awaitingApprovalKes)} l="waiting for your check" tone={d.totals.awaitingApprovalKes ? colors.warning : colors.white} />
-        <Tile k={kes(d.totals.approvedUnpaidKes)} l="approved, to be paid" />
-        <Tile k={kes(d.totals.paidKes)} l="paid, all time" />
-        <Tile k={kes(d.totals.committedKes)} l="committed to upcoming shifts" />
-      </View>
+      <StatRow
+        items={[
+          { k: kes(d.totals.awaitingApprovalKes), l: 'to check', tone: d.totals.awaitingApprovalKes ? colors.warning : colors.white },
+          { k: kes(d.totals.approvedUnpaidKes), l: 'approved, to pay' },
+          { k: kes(d.totals.paidKes), l: 'paid, all time' },
+          { k: kes(d.totals.committedKes), l: 'committed' },
+        ]}
+      />
 
       {d.lines.length === 0 ? (
         <EmptyState title="Nothing billed yet." detail="Each shift appears here when your worker clocks out, with the hours and pay to check." />

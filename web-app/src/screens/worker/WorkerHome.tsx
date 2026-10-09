@@ -221,8 +221,8 @@ function Stat({ k, l }: { k: string; l: string }) {
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xl, alignItems: 'flex-start' },
-  left: { flex: 1, minWidth: 280, maxWidth: 420, gap: spacing.md },
-  right: { flex: 2, minWidth: 300 },
+  left: { flex: 1, minWidth: 260, maxWidth: 420, gap: spacing.md },
+  right: { flex: 2, minWidth: 260 },
   ledgerHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   big: { color: colors.white, fontSize: 32, fontWeight: '900', letterSpacing: -1.4, marginTop: spacing.md },
   note: { color: colors.white60, fontSize: 12.5, lineHeight: 18, marginTop: 4 },
