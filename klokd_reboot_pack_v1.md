@@ -2,7 +2,7 @@
 ## Session Continuity Document · Kirimon Market Ventures
 
 **Product:** Klokd — Casual Labour Marketplace (Product B)
-**Pack version:** v1.2 · 09 October 2026 (v1.1 · 08 Oct 2026 · v1.0 · March 2026)
+**Pack version:** v1.3 · 09 October 2026, evening (v1.2 · 09 Oct · v1.1 · 08 Oct · v1.0 · March 2026)
 **Prepared by:** Chamia Mutuku, Co-Founder & CPO
 **Classification:** Confidential · Internal Use Only
 **Rule:** Update this document at the end of every working session. Never start a session without reading it first.
@@ -503,6 +503,12 @@ All locked product, technical, and design decisions. Check this before proposing
 | D-50 | No-show watcher (every minute): late warning to worker + employer at start + 10 min, no-show at + 20 min; employer chooses wait · replace (shift reopens, earlier applicants return to the pick list, no-show worker excluded) · cancel. Thresholds are env config | 09 Oct 2026 | LOCKED |
 | D-51 | Ops "override watch": an employer is flagged when they have ≥ 3 PIN overrides in 30 days **and** overrides are ≥ 50 % of their shift starts (audit log entry on crossing). Admin review queue clears or escalates every flagged event | 09 Oct 2026 | LOCKED |
 | D-52 | Realtime for now = polling (employer shift page 15 s, dashboard feed 20 s) plus in-app notifications. WebSocket/SSE push deferred until there is real volume | 09 Oct 2026 | PROVISIONAL |
+| D-53 | No sample data anywhere: demo sessions, sample feeds, invented stats/testimonials and "coming soon" tabs removed from the website and both apps. Where a partner service isn't live, the real screen states it plainly (e.g. "M-Pesa payouts start when Klokd payments go live") | 09 Oct 2026 | LOCKED |
+| D-54 | Staff (admin console) sign in with a phone on `ADMIN_PHONES` + the shared `ADMIN_ACCESS_KEY` (POST /auth/staff/login). OTP can grant admin only when codes are not echoed (OQ-12). The old "@klokd.co.ke email" client-side admin login is gone | 09 Oct 2026 | LOCKED |
+| D-55 | Employment Act s.9 written particulars are generated when the employer picks a worker (employer acceptance) and accepted by the worker when they confirm the shift; stored as text on the contract row | 09 Oct 2026 | LOCKED |
+| D-56 | Re-hire = "Book again": an employer can offer a new shift directly to a worker who has finished a shift for them; it isn't broadcast. Declining reopens it to applicants | 09 Oct 2026 | LOCKED |
+| D-57 | Kipkiren Pay integration activates by configuration alone: when `PAYMENT_RAIL_API_BASE` + app id + secret are set, escrow holds start at worker selection, check-in requires a funded hold, approved pay is paid out by the watcher sweep, and cancels / no-shows / disputes refund. Unset = everything else works and pay waits in the approved queue | 09 Oct 2026 | LOCKED |
+| D-58 | Show-up rate = shifts started ÷ (started + no-shows), recomputed from the attendance ledger | 09 Oct 2026 | LOCKED |
 
 ---
 
@@ -530,23 +536,26 @@ These are unresolved as of the pack date. Any session that resolves one must upd
 | OQ-16 | Helpan rail returned 500 on every write (25 Jul) — fixed? | Any Helpan feature work | P2 |
 | OQ-17 | Hakken `klokd` app still `provisioning` — Silvia to flip to `active` | Formal Hakken go-live | P2 |
 | OQ-18 | Two `_dmarc` TXT records on klokd.co.ke (`p=reject` and `p=none`) — keep one | Email deliverability | P2 |
-| OQ-19 | Push notifications don't reach phones: `notification.service` sends Expo push to the *user id*, not a device push token, and no app registers tokens. Arrival / late / no-show alerts are stored in-app only until fixed | Realtime alerts to employers away from the dashboard | P1 |
+| OQ-19 | Push to phones: the API now sends Expo push to registered device tokens (POST /me/push-token) and keeps an in-app inbox, but neither app registers a token yet — that needs `expo-notifications`, a native module, so a new store build (not an OTA). Until then alerts appear in the app/website inbox and bell | Alerts when the app is closed | P1 |
+| OQ-21 | Production may still hold rows from the old `/admin/seed-demo` endpoint (fake employers with real brand names, fake shifts, synthetic phones `+25472000000x` / `+25471000000x`). Check the admin Users page; purge if present | Clean data | P1 |
 | OQ-20 | Attendance-event retention period (proposed 12 months, then aggregate) — needs counsel + ODPC position | DPA compliance | P2 |
 
-### 12a. Pending until Kipkiren Pay is live
+### 12a. Kipkiren Pay — built, waiting for the rail (D-57)
 
-Everything up to "pay approved" is built (D-49). These steps need the payment rail and are **not** done:
+All of the payment flow is now code-complete and switches on when the rail is configured. What remains is on Kipkiren Pay's side or needs live testing:
 
-| # | Pending work | Where it plugs in |
+| # | Item | Status |
 |---|---|---|
-| KP-1 | **Fund escrow at worker selection** — STK push to the employer for shift pay + 4 % fee; shift stays unconfirmed until the hold is funded | `paymentService.initiateEscrow` (written, never called from the confirm flow) |
-| KP-2 | **Escrow-funded gate at arrive / start** — refuse `ESCROW_NOT_FUNDED`, notify the employer | `attendanceService.complianceGates` |
-| KP-3 | **Payout sweep** — pay every `APPROVED` settlement: call `paymentService.disbursePayment`, mark the settlement `PAID`, shift → `PAID`, notify the worker with the M-Pesa receipt | `attendanceService.autoApproveDue` (comment marks the hook) |
-| KP-4 | **Payout step-up OTP** for payouts above KES 20,000 (`/payments/:id/step-up` endpoint referenced, not built) | `payment.service.ts` |
-| KP-5 | **Refund to employer** on cancelled / no-show shifts with a funded hold | `paymentService.refundEscrow` from `resolveNoShow('cancel')` |
-| KP-6 | **Reconcile `Payment` with `ShiftSettlement`** — `disbursePayment` recomputes deductions; switch it to read the approved settlement so the paid amount equals what the employer approved | `payment.service.ts` |
-| KP-7 | Real escrow meter + "Spent this week" on the employer dashboard (currently labelled SAMPLE / em-dash) | `EmployerDashboard.tsx` |
-| KP-8 | Worker Pay tab: real payouts + payslip download | worker app / web `pay` tab |
+| KP-1 | Escrow hold at worker selection (`paymentService.initiateEscrow` from `confirmShift`) | Built · activates with config |
+| KP-2 | Funded-hold gate at check-in (`ESCROW_NOT_FUNDED`) | Built · activates with config |
+| KP-3 | Payout sweep for approved pay; `PAYOUT_COMPLETED` webhook marks payment, settlement and shift PAID and notifies the worker | Built · activates with config |
+| KP-4 | Step-up OTP for payouts over the threshold (`POST /payments/:id/step-up`, confirm screen in worker Pay) | Built · activates with config |
+| KP-5 | Refunds on employer cancel, worker decline/cancel, no-show and "refund employer" dispute decisions | Built · activates with config |
+| KP-6 | Payment amounts taken from the approved settlement; admin retry re-runs a failed payout with a fresh idempotency key | Built |
+| KP-7 | Employer dashboard / billing: real committed, approved, paid and funded totals; CSV export | Built |
+| KP-8 | Worker Pay tab: real per-shift breakdown and payout state | Built |
+| KP-9 | Rail credentials on Railway (`PAYMENT_RAIL_API_BASE`, `PAYMENT_RAIL_APP_ID`, `PAYMENT_RAIL_APP_SECRET`, `PAYMENT_RAIL_WEBHOOK_SECRET`) and a first end-to-end sandbox payout | Waiting on Kipkiren Pay |
+| KP-10 | Employer/worker wallet creation at onboarding (S4-NEW-01, held) | Waiting on Kipkiren Pay |
 
 ---
 
@@ -657,31 +666,33 @@ At 40 shifts/month × KES 1,800 gross per shift:
 
 ## 18. Next Session Starting Point
 
-Current status as of Pack v1.2 (09 Oct 2026):
+Current status as of Pack v1.3 (09 Oct 2026, evening). Everything below is pushed to `main` and deployed (API + website); app OTAs published to `preview`.
 
-**Completed this session (09 Oct 2026) — not yet pushed (awaiting go-ahead; pushing `main` deploys the API):**
-- Web employer flows: business verification (KRA PIN + WIBA), Post a Shift, shift detail with applicants + Select worker (D-45)
-- Security: applicants list only visible to the shift's employer; disputes only fileable by the shift's two parties; shift detail hides the PIN and the worker's surname
-- Minimum-wage gate was never enforced (case mismatch `Waiter` vs `waiter`) — fixed
-- Attendance v1, Uber model (D-46 – D-52): arrive → PIN → start, employer override with reason, clock-out with location, settlement + 4 h window + auto-approve, no-show watcher with wait / replace / cancel, employer live panel + dashboard activity feed, admin Attendance tab (review queue + override watch), worker app check-in + active-shift screens wired to the real API (needs an OTA)
-- Migration `20261009090000_attendance_v1` (ALTER TABLE only on `shifts`; new `attendance_events`, `attendance_reviews`, `shift_settlements`)
+**Completed 09 Oct 2026:**
+- Employer web flows; Uber-style attendance (arrive → PIN → start, clock-out, settlement, no-show watcher, admin review); see D-45 – D-52
+- No sample data anywhere (D-53): website, worker app and employer app all on real endpoints; invented stats and testimonials removed; consent copy corrected
+- New API: `/me/*` (profile, shifts, earnings, ratings due, inbox, push token, data export, DSR), `/employer/*` (overview, billing + CSV, team), admin audit / verification / settlements / data requests, staff sign-in (D-54), contracts (D-55), re-hire offers (D-56), decline / cancel / withdraw, dispute decisions that update pay, Kipkiren Pay paths (D-57), show-up rate (D-58)
+- Employer mobile app sign-in fixed (it never worked: no challenge id / profile sent)
+- Tests: 54/54 passing (stale payment tests rewritten)
 
-**Next actions (in priority order):**
-1. Push to `main` (API + web deploy) and publish the worker-app OTA (`eas update --branch preview`)
-2. Get Todoku SMS working (OQ-13), then turn off `OTP_SANDBOX_ECHO` (OQ-12) and re-open web sign-in
-3. Move Identiti's Supabase to a paid plan (OQ-15); rotate exposed secrets (OQ-14)
-4. Fix push delivery (OQ-19) — register Expo push tokens in both apps, send to tokens
-5. Kipkiren Pay pending list (§12a) as soon as the rail is live
-6. Web — worker: ID verification, Shift Detail + contract acceptance
-7. Replace the remaining web "coming soon" tabs (Team, Me; Pay waits on Kipkiren Pay)
-8. Mobile: finish the EAS `kmv209 → mumbus` transfer; Play Store submission
-9. SEO foundation: pre-rendered public pages + sitemap
-10. Housekeeping: fix stale tests (`payment.test.ts` Daraja import, e2e payment release); SQLite backups
+**Needs you (not code):**
+1. Set `ADMIN_PHONES` (your staff number(s), e.g. `+2547…`) and `ADMIN_ACCESS_KEY` (24+ random characters, e.g. `openssl rand -base64 32`) on the Railway `klokd` service — the operations console can't be opened until then
+2. Check production for old seed-demo rows (OQ-21)
+3. Todoku SMS (OQ-13) → then turn off `OTP_SANDBOX_ECHO` (OQ-12) and re-open public sign-in on the website
+4. Identiti Supabase paid plan (OQ-15); rotate exposed secrets (OQ-14)
+5. Kipkiren Pay credentials (KP-9)
+
+**Next engineering actions:**
+1. Native builds of both apps with `expo-notifications` + push-token registration (OQ-19); Play Store / TestFlight
+2. Finish the EAS `kmv209 → mumbus` transfer
+3. SEO: pre-rendered public pages + sitemap
+4. Offline check-in queue (S6-01 remainder); rate-intelligence strip (OQ-10)
+5. SQLite backups; formal OWASP / encryption review (S21)
 
 **Blocked on business / legal (not code):** Kipkiren Pay production + M-Pesa B2C, ODPC registration, WIBA cover, counsel review of Terms / Privacy, escrow licensing position (OQ-04/05).
 
 ---
 
-*Klokd · Reboot Pack v1.2 · 09 October 2026 (v1.1 · 08 Oct 2026 · v1.0 · March 2026)*
+*Klokd · Reboot Pack v1.3 · 09 October 2026 (v1.2 · v1.1 · 08 Oct 2026 · v1.0 · March 2026)*
 *A Kirimon Market Ventures Company · klokd.co.ke · @klokdKE*
 *Update this document at the end of every session. Version control in filename.*
