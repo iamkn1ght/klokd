@@ -12,7 +12,10 @@
  *   #/signin[?persona=x]     sign-in flow
  *   #/worker/:tab            worker workspace  (home | shifts | pay | profile)
  *   #/employer/:tab          employer workspace (dashboard | shifts | pay | team)
- *   #/admin/:route           admin console (overview | verification | disputes
+ *   #/employer/shifts/new    post a shift
+ *   #/employer/shifts/:id    shift detail + applicants (select a worker)
+ *   #/employer/verify        business verification (KRA PIN + WIBA)
+ *   #/admin/:route           admin console (overview | verification | attendance | disputes
  *                            | payments | audit | users) — staff only
  *   #/terms  #/privacy       legal documents (public, sign-out safe)
  */
@@ -23,14 +26,14 @@ export type Route =
   | { name: 'landing' }
   | { name: 'signin'; persona?: string | null }
   | { name: 'worker'; tab: string }
-  | { name: 'employer'; tab: string }
+  | { name: 'employer'; tab: string; sub?: string }
   | { name: 'admin'; tab: string }
   | { name: 'legal'; doc: 'terms' | 'privacy' }
   | { name: 'notfound' };
 
 export const WORKER_TABS = ['home', 'shifts', 'pay', 'profile'] as const;
-export const EMPLOYER_TABS = ['dashboard', 'shifts', 'pay', 'team'] as const;
-export const ADMIN_TABS = ['overview', 'verification', 'disputes', 'payments', 'audit', 'users'] as const;
+export const EMPLOYER_TABS = ['dashboard', 'shifts', 'pay', 'team', 'verify'] as const;
+export const ADMIN_TABS = ['overview', 'verification', 'attendance', 'disputes', 'payments', 'audit', 'users'] as const;
 
 export function defaultRouteFor(persona: string): string {
   if (persona === 'employer') return '/employer/dashboard';
@@ -56,7 +59,9 @@ export function parseHash(hash: string): Route | null {
     return { name: 'worker', tab: parts[1] };
   }
   if (parts[0] === 'employer' && (EMPLOYER_TABS as readonly string[]).includes(parts[1] ?? '')) {
-    return { name: 'employer', tab: parts[1] };
+    // Only the shifts tab has sub-pages (new | :id).
+    if (parts.length > 2 && parts[1] !== 'shifts') return { name: 'notfound' };
+    return { name: 'employer', tab: parts[1], sub: parts[2] };
   }
   if (parts[0] === 'admin' && (ADMIN_TABS as readonly string[]).includes(parts[1] ?? '')) {
     return { name: 'admin', tab: parts[1] };

@@ -67,6 +67,37 @@ router.post('/workers/verify-id', authenticate, authorize('WORKER'), async (req:
 
 // ─── Employer Profile ───────────────────────────────────
 
+// The employer's own verification state — drives the web "verify your
+// business" checklist. KRA PIN is masked; WIBA status mirrors the
+// createShift gate (policy declared and not expired).
+router.get('/employers/profile', authenticate, authorize('EMPLOYER'), async (req: Request, res: Response) => {
+  const employer = await prisma.employer.findUnique({ where: { userId: req.user!.userId } });
+  if (!employer) {
+    res.status(404).json({ success: false, error: 'Employer profile not found' });
+    return;
+  }
+  const wibaStatus = !employer.wibaPolicyRef
+    ? 'missing'
+    : employer.wibaPolicyExpiry && employer.wibaPolicyExpiry < new Date()
+      ? 'expired'
+      : 'confirmed';
+  res.json({
+    success: true,
+    data: {
+      businessName: employer.businessName,
+      contactPerson: employer.contactPerson,
+      kraPinMasked: employer.kraPin ? `${employer.kraPin.slice(0, 1)}•••••••${employer.kraPin.slice(-3)}` : null,
+      wiba: {
+        status: wibaStatus,
+        insurer: employer.wibaInsurer,
+        policyRef: employer.wibaPolicyRef,
+        expiresAt: employer.wibaPolicyExpiry,
+      },
+      canPostShifts: !!employer.kraPin && wibaStatus === 'confirmed',
+    },
+  });
+});
+
 router.put('/employers/profile', authenticate, authorize('EMPLOYER'), async (req: Request, res: Response) => {
   const schema = z.object({
     businessName: z.string().min(1),

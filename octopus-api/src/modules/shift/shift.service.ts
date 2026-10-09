@@ -1,3 +1,4 @@
+import { randomInt } from 'crypto';
 import prisma from '../../config/database';
 import { config } from '../../config';
 import { ShiftStatus } from '@prisma/client';
@@ -10,8 +11,9 @@ import { hakkenIntegrationService } from '../hakken/hakken.service';
 // Valid state transitions for the shift lifecycle
 const VALID_TRANSITIONS: Record<ShiftStatus, ShiftStatus[]> = {
   POSTED: ['CONFIRMED', 'CANCELLED'],
-  CONFIRMED: ['ACCEPTED', 'CANCELLED'],
-  ACCEPTED: ['ACTIVE', 'CANCELLED'],
+  // → POSTED: the employer replaced a no-show worker (attendance service).
+  CONFIRMED: ['ACCEPTED', 'POSTED', 'CANCELLED'],
+  ACCEPTED: ['ACTIVE', 'POSTED', 'CANCELLED'],
   ACTIVE: ['COMPLETED'],
   COMPLETED: ['DISPUTED', 'PAID'],
   DISPUTED: ['PAID', 'COMPLETED'],
@@ -46,10 +48,17 @@ export class ShiftService {
       throw new AppError(422, `Rate below minimum wage. Minimum for ${data.role}: KES ${minWageCheck.minimumWage}`);
     }
 
-    // Check employer has WIBA declared
+    // Business verification gate: KRA PIN on file + a current WIBA policy.
+    // Mirrored by GET /identity/employers/profile → canPostShifts.
     const employer = await prisma.employer.findUnique({ where: { id: employerId } });
-    if (!employer?.wibaPolicyRef) {
+    if (!employer?.kraPin) {
+      throw new AppError(422, 'Verify your business (KRA PIN) before posting shifts');
+    }
+    if (!employer.wibaPolicyRef) {
       throw new AppError(422, 'WIBA policy must be declared before posting shifts');
+    }
+    if (employer.wibaPolicyExpiry && employer.wibaPolicyExpiry < new Date()) {
+      throw new AppError(422, 'Your WIBA policy has expired. Declare a current policy before posting shifts');
     }
 
     const geoHash = toGeoHash(data.locationLat, data.locationLng);
@@ -313,7 +322,8 @@ export class ShiftService {
     const [updatedShift] = await prisma.$transaction([
       prisma.shift.update({
         where: { id: shiftId },
-        data: { status: 'CONFIRMED', workerId },
+        // The start PIN (Uber-style) is issued the moment a worker is picked.
+        data: { status: 'CONFIRMED', workerId, startPin: String(randomInt(0, 10_000)).padStart(4, '0'), pinAttempts: 0 },
       }),
       // Mark selected application
       prisma.shiftApplication.updateMany({
@@ -358,90 +368,7 @@ export class ShiftService {
     return updatedShift;
   }
 
-  /**
-   * Worker clocks in. Validates GPS (500m radius) and WIBA.
-   */
-  async clockIn(
-    shiftId: string,
-    workerId: string,
-    tenantId: string,
-    lat: number,
-    lng: number
-  ) {
-    const shift = await prisma.shift.findUnique({
-      where: { id: shiftId },
-      include: { employer: true },
-    });
-    if (!shift || shift.workerId !== workerId) {
-      throw new AppError(404, 'Shift not found');
-    }
-    this.validateTransition(shift.status, 'ACTIVE');
-
-    // GPS radius check (500m)
-    const distance = calculateDistance(lat, lng, shift.locationLat, shift.locationLng);
-    if (distance > config.platform.gpsClockInRadiusMeters) {
-      throw new AppError(422, `You are ${Math.round(distance)}m from the venue. Must be within ${config.platform.gpsClockInRadiusMeters}m to clock in.`);
-    }
-
-    // WIBA hard gate
-    const wibaCheck = await complianceService.checkWiba(shift.employerId, tenantId);
-    if (!wibaCheck.confirmed) {
-      throw new AppError(403, `WIBA coverage not confirmed: ${wibaCheck.reason}`);
-    }
-
-    const clockInGeoHash = toGeoHash(lat, lng);
-
-    const updatedShift = await prisma.shift.update({
-      where: { id: shiftId },
-      data: {
-        status: 'ACTIVE',
-        clockInAt: new Date(),
-        clockInGeoHash,
-      },
-    });
-
-    const worker = await prisma.worker.findUnique({ where: { id: workerId } });
-    await this.logEvent(shiftId, tenantId, 'ACCEPTED', 'ACTIVE', worker!.userId, {
-      clockInGeoHash,
-      distanceMeters: Math.round(distance),
-    });
-
-    return updatedShift;
-  }
-
-  /**
-   * Worker clocks out. Triggers auto-release timer.
-   */
-  async clockOut(shiftId: string, workerId: string, tenantId: string) {
-    const shift = await prisma.shift.findUnique({ where: { id: shiftId } });
-    if (!shift || shift.workerId !== workerId) {
-      throw new AppError(404, 'Shift not found');
-    }
-    this.validateTransition(shift.status, 'COMPLETED');
-
-    const autoReleaseAt = new Date();
-    autoReleaseAt.setHours(autoReleaseAt.getHours() + config.platform.escrowAutoReleaseHours);
-
-    const [updatedShift] = await prisma.$transaction([
-      prisma.shift.update({
-        where: { id: shiftId },
-        data: {
-          status: 'COMPLETED',
-          clockOutAt: new Date(),
-        },
-      }),
-      // Set auto-release timer on escrow
-      prisma.escrow.updateMany({
-        where: { shiftId },
-        data: { autoReleaseAt },
-      }),
-    ]);
-
-    const worker = await prisma.worker.findUnique({ where: { id: workerId } });
-    await this.logEvent(shiftId, tenantId, 'ACTIVE', 'COMPLETED', worker!.userId);
-
-    return updatedShift;
-  }
+  // Clock-in / clock-out live in the attendance module (arrive → PIN → start).
 
   /**
    * Get shift by ID with relations.

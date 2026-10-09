@@ -2,7 +2,7 @@
 ## Session Continuity Document · Kirimon Market Ventures
 
 **Product:** Klokd — Casual Labour Marketplace (Product B)
-**Pack version:** v1.1 · 08 October 2026 (v1.0 · March 2026)
+**Pack version:** v1.2 · 09 October 2026 (v1.1 · 08 Oct 2026 · v1.0 · March 2026)
 **Prepared by:** Chamia Mutuku, Co-Founder & CPO
 **Classification:** Confidential · Internal Use Only
 **Rule:** Update this document at the end of every working session. Never start a session without reading it first.
@@ -495,6 +495,14 @@ All locked product, technical, and design decisions. Check this before proposing
 | D-42 | Hakken registration triggers: worker on IPRS KYC reaching tier ≥ 1; employer once a KRA PIN is on file (until then the business name may be a person's name); sweep catch-up every 5 min for anything missed | 08 Oct 2026 | LOCKED |
 | D-43 | No Identiti HTTP webhooks for now. Before the real-money pilot: synchronous account-status checks at shift confirmation and payout. If platform-wide events are needed, prefer Identiti's Kafka option | 08 Oct 2026 | LOCKED |
 | D-44 | Legal pages name the operating company as "Klokd" (exact registered form pending — OQ-11) | 08 Oct 2026 | PROVISIONAL |
+| D-45 | Posting a shift requires business verification on the server: KRA PIN on file **and** a current (unexpired) WIBA policy. Web employers verify at `#/employer/verify` | 09 Oct 2026 | LOCKED |
+| D-46 | Attendance follows the Uber model: worker taps **"I've arrived"** (500 m geofence, GPS accuracy ≤ 150 m, time window from 60 min before start, WIBA + ID verified) → enters the employer's **4-digit start PIN** (the Uber trip PIN) → shift ACTIVE. Arrival and start are separate events. No location tracking before, during or after — location is read only at arrive and clock-out. Supersedes the single "clock-in" button | 09 Oct 2026 | LOCKED |
+| D-47 | Start PIN is issued when the employer picks a worker, shown only to the employer, locks after 5 wrong tries. Employer may start the shift without the PIN only with a reason (GPS failed · PIN locked · phone issue · other + note); it never bypasses WIBA / ID gates and is flagged for Klokd review | 09 Oct 2026 | LOCKED |
+| D-48 | Attendance is an append-only ledger (`attendance_events`, DB triggers block UPDATE/DELETE); server time only; geohash + distance stored, never raw coordinates. Integrity signals (fake-GPS app, early clock-out, clock-out away from venue, old app without PIN, late start) **flag, never block** | 09 Oct 2026 | LOCKED |
+| D-49 | Clock-out records location but never blocks. It creates the shift settlement (gross, statutory deductions, net, 4 % Klokd fee on top for the employer) with a 4-hour approve-or-report window, then auto-approves. A dispute pauses it | 09 Oct 2026 | LOCKED |
+| D-50 | No-show watcher (every minute): late warning to worker + employer at start + 10 min, no-show at + 20 min; employer chooses wait · replace (shift reopens, earlier applicants return to the pick list, no-show worker excluded) · cancel. Thresholds are env config | 09 Oct 2026 | LOCKED |
+| D-51 | Ops "override watch": an employer is flagged when they have ≥ 3 PIN overrides in 30 days **and** overrides are ≥ 50 % of their shift starts (audit log entry on crossing). Admin review queue clears or escalates every flagged event | 09 Oct 2026 | LOCKED |
+| D-52 | Realtime for now = polling (employer shift page 15 s, dashboard feed 20 s) plus in-app notifications. WebSocket/SSE push deferred until there is real volume | 09 Oct 2026 | PROVISIONAL |
 
 ---
 
@@ -522,6 +530,23 @@ These are unresolved as of the pack date. Any session that resolves one must upd
 | OQ-16 | Helpan rail returned 500 on every write (25 Jul) — fixed? | Any Helpan feature work | P2 |
 | OQ-17 | Hakken `klokd` app still `provisioning` — Silvia to flip to `active` | Formal Hakken go-live | P2 |
 | OQ-18 | Two `_dmarc` TXT records on klokd.co.ke (`p=reject` and `p=none`) — keep one | Email deliverability | P2 |
+| OQ-19 | Push notifications don't reach phones: `notification.service` sends Expo push to the *user id*, not a device push token, and no app registers tokens. Arrival / late / no-show alerts are stored in-app only until fixed | Realtime alerts to employers away from the dashboard | P1 |
+| OQ-20 | Attendance-event retention period (proposed 12 months, then aggregate) — needs counsel + ODPC position | DPA compliance | P2 |
+
+### 12a. Pending until Kipkiren Pay is live
+
+Everything up to "pay approved" is built (D-49). These steps need the payment rail and are **not** done:
+
+| # | Pending work | Where it plugs in |
+|---|---|---|
+| KP-1 | **Fund escrow at worker selection** — STK push to the employer for shift pay + 4 % fee; shift stays unconfirmed until the hold is funded | `paymentService.initiateEscrow` (written, never called from the confirm flow) |
+| KP-2 | **Escrow-funded gate at arrive / start** — refuse `ESCROW_NOT_FUNDED`, notify the employer | `attendanceService.complianceGates` |
+| KP-3 | **Payout sweep** — pay every `APPROVED` settlement: call `paymentService.disbursePayment`, mark the settlement `PAID`, shift → `PAID`, notify the worker with the M-Pesa receipt | `attendanceService.autoApproveDue` (comment marks the hook) |
+| KP-4 | **Payout step-up OTP** for payouts above KES 20,000 (`/payments/:id/step-up` endpoint referenced, not built) | `payment.service.ts` |
+| KP-5 | **Refund to employer** on cancelled / no-show shifts with a funded hold | `paymentService.refundEscrow` from `resolveNoShow('cancel')` |
+| KP-6 | **Reconcile `Payment` with `ShiftSettlement`** — `disbursePayment` recomputes deductions; switch it to read the approved settlement so the paid amount equals what the employer approved | `payment.service.ts` |
+| KP-7 | Real escrow meter + "Spent this week" on the employer dashboard (currently labelled SAMPLE / em-dash) | `EmployerDashboard.tsx` |
+| KP-8 | Worker Pay tab: real payouts + payslip download | worker app / web `pay` tab |
 
 ---
 
@@ -632,32 +657,31 @@ At 40 shifts/month × KES 1,800 gross per shift:
 
 ## 18. Next Session Starting Point
 
-Current status as of Pack v1.1 (08 Oct 2026):
+Current status as of Pack v1.2 (09 Oct 2026):
 
-**Completed this session (08 Oct 2026):**
-- klokd.co.ke live on Railway (web service, Caddy, custom domain, SSL); the unpushed 7 Oct work deployed
-- Early-access mode + waitlist API; public sign-in gated (D-37)
-- Landing rebuilt: honest content, shift-clock hero, wordmark logo, refined glassmorphism (D-35, D-38–D-40)
-- Legal pages name the company "Klokd" (D-44)
-- Partner audit: Hakken was silently publishing nothing — registration wiring fixed, sweep catch-up, admin backlog counts (D-42); rail health probes corrected; Identiti probe now database-backed
-- Worker app: payout step confirms the verified number, no M-Pesa collection (D-41) — OTA published
-- Identiti outage diagnosed (Supabase pause) and confirmed resolved with a live create-customer check
+**Completed this session (09 Oct 2026) — not yet pushed (awaiting go-ahead; pushing `main` deploys the API):**
+- Web employer flows: business verification (KRA PIN + WIBA), Post a Shift, shift detail with applicants + Select worker (D-45)
+- Security: applicants list only visible to the shift's employer; disputes only fileable by the shift's two parties; shift detail hides the PIN and the worker's surname
+- Minimum-wage gate was never enforced (case mismatch `Waiter` vs `waiter`) — fixed
+- Attendance v1, Uber model (D-46 – D-52): arrive → PIN → start, employer override with reason, clock-out with location, settlement + 4 h window + auto-approve, no-show watcher with wait / replace / cancel, employer live panel + dashboard activity feed, admin Attendance tab (review queue + override watch), worker app check-in + active-shift screens wired to the real API (needs an OTA)
+- Migration `20261009090000_attendance_v1` (ALTER TABLE only on `shifts`; new `attendance_events`, `attendance_reviews`, `shift_settlements`)
 
 **Next actions (in priority order):**
-1. Get Todoku SMS working (OQ-13), then turn off `OTP_SANDBOX_ECHO` (OQ-12) and re-open web sign-in
-2. Move Identiti's Supabase to a paid plan (OQ-15); rotate exposed secrets (OQ-14)
-3. Confirm Hakken registrations / broadcasts are flowing (admin `GET /api/v1/admin/rails-health` → `hakkenBacklog`)
-4. Web — employer: business verification (KRA + WIBA), Post a Shift, Select Worker
-5. Web — worker: ID verification, Shift Detail + contract acceptance; clock-in/out stays mobile-first
-6. Replace the web "coming soon" tabs (Shifts, Team, Me; Pay waits on Kipkiren Pay)
-7. Mobile: finish the EAS `kmv209 → mumbus` transfer; Play Store submission
-8. SEO foundation: pre-rendered public pages at real URLs + sitemap; area pages; Google for Jobs once shifts are real
-9. Housekeeping: fix stale tests (`payment.test.ts` Daraja import, e2e payment release); set up SQLite backups
+1. Push to `main` (API + web deploy) and publish the worker-app OTA (`eas update --branch preview`)
+2. Get Todoku SMS working (OQ-13), then turn off `OTP_SANDBOX_ECHO` (OQ-12) and re-open web sign-in
+3. Move Identiti's Supabase to a paid plan (OQ-15); rotate exposed secrets (OQ-14)
+4. Fix push delivery (OQ-19) — register Expo push tokens in both apps, send to tokens
+5. Kipkiren Pay pending list (§12a) as soon as the rail is live
+6. Web — worker: ID verification, Shift Detail + contract acceptance
+7. Replace the remaining web "coming soon" tabs (Team, Me; Pay waits on Kipkiren Pay)
+8. Mobile: finish the EAS `kmv209 → mumbus` transfer; Play Store submission
+9. SEO foundation: pre-rendered public pages + sitemap
+10. Housekeeping: fix stale tests (`payment.test.ts` Daraja import, e2e payment release); SQLite backups
 
 **Blocked on business / legal (not code):** Kipkiren Pay production + M-Pesa B2C, ODPC registration, WIBA cover, counsel review of Terms / Privacy, escrow licensing position (OQ-04/05).
 
 ---
 
-*Klokd · Reboot Pack v1.1 · 08 October 2026 (v1.0 · March 2026)*
+*Klokd · Reboot Pack v1.2 · 09 October 2026 (v1.1 · 08 Oct 2026 · v1.0 · March 2026)*
 *A Kirimon Market Ventures Company · klokd.co.ke · @klokdKE*
 *Update this document at the end of every session. Version control in filename.*

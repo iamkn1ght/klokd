@@ -64,6 +64,8 @@ jest.mock('../src/config/database', () => ({
     shift: { create: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
     shiftApplication: { create: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
     shiftEvent: { create: jest.fn() },
+    attendanceEvent: { create: jest.fn(), findFirst: jest.fn(), findMany: jest.fn() },
+    shiftSettlement: { create: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn() },
     escrow: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     payment: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
     dispute: { findUnique: jest.fn(), create: jest.fn() },
@@ -101,6 +103,13 @@ function setupDefaults() {
   mockPrisma.rating.findMany.mockResolvedValue([{ stars: 5 }, { stars: 4 }, { stars: 5 }]);
   mockPrisma.shiftApplication.create.mockResolvedValue({ id: 'app-1', status: 'PENDING' });
   mockPrisma.escrow.create.mockResolvedValue(mockEscrow);
+  mockPrisma.attendanceEvent.create.mockImplementation((args: any) => Promise.resolve({ id: 'att-1', ...args.data }));
+  mockPrisma.attendanceEvent.findFirst.mockResolvedValue(null);
+  mockPrisma.attendanceEvent.findMany.mockResolvedValue([]);
+  mockPrisma.shiftSettlement.findUnique.mockResolvedValue(null);
+  mockPrisma.shiftSettlement.create.mockImplementation((args: any) => Promise.resolve({ id: 'settle-1', ...args.data }));
+  mockPrisma.notification.create.mockResolvedValue({ id: 'n-1' });
+  mockPrisma.notification.update.mockResolvedValue({ id: 'n-1' });
 }
 
 function token(role: 'WORKER' | 'EMPLOYER' | 'ADMIN', userId = 'user-w1') {
@@ -155,8 +164,62 @@ describe('E2E: Full Shift Lifecycle', () => {
     expect(res.body.success).toBe(true);
   });
 
-  it('4. Worker clocks in (GPS 127m + WIBA pass)', async () => {
-    // Set shift to ACCEPTED for clock-in
+  it('4a. Worker arrives (GPS ~15m, accuracy ok, WIBA pass)', async () => {
+    mockPrisma.shift.findUnique.mockResolvedValueOnce({
+      ...mockShift, status: 'ACCEPTED', workerId: 'worker-1', employer: mockEmployer, arrivedAt: null,
+    });
+    // workerView re-reads the shift after recording the arrival
+    mockPrisma.shift.findUnique.mockResolvedValueOnce({ startPin: '4821' });
+    mockPrisma.shift.findUnique.mockResolvedValueOnce({
+      ...mockShift, status: 'ACCEPTED', workerId: 'worker-1', employer: mockEmployer, arrivedAt: new Date(), pinAttempts: 0,
+    });
+
+    const res = await request(app)
+      .post('/api/v1/attendance/shifts/shift-1/arrive')
+      .set('Authorization', `Bearer ${token('WORKER')}`)
+      .send({ lat: -1.2637, lng: 36.8037, accuracy: 12 });
+
+    expect(res.status).toBe(200);
+    expect(JSON.stringify(res.body)).not.toContain('4821'); // PIN never reaches the worker
+    expect(mockPrisma.attendanceEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ type: 'ARRIVED', geofenceResult: 'inside' }) })
+    );
+  });
+
+  it('4b. Arrival outside the geofence is refused with a code', async () => {
+    mockPrisma.shift.findUnique.mockResolvedValueOnce({
+      ...mockShift, status: 'ACCEPTED', workerId: 'worker-1', employer: mockEmployer, arrivedAt: null,
+    });
+
+    const res = await request(app)
+      .post('/api/v1/attendance/shifts/shift-1/arrive')
+      .set('Authorization', `Bearer ${token('WORKER')}`)
+      .send({ lat: -1.30, lng: 36.80, accuracy: 10 });
+
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe('OUT_OF_GEOFENCE');
+  });
+
+  it('4c. Wrong PIN is refused; right PIN starts the shift', async () => {
+    const arrived = { ...mockShift, status: 'ACCEPTED', workerId: 'worker-1', employer: mockEmployer, arrivedAt: new Date(), startPin: '4821', pinAttempts: 0 };
+    mockPrisma.shift.findUnique.mockResolvedValueOnce(arrived);
+    const wrong = await request(app)
+      .post('/api/v1/attendance/shifts/shift-1/start')
+      .set('Authorization', `Bearer ${token('WORKER')}`)
+      .send({ pin: '0000' });
+    expect(wrong.status).toBe(422);
+    expect(wrong.body.code).toBe('WRONG_PIN');
+
+    mockPrisma.shift.findUnique.mockResolvedValueOnce(arrived);
+    const right = await request(app)
+      .post('/api/v1/attendance/shifts/shift-1/start')
+      .set('Authorization', `Bearer ${token('WORKER')}`)
+      .send({ pin: '4821' });
+    expect(right.status).toBe(200);
+    expect(right.body.data.status).toBe('ACTIVE');
+  });
+
+  it('4d. Old app builds can still clock in directly (flagged for review)', async () => {
     mockPrisma.shift.findUnique.mockResolvedValueOnce({
       ...mockShift, status: 'ACCEPTED', workerId: 'worker-1', employer: mockEmployer,
     });
@@ -164,27 +227,35 @@ describe('E2E: Full Shift Lifecycle', () => {
     const res = await request(app)
       .post('/api/v1/shifts/shift-1/clockin')
       .set('Authorization', `Bearer ${token('WORKER')}`)
-      .send({ lat: -1.2637, lng: 36.8037 }); // ~127m away
+      .send({ lat: -1.2637, lng: 36.8037 });
 
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
+    expect(mockPrisma.attendanceEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ flags: expect.stringContaining('NO_PIN_LEGACY_APP') }) })
+    );
   });
 
-  it('5. Worker clocks out', async () => {
+  it('5. Worker clocks out (outside the fence still succeeds; pay is calculated)', async () => {
     mockPrisma.shift.findUnique.mockResolvedValueOnce({
-      ...mockShift, status: 'ACTIVE', workerId: 'worker-1',
+      ...mockShift, status: 'ACTIVE', workerId: 'worker-1', employer: mockEmployer, clockInAt: new Date(Date.now() - 4 * 3600000),
     });
-    mockPrisma.escrow.updateMany.mockResolvedValueOnce({ count: 1 });
     mockPrisma.$transaction.mockResolvedValueOnce([
       { ...mockShift, status: 'COMPLETED', clockOutAt: new Date() },
     ]);
 
     const res = await request(app)
       .post('/api/v1/shifts/shift-1/clockout')
-      .set('Authorization', `Bearer ${token('WORKER')}`);
+      .set('Authorization', `Bearer ${token('WORKER')}`)
+      .send({ lat: -1.30, lng: 36.80 });
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+    expect(mockPrisma.shiftSettlement.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ grossKes: 1800, platformFeeKes: 72, employerTotalKes: 1872 }) })
+    );
+    expect(mockPrisma.attendanceEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ type: 'CLOCKED_OUT', flags: expect.stringContaining('CLOCKOUT_OUTSIDE_GEOFENCE') }) })
+    );
   });
 
   it('6. Employer releases payment', async () => {

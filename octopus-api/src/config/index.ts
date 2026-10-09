@@ -133,6 +133,24 @@ export const config = {
     payoutStepUpThresholdKes: parseInt(process.env.PAYOUT_STEP_UP_THRESHOLD_KES || '20000', 10),
   },
 
+  // Attendance (arrive → PIN → start → clock-out). Policy values, not code.
+  attendance: {
+    arriveEarlyMinutes: parseInt(process.env.ATTENDANCE_ARRIVE_EARLY_MINUTES || '60', 10),
+    maxAccuracyMeters: parseInt(process.env.ATTENDANCE_MAX_ACCURACY_METERS || '150', 10),
+    maxPinAttempts: parseInt(process.env.ATTENDANCE_MAX_PIN_ATTEMPTS || '5', 10),
+    lateStartGraceMinutes: parseInt(process.env.ATTENDANCE_LATE_GRACE_MINUTES || '10', 10),
+    lateWarningMinutes: parseInt(process.env.ATTENDANCE_LATE_WARNING_MINUTES || '10', 10),
+    noShowMinutes: parseInt(process.env.ATTENDANCE_NO_SHOW_MINUTES || '20', 10),
+    earlyClockOutRatio: parseFloat(process.env.ATTENDANCE_EARLY_CLOCKOUT_RATIO || '0.75'),
+    // Admin "override watch": an employer is flagged once they have at least
+    // this many overrides in the window AND overrides make up this share of
+    // their started shifts.
+    overrideAlertMinCount: parseInt(process.env.ATTENDANCE_OVERRIDE_ALERT_MIN || '3', 10),
+    overrideAlertRatio: parseFloat(process.env.ATTENDANCE_OVERRIDE_ALERT_RATIO || '0.5'),
+    overrideWindowDays: parseInt(process.env.ATTENDANCE_OVERRIDE_WINDOW_DAYS || '30', 10),
+    watcherIntervalMs: parseInt(process.env.ATTENDANCE_WATCHER_INTERVAL_MS || '60000', 10),
+  },
+
   defaultTenantId: 'klokd-ke-default',
 
   // Sandbox-only escape hatch. When the Identiti rail is unreachable,

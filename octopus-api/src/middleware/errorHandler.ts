@@ -7,9 +7,10 @@ export class AppError extends Error {
     message: string,
     public isOperational = true,
     /**
-     * Upstream rail error code (e.g. Identiti `kyc_iprs_no_match`). Set when the
-     * error originates from a rail envelope so callers can branch on the code
-     * instead of substring-matching the message.
+     * Machine-readable code. Either an upstream rail error code (e.g. Identiti
+     * `kyc_iprs_no_match`) or a Klokd code such as `OUT_OF_GEOFENCE`, so
+     * clients can branch on it instead of substring-matching the message.
+     * Returned to clients as `code`.
      */
     public railCode?: string
   ) {
@@ -23,6 +24,7 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
     res.status(err.statusCode).json({
       success: false,
       error: err.message,
+      ...(err.railCode ? { code: err.railCode } : {}),
     });
     return;
   }

@@ -13,6 +13,7 @@ import paymentRoutes from './modules/payment/payment.routes';
 import disputeRoutes from './modules/dispute/dispute.routes';
 import ratingRoutes from './modules/rating/rating.routes';
 import adminRoutes from './modules/admin/admin.routes';
+import attendanceRoutes from './modules/attendance/attendance.routes';
 import { railsStatusRouter, railsHealthRouter } from './modules/admin/rails-health.routes';
 import securityRoutes from './modules/admin/security.routes';
 import railWebhookRoutes from './modules/rails/webhook.routes';
@@ -72,6 +73,7 @@ app.get('/ready', async (_req, res) => {
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/identity', identityRoutes);
 app.use('/api/v1/shifts', shiftRoutes);
+app.use('/api/v1/attendance', attendanceRoutes);
 app.use('/api/v1/compliance', complianceRoutes);
 app.use('/api/v1/payments', paymentRoutes);
 app.use('/api/v1/disputes', disputeRoutes);

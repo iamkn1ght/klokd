@@ -210,8 +210,9 @@ export class ComplianceService {
     const minWage = await prisma.minimumWage.findFirst({
       where: {
         tenantId,
-        sector: { equals: sector },
-        location: { equals: location },
+        // Rates are stored lowercase ('waiter'); apps send display case ('Waiter').
+        sector: { equals: sector.trim().toLowerCase() },
+        location: { equals: location.trim().toLowerCase() },
       },
     });
 

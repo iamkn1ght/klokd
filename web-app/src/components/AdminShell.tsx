@@ -21,18 +21,19 @@ import { Logo, Avatar, PulseDot } from './Primitives';
 import { useAuth } from '../context/AuthContext';
 import { colors, spacing, radius } from '../theme';
 
-export type AdminRoute = 'overview' | 'verification' | 'disputes' | 'payments' | 'audit' | 'users';
+export type AdminRoute = 'overview' | 'verification' | 'attendance' | 'disputes' | 'payments' | 'audit' | 'users';
 
 interface NavItem {
   key: AdminRoute;
   label: string;
-  icon: 'home' | 'shield' | 'flag' | 'cash' | 'doc' | 'users';
+  icon: 'home' | 'shield' | 'clock' | 'flag' | 'cash' | 'doc' | 'users';
   badge?: number;
 }
 
 const NAV: NavItem[] = [
   { key: 'overview', label: 'Overview', icon: 'home' },
   { key: 'verification', label: 'Verification', icon: 'shield', badge: 12 },
+  { key: 'attendance', label: 'Attendance', icon: 'clock' },
   { key: 'disputes', label: 'Disputes', icon: 'flag', badge: 3 },
   { key: 'payments', label: 'Payments', icon: 'cash' },
   { key: 'audit', label: 'Audit log', icon: 'doc' },
@@ -53,6 +54,13 @@ function NavIcon({ name, color, size = 18 }: { name: NavItem['icon']; color: str
         <Svg width={size} height={size} viewBox="0 0 20 20">
           <Path d="M10 2l7 2v6c0 4.5-3.5 7-7 8-3.5-1-7-3.5-7-8V4z" {...p} />
           <Path d="M7 10l2 2 4-5" {...p} />
+        </Svg>
+      );
+    case 'clock':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 20 20">
+          <Path d="M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14z" {...p} />
+          <Path d="M10 6.5V10l2.5 2" {...p} />
         </Svg>
       );
     case 'flag':

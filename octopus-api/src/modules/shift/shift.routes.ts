@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { shiftService } from './shift.service';
+import { attendanceService } from '../attendance/attendance.service';
 import { authenticate, authorize } from '../../middleware/auth';
 import { rateLimiter } from '../../middleware/rateLimiter';
 import prisma from '../../config/database';
@@ -91,8 +92,10 @@ router.post(
 // ─── Employer: Get Applicants ───────────────────────────
 
 router.get('/:id/applicants', authenticate, authorize('EMPLOYER'), async (req: Request, res: Response) => {
+  const employer = await prisma.employer.findUnique({ where: { userId: req.user!.userId } });
   const shift = await prisma.shift.findUnique({ where: { id: req.params.id as string } });
-  if (!shift) {
+  // Applicants are only visible to the employer who posted the shift.
+  if (!shift || !employer || shift.employerId !== employer.id) {
     res.status(404).json({ success: false, error: 'Shift not found' });
     return;
   }
@@ -126,32 +129,25 @@ router.post('/:id/accept', authenticate, authorize('WORKER'), async (req: Reques
   res.json({ success: true, data: result });
 });
 
-// ─── Worker: Clock In ───────────────────────────────────
+// ─── Worker: Clock In / Out (legacy paths) ──────────────
+// Current apps use /api/v1/attendance (arrive → PIN → start). These paths keep
+// older worker-app builds working: a direct clock-in still passes the geofence
+// and compliance gates but is flagged NO_PIN_LEGACY_APP for review.
+
+const legacyLocation = z.object({
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+});
 
 router.post('/:id/clockin', authenticate, authorize('WORKER'), async (req: Request, res: Response) => {
-  const schema = z.object({
-    lat: z.number().min(-90).max(90),
-    lng: z.number().min(-180).max(180),
-  });
-  const { lat, lng } = schema.parse(req.body);
-  const worker = await prisma.worker.findUnique({ where: { userId: req.user!.userId } });
-  if (!worker) {
-    res.status(404).json({ success: false, error: 'Worker profile not found' });
-    return;
-  }
-  const result = await shiftService.clockIn(req.params.id as string, worker.id, req.user!.tenantId, lat, lng);
+  const loc = legacyLocation.parse(req.body);
+  const result = await attendanceService.legacyClockIn(req.params.id as string, req.user!.userId, loc);
   res.json({ success: true, data: result });
 });
 
-// ─── Worker: Clock Out ──────────────────────────────────
-
 router.post('/:id/clockout', authenticate, authorize('WORKER'), async (req: Request, res: Response) => {
-  const worker = await prisma.worker.findUnique({ where: { userId: req.user!.userId } });
-  if (!worker) {
-    res.status(404).json({ success: false, error: 'Worker profile not found' });
-    return;
-  }
-  const result = await shiftService.clockOut(req.params.id as string, worker.id, req.user!.tenantId);
+  const loc = legacyLocation.partial().parse(req.body ?? {});
+  const result = await attendanceService.clockOut(req.params.id as string, req.user!.userId, loc);
   res.json({ success: true, data: result });
 });
 
@@ -164,7 +160,16 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
     res.status(404).json({ success: false, error: 'Shift not found' });
     return;
   }
-  res.json({ success: true, data: shift });
+  // The start PIN is only ever shown to the employer (GET /attendance/shifts/:id);
+  // the assigned worker is shown by first name + last initial.
+  const { startPin: _pin, pinAttempts: _attempts, ...rest } = shift;
+  res.json({
+    success: true,
+    data: {
+      ...rest,
+      worker: shift.worker && { ...shift.worker, lastName: shift.worker.lastName.charAt(0) + '.' },
+    },
+  });
 });
 
 export default router;

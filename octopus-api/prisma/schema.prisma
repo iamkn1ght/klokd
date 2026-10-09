@@ -217,6 +217,14 @@ model Shift {
   clockInAt     DateTime?   @map("clock_in_at")
   clockInGeoHash String?    @map("clock_in_geo_hash")
   clockOutAt    DateTime?   @map("clock_out_at")
+  clockOutGeoHash String?   @map("clock_out_geo_hash")
+  // Uber-style arrive → PIN → start (attendance v1). The PIN is shown to the
+  // employer only; the worker enters it on site to start the shift.
+  arrivedAt     DateTime?   @map("arrived_at")
+  startPin      String?     @map("start_pin")
+  pinAttempts   Int         @default(0) @map("pin_attempts")
+  // No-show watcher stage: 0 none · 1 late warning sent · 2 no-show raised.
+  lateStage     Int         @default(0) @map("late_stage")
   createdAt     DateTime    @default(now()) @map("created_at")
   updatedAt     DateTime    @updatedAt @map("updated_at")
 
@@ -229,6 +237,8 @@ model Shift {
   payment      Payment?
   dispute      Dispute?
   ratings      Rating[]
+  attendance   AttendanceEvent[]
+  settlement   ShiftSettlement?
 
   @@map("shifts")
 }
@@ -604,4 +614,86 @@ model WebhookDelivery {
   subscription WebhookSubscription @relation(fields: [subscriptionId], references: [id])
 
   @@map("webhook_deliveries")
+}
+
+// ─── ATTENDANCE (append-only ledger) ────────────────────
+// One row per thing that happened on site: ARRIVED, STARTED, CLOCKED_OUT,
+// LATE_WARNING, NO_SHOW, OVERRIDE_START, PIN_LOCKED, NO_SHOW_RESOLVED.
+// Never updated or deleted (SQLite triggers enforce it); admin reviews live in
+// attendance_reviews. Time is always the server's. Location is a geohash +
+// distance only — raw coordinates are never stored (D-14).
+
+model AttendanceEvent {
+  id             String   @id @default(uuid())
+  tenantId       String   @map("tenant_id")
+  shiftId        String   @map("shift_id")
+  workerId       String?  @map("worker_id")
+  employerId     String   @map("employer_id")
+  type           String
+  method         String   // gps | pin | employer_override | system | legacy_app
+  actorId        String   @map("actor_id")
+  effectiveAt    DateTime @default(now()) @map("effective_at")
+  geoHash        String?  @map("geo_hash")
+  distanceM      Int?     @map("distance_m")
+  accuracyM      Int?     @map("accuracy_m")
+  geofenceResult String?  @map("geofence_result") // inside | outside | no_location
+  flags          String   @default("[]") // JSON string array
+  reason         String?
+
+  shift  Shift              @relation(fields: [shiftId], references: [id])
+  review AttendanceReview?
+
+  @@index([shiftId, effectiveAt])
+  @@index([employerId, effectiveAt])
+  @@map("attendance_events")
+}
+
+model AttendanceReview {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  eventId   String   @unique @map("event_id")
+  status    String   // CLEARED | ESCALATED
+  note      String?
+  adminId   String   @map("admin_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  event AttendanceEvent @relation(fields: [eventId], references: [id])
+
+  @@map("attendance_reviews")
+}
+
+// ─── SETTLEMENT (pay due for a finished shift) ──────────
+// Created at clock-out. Approved by the employer or automatically when the
+// dispute window closes. Payout to M-Pesa happens on the payment rail
+// (Kipkiren Pay) — until it is live, APPROVED settlements wait in the queue.
+
+model ShiftSettlement {
+  id               String    @id @default(uuid())
+  tenantId         String    @map("tenant_id")
+  shiftId          String    @unique @map("shift_id")
+  workerId         String    @map("worker_id")
+  employerId       String    @map("employer_id")
+  scheduledMinutes Int       @map("scheduled_minutes")
+  workedMinutes    Int       @map("worked_minutes")
+  grossKes         Int       @map("gross_kes")
+  payeKes          Int       @default(0) @map("paye_kes")
+  nssfTier1Kes     Int       @default(0) @map("nssf_tier1_kes")
+  nssfTier2Kes     Int       @default(0) @map("nssf_tier2_kes")
+  shifKes          Int       @default(0) @map("shif_kes")
+  ahlKes           Int       @default(0) @map("ahl_kes")
+  netKes           Int       @map("net_kes")
+  platformFeeKes   Int       @map("platform_fee_kes")
+  employerTotalKes Int       @map("employer_total_kes")
+  status           String    @default("AWAITING_APPROVAL") // AWAITING_APPROVAL | APPROVED | DISPUTED | PAID
+  approveBy        DateTime  @map("approve_by")
+  approvedAt       DateTime? @map("approved_at")
+  approvedBy       String?   @map("approved_by") // employer userId | 'auto'
+  paidAt           DateTime? @map("paid_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  shift Shift @relation(fields: [shiftId], references: [id])
+
+  @@index([status, approveBy])
+  @@map("shift_settlements")
 }

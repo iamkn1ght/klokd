@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { attendanceService } from '../attendance/attendance.service';
 import { z } from 'zod';
 import { authenticate, authorize } from '../../middleware/auth';
 import prisma from '../../config/database';
@@ -19,9 +20,11 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
   const shift = await prisma.shift.findUnique({ where: { id: data.shiftId } });
   if (!shift) throw new AppError(404, 'Shift not found');
 
-  // Determine if worker or employer is filing
+  // Determine if worker or employer is filing — only the two parties can.
   const worker = await prisma.worker.findUnique({ where: { userId: req.user!.userId } });
   const employer = await prisma.employer.findUnique({ where: { userId: req.user!.userId } });
+  const isParty = (!!worker && shift.workerId === worker.id) || (!!employer && shift.employerId === employer.id);
+  if (!isParty) throw new AppError(404, 'Shift not found');
 
   const dispute = await prisma.dispute.create({
     data: {
@@ -36,7 +39,8 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
     },
   });
 
-  // Pause auto-release timer
+  // Pause the settlement and the auto-release timer
+  await attendanceService.markDisputed(data.shiftId);
   await prisma.escrow.updateMany({
     where: { shiftId: data.shiftId },
     data: { autoReleaseAt: null },

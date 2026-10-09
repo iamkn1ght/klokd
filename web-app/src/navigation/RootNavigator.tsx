@@ -27,9 +27,12 @@ import { TabErrorBoundary } from '../components/ErrorBoundary';
 import { WorkerHome } from '../screens/worker/WorkerHome';
 import { WorkerShifts } from '../screens/worker/WorkerShifts';
 import { EmployerDashboard } from '../screens/employer/EmployerDashboard';
+import { EmployerShifts } from '../screens/employer/EmployerShifts';
+import { EmployerVerify } from '../screens/employer/EmployerVerify';
 import { PlaceholderTab } from '../screens/PlaceholderTab';
 import { OverviewScreen } from '../screens/admin/OverviewScreen';
 import { VerificationScreen } from '../screens/admin/VerificationScreen';
+import { AttendanceReviewScreen } from '../screens/admin/AttendanceReviewScreen';
 import { DisputesScreen } from '../screens/admin/DisputesScreen';
 import { PaymentsScreen } from '../screens/admin/PaymentsScreen';
 import { AuditScreen } from '../screens/admin/AuditScreen';
@@ -38,7 +41,7 @@ import { colors, spacing } from '../theme';
 import { useRoute, navigate, defaultRouteFor, Route } from './router';
 
 type WorkerTab = 'home' | 'shifts' | 'pay' | 'profile';
-type EmployerTab = 'dashboard' | 'shifts' | 'pay' | 'team';
+type EmployerTab = 'dashboard' | 'shifts' | 'pay' | 'team' | 'verify';
 
 const WORKER_NAV: ShellNavItem<WorkerTab>[] = [
   { key: 'home', label: 'Home' },
@@ -57,6 +60,7 @@ const EMPLOYER_NAV: ShellNavItem<EmployerTab>[] = [
 const ADMIN_TITLES: Record<AdminRoute, { title: string; subtitle: string }> = {
   overview: { title: 'Operations overview', subtitle: 'Live rail health, queue depth, escrow & today’s movement.' },
   verification: { title: 'Verification queue', subtitle: 'KYC escalations awaiting manual review.' },
+  attendance: { title: 'Attendance', subtitle: 'Flagged check-ins and employers who start shifts without the PIN.' },
   disputes: { title: 'Disputes', subtitle: 'Worker / employer claims that need an admin call.' },
   payments: { title: 'Payments & escrow', subtitle: 'Live escrow positions, failed payouts, reconciliation.' },
   audit: { title: 'Audit log', subtitle: 'Hakken-signed append-only audit trail.' },
@@ -194,21 +198,10 @@ export function RootNavigator() {
         onChange={tab => navigate(`/employer/${tab}`)}
         onSwitchWorkspace={() => navigate('/signin')}
       >
-        <TabErrorBoundary key={route.tab}>
+        <TabErrorBoundary key={`${route.tab}/${route.sub ?? ''}`}>
           {route.tab === 'dashboard' && <EmployerDashboard />}
-          {route.tab === 'shifts' && (
-            <PlaceholderTab
-              eyebrow="SHIFTS"
-              title="Post · fill · manage."
-              summary="Post a shift, see applicants, pick the worker, release escrow on clock-out."
-              bullets={[
-                'Post-a-shift wizard · role · time · market-rate suggester',
-                'Applicants filtered to your venue trust pool',
-                'Live fill rate by hour · re-broadcast if low',
-              ]}
-              nativeUrl="Open Klokd Employer on iOS / Android · or localhost:8092"
-            />
-          )}
+          {route.tab === 'shifts' && <EmployerShifts sub={route.sub} />}
+          {route.tab === 'verify' && <EmployerVerify />}
           {route.tab === 'pay' && (
             <PlaceholderTab
               eyebrow="PAY & ESCROW"
@@ -254,6 +247,7 @@ export function RootNavigator() {
         <TabErrorBoundary key={tab}>
           {tab === 'overview' && <OverviewScreen />}
           {tab === 'verification' && <VerificationScreen />}
+          {tab === 'attendance' && <AttendanceReviewScreen />}
           {tab === 'disputes' && <DisputesScreen />}
           {tab === 'payments' && <PaymentsScreen />}
           {tab === 'audit' && <AuditScreen />}
