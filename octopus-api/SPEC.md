@@ -1,20 +1,23 @@
 # octopus-api — Technical Specification
 
-**Klokd backend API** · Kirimon Market Ventures
-Version: 10 October 2026 (commit `766ce8e`) · Status: live in production
+**The shared backend for Kirimon Market Ventures apps** · Klokd · LunchDrop · future Kirimon products
+Version: 10 October 2026 · Status: live in production (Klokd module)
 
-> Klokd is a verified hospitality shift marketplace for Nairobi. `octopus-api` is the single backend behind the website (klokd.co.ke), the Klokd worker app and the Klokd for Business app. "Octopus" is the codename; one service, many arms into the KMV platform rails.
+> `octopus-api` is Kirimon's one backend for every product. The body is a shared **platform core**: accounts, identity, messaging, payments, notifications, privacy, staff tools and the connections to the KMV rails. Each product is an **arm**: a module that adds only that product's own business logic. One service, many arms.
+>
+> **Klokd** (verified hospitality shifts, Nairobi) is the first arm and is live. **LunchDrop** is next. Further Kirimon apps plug in the same way: they get sign-in, KYC, M-Pesa, SMS/WhatsApp, push and DPA compliance on day one, without building any of it again.
 
 ---
 
 ## Contents
 
+0. [Platform model: core and arms](#0-platform-model-core-and-arms)
 1. [Overview](#1-overview)
 2. [Architecture](#2-architecture)
 3. [Deployment and environments](#3-deployment-and-environments)
 4. [Conventions](#4-conventions)
 5. [Authentication and roles](#5-authentication-and-roles)
-6. [Core lifecycles](#6-core-lifecycles)
+6. [Klokd arm: core lifecycles](#6-klokd-arm-core-lifecycles)
 7. [API reference](#7-api-reference)
 8. [Background jobs](#8-background-jobs)
 9. [Data model](#9-data-model)
@@ -24,6 +27,50 @@ Version: 10 October 2026 (commit `766ce8e`) · Status: live in production
 13. [Security and privacy](#13-security-and-privacy)
 14. [Testing and local development](#14-testing-and-local-development)
 15. [Known gaps](#15-known-gaps)
+16. [Roadmap to multi-product](#16-roadmap-to-multi-product)
+
+---
+
+## 0. Platform model: core and arms
+
+### What the core gives every Kirimon app
+
+| Capability | Core service | Backed by |
+|---|---|---|
+| Phone sign-in, sessions, roles | `auth` | Identiti accounts + one-time codes |
+| Identity / KYC (IPRS), KYC tiers, step-up for risky actions | `identity` | Identiti |
+| SMS and WhatsApp messages from approved templates | `messaging` | Todoku |
+| In-app inbox, push with SMS/WhatsApp fallback | `notification` | Expo Push + Todoku |
+| Escrow holds, payouts, refunds, idempotency, reconciliation | `payment` | Kipkiren Pay (M-Pesa) |
+| Discovery broadcast (publish things nearby to users) | `hakken` | Hakken |
+| AI agents acting on a user's behalf with delegated authority | `agent` | Helpan AI |
+| Ratings, disputes, case decisions | `rating`, `dispute` | — |
+| DPA 2019: consent, export, correction/deletion requests, erasure, breach log, 7-year retention | `privacy` | — |
+| Audit log, staff sign-in, staff console APIs, rail health | `admin`, `audit` | — |
+| Webhook intake (HMAC-verified), rate limits, errors, validation | platform | — |
+
+### What an arm adds
+
+Only the product's own domain: its records, its life cycle, its rules and its screens' endpoints. Examples:
+
+| Arm | Domain it owns | Uses from core |
+|---|---|---|
+| **Klokd** (live) | Shifts, applications, check-in with start PIN, settlements, Kenyan employment law (PAYE/NSSF/SHIF, minimum wage, Section 37, WIBA, s.9 contracts) | All of it |
+| **LunchDrop** (next) | Its own catalogue / orders / delivery flow and rules | Sign-in, KYC, M-Pesa payments and refunds, SMS/WhatsApp, push, ratings, disputes, privacy, staff console |
+| Future Kirimon apps | Their domain | Whatever they need from the core |
+
+### Rules every arm follows
+
+1. **Tenant and product scoped.** Every record carries `tenant_id` and a `product` key (`klokd`, `lunchdrop`, …). A token issued for one product can't act in another.
+2. **One person, one Kirimon identity.** A phone number maps to one Identiti account across all products, with a separate role per product (a Klokd worker can also be a LunchDrop customer).
+3. **Arms talk to rails only through the core.** No arm calls Identiti, Todoku or Kipkiren Pay directly; it calls the core services, which handle signing, idempotency, retries and audit.
+4. **Arms don't import each other.** Shared needs move into the core.
+5. **Mounted under its own path:** `/api/v1/<product>/…` for product endpoints; `/api/v1/…` for core endpoints.
+6. **Same conventions** (§4): response envelope, error codes, money in whole KES, server time in UTC.
+
+### Where it stands today
+
+The core capabilities above are **built and running in production**, but they currently live in one codebase alongside the Klokd arm, with Klokd naming in places (service name, health output, tenant `klokd-ke-default`, Klokd routes mounted at the root). Sections 1–15 describe the system as it runs now. §16 is the plan to separate core from arm so LunchDrop can be plugged in.
 
 ---
 
@@ -31,13 +78,14 @@ Version: 10 October 2026 (commit `766ce8e`) · Status: live in production
 
 | | |
 |---|---|
-| Base URL (production) | `https://klokd-production.up.railway.app/api/v1` |
+| Base URL (production) | `https://klokd-production.up.railway.app/api/v1` (to move to a neutral Kirimon domain, §16) |
 | Health check | `GET /health` → `{ status: "ok", service: "klokd-api" }` |
-| Clients | `web-app` (klokd.co.ke), `worker-app` (Expo), `employer-app` (Expo) |
-| Users | Workers, employers (businesses), Klokd staff (admin) |
+| Products live | Klokd: `web-app` (klokd.co.ke), `worker-app` (Expo), `employer-app` (Expo) |
+| Products planned | LunchDrop, other Kirimon apps |
+| Users | Per product. Klokd: workers, employers, Kirimon staff (admin) |
 | Tenancy | Single tenant today (`klokd-ke-default`); every table carries `tenant_id` |
 
-What the API does, end to end:
+What the Klokd arm does, end to end (the first product on the platform):
 
 1. People sign in with their phone (Identiti account + one-time code via Todoku).
 2. Workers verify their National ID (IPRS lookup through Identiti); businesses verify a KRA PIN and declare a WIBA policy.
@@ -51,13 +99,17 @@ What the API does, end to end:
 ## 2. Architecture
 
 ```
- web-app ─┐                                  ┌─ Identiti   (identity, KYC, OTP accounts, step-up)
- worker  ─┼─ HTTPS /api/v1 ─▶  octopus-api ──┼─ Todoku     (SMS / WhatsApp)
- employer─┘                    │   │         ├─ Kipkiren Pay (escrow holds, payouts)
-                               │   │         ├─ Hakken     (shift discovery broadcast)
-                               │   │         └─ Helpan AI  (agent runtime)
-                     SQLite (Prisma)  Expo Push
+ Klokd apps ─────┐          ┌──────────── octopus-api ────────────┐       ┌─ Identiti     (identity, KYC, OTP, step-up)
+ LunchDrop apps ─┼─ HTTPS ─▶│  arms:  klokd │ lunchdrop │ …       │       ├─ Todoku       (SMS / WhatsApp)
+ Future apps ────┘          │  ─────────────────────────────────  │──────▶├─ Kipkiren Pay (escrow, payouts)
+                            │  core:  auth · identity · messaging │       ├─ Hakken       (discovery broadcast)
+                            │  payment · notification · privacy   │       └─ Helpan AI    (agent runtime)
+                            │  rating · dispute · admin · audit   │
+                            └───────────┬──────────────┬──────────┘
+                                 Database (Prisma)   Expo Push
 ```
+
+Today only the Klokd arm exists, and the core and arm share one codebase (§16).
 
 | Layer | Choice |
 |---|---|
@@ -158,7 +210,9 @@ Roles: `WORKER`, `EMPLOYER`, `ADMIN`. One role per phone number; the stored role
 
 ---
 
-## 6. Core lifecycles
+## 6. Klokd arm: core lifecycles
+
+> Everything in this section is Klokd-specific. A LunchDrop arm would define its own life cycle here, reusing the core's payment, messaging and dispute services.
 
 ### 6.1 Shift states
 
@@ -235,9 +289,11 @@ Filed by either party on the shift (one per shift). Admin decisions: `release_pa
 
 ## 7. API reference
 
+Each group is marked **core** (reusable by every Kirimon app) or **Klokd arm** (Klokd-only). Paths are shown as they are mounted today; after the split (§16) Klokd routes move under `/api/v1/klokd/…`.
+
 All paths are under `/api/v1`. **Auth** column: `—` public · `any` any signed-in user · role names.
 
-### Auth — `/auth`
+### Auth — `/auth` · **core**
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
@@ -248,7 +304,7 @@ All paths are under `/api/v1`. **Auth** column: `—` public · `any` any signed
 | POST | `/auth/refresh` | — | New access token from refresh token |
 | POST | `/auth/logout` | — | Revoke refresh token |
 
-### Me — `/me` (the signed-in person)
+### Me — `/me` (the signed-in person) · **core** (worker/earnings views are Klokd)
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
@@ -265,7 +321,7 @@ All paths are under `/api/v1`. **Auth** column: `—` public · `any` any signed
 | GET | `/me/data-requests` | any | My correction/deletion requests |
 | POST | `/me/data-requests` | any | `{ type: RECTIFICATION \| DELETION, details? }` |
 
-### Identity — `/identity`
+### Identity — `/identity` · **core** (KYC) + Klokd (WIBA, KRA, skills)
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
@@ -278,7 +334,7 @@ All paths are under `/api/v1`. **Auth** column: `—` public · `any` any signed
 | POST | `/identity/upload` | WORKER | Certificate upload (base64; no ID documents ever) |
 | PATCH | `/identity/admin/workers/:workerId/verification` | ADMIN | Manual verification override (audited) |
 
-### Shifts — `/shifts`
+### Shifts — `/shifts` · **Klokd arm**
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
@@ -299,7 +355,7 @@ All paths are under `/api/v1`. **Auth** column: `—` public · `any` any signed
 | POST | `/shifts/:id/clockin` | WORKER | Legacy one-step clock-in |
 | POST | `/shifts/:id/clockout` | WORKER | Legacy clock-out |
 
-### Attendance — `/attendance`
+### Attendance — `/attendance` · **Klokd arm**
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
@@ -315,7 +371,7 @@ All paths are under `/api/v1`. **Auth** column: `—` public · `any` any signed
 | POST | `/attendance/admin/events/:id/review` | ADMIN | `{ status: CLEARED \| ESCALATED, note? }` |
 | GET | `/attendance/admin/overrides` | ADMIN | Override watch per employer |
 
-### Employer — `/employer`
+### Employer — `/employer` · **Klokd arm**
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
@@ -324,7 +380,7 @@ All paths are under `/api/v1`. **Auth** column: `—` public · `any` any signed
 | GET | `/employer/billing.csv` | EMPLOYER | CSV export |
 | GET | `/employer/team` | EMPLOYER | Workers who finished shifts here (for re-hire) |
 
-### Payments — `/payments`
+### Payments — `/payments` · **core** (pay statements are Klokd)
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
@@ -337,7 +393,7 @@ All paths are under `/api/v1`. **Auth** column: `—` public · `any` any signed
 | POST | `/payments/:paymentId/step-up` | WORKER | Answer the large-payout OTP `{ code }` |
 | POST | `/payments/retry/:paymentId` | ADMIN | Re-run a failed payout |
 
-### Compliance — `/compliance`
+### Compliance — `/compliance` · **Klokd arm** (Kenyan employment law)
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
@@ -347,7 +403,7 @@ All paths are under `/api/v1`. **Auth** column: `—` public · `any` any signed
 | POST | `/compliance/minwage/validate` | any | Check a rate against the minimum wage |
 | PUT | `/compliance/config/:key` | ADMIN | Change a rate (audited) |
 
-### Disputes and ratings
+### Disputes and ratings · **core**
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
@@ -361,7 +417,7 @@ All paths are under `/api/v1`. **Auth** column: `—` public · `any` any signed
 
 Dispute types: `NO_SHOW`, `INCOMPLETE_SHIFT`, `CONDUCT_ISSUE`, `PAYMENT_NOT_RECEIVED`, `UNSAFE_CONDITIONS`, `OTHER`.
 
-### Admin — `/admin` (all `ADMIN`)
+### Admin — `/admin` (all `ADMIN`) · **core** (+ Klokd verification and statutory reports)
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -391,7 +447,7 @@ Dispute types: `NO_SHOW`, `INCOMPLETE_SHIFT`, `CONDUCT_ISSUE`, `PAYMENT_NOT_RECE
 | POST | `/early-access` · GET `/early-access/count` | Join the waitlist / public count |
 | GET | `/early-access` | ADMIN: list waitlist |
 
-### Partner webhooks — `/webhooks/rails` (HMAC-verified, raw body)
+### Partner webhooks — `/webhooks/rails` (HMAC-verified, raw body) · **core**
 
 | Path | Source | Handles |
 |---|---|---|
@@ -400,7 +456,7 @@ Dispute types: `NO_SHOW`, `INCOMPLETE_SHIFT`, `CONDUCT_ISSUE`, `PAYMENT_NOT_RECE
 | `/webhooks/rails/payment-rail` | Kipkiren Pay | `HOLD_RESERVED/RELEASED/REFUNDED`, `PAYOUT_COMPLETED/FAILED`, `WALLET_CREDITED` |
 | `/webhooks/rails/helpan` | Helpan | Agent events |
 
-### Agents — `/agents` (Helpan)
+### Agents — `/agents` (Helpan) · **core** (the `shift_signup` action is Klokd)
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
@@ -472,7 +528,7 @@ Rail clients live in `src/modules/rails/*.client.ts`, use HMAC-signed requests, 
 
 ---
 
-## 11. Compliance engine
+## 11. Compliance engine (Klokd arm)
 
 `complianceService` (`modules/compliance`), rates from `ComplianceConfig` (editable by staff, audited):
 
@@ -570,4 +626,23 @@ Scripts in `scripts/`: rail smoke tests (`smoke-*.ts`), `verify-helpan-full.ts`,
 
 ---
 
-*Maintained alongside `klokd_reboot_pack_v1.md` (decisions D-01 – D-58) and `RECAP.md`. Update this file when routes, models or configuration change.*
+## 16. Roadmap to multi-product
+
+Goal: LunchDrop and later Kirimon apps plug into octopus-api as arms, and nothing in the platform reads as Klokd-only.
+
+| Step | Work | Outcome |
+|---|---|---|
+| 1. Own repository | Move `octopus-api/` to its own repo (history kept); point Railway at it | The platform lives apart from any one product |
+| 2. Neutral identity | Rename the Railway service; neutral API domain (e.g. `api.kirimon.co.ke`); health reports `octopus-api`; rename tenant from `klokd-ke-default` | Nothing in the platform is branded Klokd; apps switch to the new URL |
+| 3. Core / arm split | Reorganise `src/` into `core/` and `arms/klokd/`; move Klokd routes under `/api/v1/klokd/…` (keep old paths as aliases until old app builds expire) | Clear boundary; arms can't reach into each other |
+| 4. Product scoping | Add `product` to users' roles, tokens, notifications, payments, audit; per-product roles (one phone, many products) | One Kirimon identity across apps; tokens scoped per product |
+| 5. Per-product config | Per-product message templates (Todoku), fee rules, staff access, Hakken channels | Each app has its own settings on shared rails |
+| 6. Production database | Move from one SQLite file to Postgres (Supabase), with backups | Safe for several products' data and load |
+| 7. LunchDrop arm | Build LunchDrop's domain module on top of the core | Second product live on the platform |
+| 8. Arm template | A documented starter arm (routes, models, tests) | New Kirimon apps start in days, not weeks |
+
+Steps 1–2 are low-risk and can happen now. Steps 3–6 should be finished before LunchDrop's own work starts, so LunchDrop never inherits Klokd naming.
+
+---
+
+*Maintained alongside `klokd_reboot_pack_v1.md` (decisions D-01 – D-58) and `RECAP.md`. Update this file when routes, models, products or configuration change.*
