@@ -11,7 +11,7 @@ Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke)
 
 | Area | State |
 |---|---|
-| API (octopus-api) | ✅ Live on Railway. Full shift loop, attendance, settlements, disputes, ratings, notifications, privacy, staff console. 54/54 tests passing |
+| API (octopus-api) | ✅ Live: own repo (`iamkn1ght/octopus-api`), own Railway project, `https://octopus-api-production.up.railway.app`. Full shift loop, attendance, settlements, disputes, ratings, notifications, privacy, staff console, daily backups. 55/55 tests passing |
 | Website (klokd.co.ke) | ✅ Live. Landing, legal, early access, worker area, employer area, staff console — all on real data |
 | Worker app | ✅ All screens on real data. Over-the-air updates via Expo (`preview`). No store build yet |
 | Employer app | ✅ All screens on real data. Over-the-air updates via Expo (`preview`). No store build yet |
@@ -25,15 +25,11 @@ Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke)
 
 | # | Item | Owner | Status |
 |---|---|---|---|
-| 1 | Confirm the production database is on the Railway volume (`DATABASE_URL=file:./data/dev.db` probably resolves to `/app/prisma/data`, off the volume — data may reset on every deploy) | Eng + you | 🔨 Check volume size |
-| 2 | Move octopus-api to its own repo and Railway project (`iamkn1ght/octopus-api`, new address `octopus-api-production.up.railway.app`), then switch website + apps | Eng | 🔨 Repo done; Railway service set-up in progress |
-| 3 | Fix staff access: `ADMIN_PHONES` = staff phone number(s), new `ADMIN_ACCESS_KEY` (24+ chars) | You | ⬜ |
-| 4 | Database backups (scheduled copy of the SQLite file, or move to Postgres) | Eng | ⬜ |
-| 5 | Lock down or remove the unauthenticated `/demo` API routes | Eng | ⬜ |
-| 6 | Block deactivated accounts on every request and on token refresh | Eng | ⬜ |
-| 7 | Check production for old seed-demo rows; purge (OQ-21) | You + Eng | ⬜ |
-| 8 | Rotate secrets exposed on 08 Oct (Hakken, Helpan, Identiti, JWT) (OQ-14) | You | ⬜ |
-| 9 | Identiti's Supabase on a paid plan — it has paused 3 times (OQ-15) | Silvia | ⛔ |
+| 1 | Fix staff access: `ADMIN_PHONES` = staff phone number(s), new `ADMIN_ACCESS_KEY` (24+ chars) on the `octopus-api` service | You | ⬜ |
+| 2 | Rotate secrets exposed on 08 Oct (Hakken, Helpan, Identiti, JWT) (OQ-14) | You | ⬜ |
+| 3 | Partners update webhook URLs to `octopus-api-production.up.railway.app` (Identiti, Todoku, Kipkiren Pay, Helpan) | Silvia | ⛔ |
+| 4 | Confirm the first off-site backup landed in Supabase Storage (`octopus-backups/`) | Eng | ⬜ |
+| 5 | Identiti's Supabase on a paid plan — it has paused 3 times (OQ-15) | Silvia | ⛔ |
 
 ---
 
@@ -123,10 +119,10 @@ Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke)
 |---|---|
 | API on Railway, auto-deploy on push | ✅ |
 | Website on Railway (Caddy), custom domain klokd.co.ke | ✅ |
-| octopus-api in its own repo (`iamkn1ght/octopus-api`) | ✅ |
-| octopus-api in its own Railway project + new address; website/apps switched; old address forwards | 🔨 |
-| Remove `octopus-api/` from the Klokd repo (pointer left) | ⬜ After the switch |
-| Database on the volume (verify), backups | 🔨 / ⬜ |
+| octopus-api in its own repo and Railway project; website and apps on the new address | ✅ |
+| Previous address forwards to octopus-api (Railway `klokd` service); delete once partners have moved | ✅ / ⬜ |
+| Database on the volume (absolute path), daily backups on volume + Supabase | ✅ |
+| Account suspension enforced; per-caller rate limits; CORS allowlist; staff-only demo routes | ✅ |
 | Postgres (Supabase) for production | ⬜ Before multi-product |
 | EAS project transfer `kmv209 → mumbus` | ⬜ |
 | One `_dmarc` record on klokd.co.ke (OQ-18) | ⬜ |

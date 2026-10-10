@@ -600,7 +600,7 @@ All deliverables produced to date, with their status.
 |---|---|---|
 | Domain: klokd.co.ke | **LIVE** | Cloudflare DNS (DNS-only CNAMEs) → Railway `klokd-web`; Let's Encrypt certificate to Jan 2027; `www` 301 → apex |
 | Website (`web-app/`) | **LIVE** | Railway `klokd-web` (project `happy-smile`), Dockerfile + Caddy, auto-deploys on `web-app/**` |
-| API (`octopus-api/`) | **LIVE** | Railway `klokd` → https://klokd-production.up.railway.app, auto-deploys on push to `main`; SQLite on a Railway volume (backups still to set up) |
+| API (octopus-api) | **LIVE** | Own repo `iamkn1ght/octopus-api`, own Railway project → https://octopus-api-production.up.railway.app, auto-deploys on push to `main`; SQLite at `/app/data/octopus.db` on its volume; daily backups (volume + Supabase Storage). Railway `klokd` service now only forwards the previous address |
 | GitHub repository | **LIVE** | `iamkn1ght/klokd` (moved from `thhvvv/klokd`), branch `main` |
 | Supabase (Klokd) | **LIVE** | `nbtpkmjovgbwgwefsdjn`, eu-west-1 — document storage |
 | Identiti (accounts / KYC) | **LIVE** | `klokd_sandbox`; outage 08 Oct (Supabase pause) resolved same day — see OQ-15 |
@@ -676,7 +676,7 @@ Current status as of Pack v1.3 (09 Oct 2026, evening). Everything below is pushe
 - Tests: 54/54 passing (stale payment tests rewritten)
 
 **Needs you (not code):**
-1. Set `ADMIN_PHONES` (your staff number(s), e.g. `+2547…`) and `ADMIN_ACCESS_KEY` (24+ random characters, e.g. `openssl rand -base64 32`) on the Railway `klokd` service — the operations console can't be opened until then
+1. Set `ADMIN_PHONES` (your staff number(s), e.g. `+2547…`) and `ADMIN_ACCESS_KEY` (24+ random characters, e.g. `openssl rand -base64 32`) on the Railway `octopus-api` service — the operations console can't be opened until then
 2. Check production for old seed-demo rows (OQ-21)
 3. Todoku SMS (OQ-13) → then turn off `OTP_SANDBOX_ECHO` (OQ-12) and re-open public sign-in on the website
 4. Identiti Supabase paid plan (OQ-15); rotate exposed secrets (OQ-14)

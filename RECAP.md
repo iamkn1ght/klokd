@@ -20,7 +20,7 @@
 **Latest commit:** `05fe5a4 fix(hakken): stop the PII guard from blocking employer business-name registration` · 23 July 2026 (Hakken go-live)
 **Investor build:** 🟢 **APKs LIVE 08 Jul** (worker `57c3da93`, employer `e6de9740`) — mobile-first redesign + root-caused worker sign-in + expo-updates/OTA; cold-phone auth verified end-to-end against Railway with `RAIL_FALLBACK_LOCAL=true`. Supersedes the 07 Jul APKs (`4abd2fa8` / `e18e9fc7`) which predated the expo-updates config.
 **iOS review:** User is iPhone-only (no APK sideload). Day-to-day path = **dev-server over Cloudflare tunnel** (`exp://<host>.trycloudflare.com` → Expo Go; no login, not persistent — dies when dev machine sleeps). Persistent path = published EAS Update (`exp://u.expo.dev/<projectId>?channel-name=preview`) but 403'd because projects are private + owned by `kmv209` while the user's phone Expo Go is signed in as **`mumbus`**. **Decision 08 Jul: transfer both projects `kmv209 → mumbus`** (dashboard, preserves project IDs/URLs/APKs, stays private) so mumbus-signed Expo Go loads them with no 403 and no dev machine. Transfer in progress (user-side dashboard action).
-**Octopus API URL:** https://klokd-production.up.railway.app (Railway)
+**Octopus API URL:** https://octopus-api-production.up.railway.app (own Railway project; repo github.com/iamkn1ght/octopus-api). The previous klokd-production address forwards to it.
 **Supabase project:** `nbtpkmjovgbwgwefsdjn` · region locked **eu-west-1** (CHAMIA-REGION resolved per platform standard)
 **Domain:** `klokd.co.ke` (NEVER `.com` or `.app`) · handle `@klokdKE` (NEVER `@klokKE`)
 **Surface count:** 4 Expo bundles — `web-app` (unified front door, all 3 personas), `worker-app` + `employer-app` (native mobile, App Store / Play Store), `admin-app` (legacy stand-alone, retiring as `web-app` admin matures)
@@ -126,7 +126,7 @@ Reference work memorialised in [KMV_RAILS_INTEGRATION_GUIDE.md](./KMV_RAILS_INTE
 | `tsc --noEmit` clean | ✅ (all 5 rail clients + agent routes + Hakken service) |
 | Test count | ⚠️ Existing tests not re-run since v3 refactor — tech debt; new Vitest tests for Hakken guards a clean Sprint 5 follow-up |
 | Migrations applied | 5 — `20260401193045_init` · `20260609120000_rails_v3` · `20260609120100_user_account_uuid` · `20260611120000_helpan_agent_runtime` · `20260619140000_hakken_entity_ids` |
-| Railway service deployed | ✅ https://klokd-production.up.railway.app — auto-deploys on push to main |
+| Railway service deployed | ✅ https://octopus-api-production.up.railway.app — auto-deploys on push to main of iamkn1ght/octopus-api |
 | `GET /health` live | ✅ |
 | `GET /ready` live | ✅ |
 | **Visual rail demo page** | ✅ `/demo.html` exercises live Identiti + Todoku — `POST /v1/customers`, `GET tier`, `POST /v1/phone-tokens`, `POST /v1/messages/send` |
@@ -200,7 +200,7 @@ Klokd is now one product on the web and two role-specific apps on mobile. The we
 
 | Issue | Status |
 |---|---|
-| Webhook URL registration (`https://klokd-production.up.railway.app/api/v1/webhooks/rails/todoku`) | ⏳ Pending Silvia operator-console config |
+| Webhook URL registration (`https://octopus-api-production.up.railway.app/api/v1/webhooks/rails/todoku`) | ⏳ Pending Silvia operator-console config |
 | Cross-rail sandbox token mismatch (Identiti issues real JWTs; Todoku sandbox needs `SANDBOX_TOKEN_DELIVER_OK_*`) | ⏳ Pending coordination; prod unaffected |
 
 ### Hakken escalations (23 Jun · OD-9 dev-handoff closed Klokd-side 08 Jul, see `HAKKEN_OD9_ANSWERS.md`)
@@ -317,7 +317,7 @@ Plus historical D-XX locked decisions from `klokd_reboot_pack_v1.md` §11 (D-01.
 - [README.md](./README.md) — orientation card
 - [.env.example](./.env.example) — slot file for rail-consumer creds
 - Chamia June 2026 canonical: [`chamia new docs/`](./chamia%20new%20docs/)
-- Existing code: [`octopus-api/`](./octopus-api/) · [`worker-app/`](./worker-app/) · [`employer-app/`](./employer-app/) · [`claude-design/`](./claude-design/)
+- Existing code: API in its own repo [iamkn1ght/octopus-api](https://github.com/iamkn1ght/octopus-api) · [`worker-app/`](./worker-app/) · [`employer-app/`](./employer-app/) · [`claude-design/`](./claude-design/)
 - Master cross-rail RECAP: `C:\Projects\Platform Rails-instruction pack v1-reboot pack v1.2\RECAP.md`
 
 ### Smoke scripts (parked until creds land)
