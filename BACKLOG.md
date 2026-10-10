@@ -27,7 +27,7 @@ Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke)
 |---|---|---|---|
 | 1 | Fix staff access: `ADMIN_PHONES` = staff phone number(s), new `ADMIN_ACCESS_KEY` (24+ chars) on the `octopus-api` service | You | ⬜ |
 | 2 | Rotate secrets exposed on 08 Oct (Hakken, Helpan, Identiti, JWT) (OQ-14) | You | ⬜ |
-| 3 | Partners update webhook URLs to `octopus-api-production.up.railway.app` (Identiti, Todoku, Kipkiren Pay, Helpan) | Silvia | ⛔ |
+| 3 | Partner webhook URLs on `octopus-api-production.up.railway.app`: Todoku and Helpan updated; Identiti has no outgoing webhooks yet; Kipkiren Pay noted for provisioning. Delete the `klokd` forwarder after a few quiet days | You | ✅ / ⬜ |
 | 4 | Confirm the first off-site backup landed in Supabase Storage (`octopus-backups/`) | Eng | ⬜ |
 | 5 | Identiti's Supabase on a paid plan — it has paused 3 times (OQ-15) | Silvia | ⛔ |
 
