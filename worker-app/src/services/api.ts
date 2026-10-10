@@ -10,7 +10,7 @@
  */
 const API_ORIGIN =
   process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') ||
-  'https://klokd-production.up.railway.app';
+  'https://octopus-api-production.up.railway.app';
 
 const BASE_URL = `${API_ORIGIN}/api/v1`;
 
