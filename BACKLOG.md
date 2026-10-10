@@ -30,6 +30,9 @@ Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke)
 | 3 | Partner webhook URLs on `octopus-api-production.up.railway.app`: Todoku and Helpan updated; Identiti has no outgoing webhooks yet; Kipkiren Pay noted for provisioning. Delete the `klokd` forwarder after a few quiet days | You | ✅ / ⬜ |
 | 4 | Confirm the first off-site backup landed in Supabase Storage (`octopus-backups/`) | Eng | ⬜ |
 | 5 | Identiti's Supabase on a paid plan — it has paused 3 times (OQ-15) | Silvia | ⛔ |
+| 6 | **Delete the `klokd` forwarder service + empty `klokd-volume`** (Railway project `happy-smile`) on or after **17 Oct 2026**, once nothing calls `klokd-production.up.railway.app` | You | ⬜ Reminder |
+| 7 | Rotate the Helpan secrets pasted on 10 Oct: Supabase DB password, `IDENTITI_INTERNAL_HMAC_SECRET` (Helpan + Identiti together), `WEBHOOK_HMAC_SECRET` (same value into `HELPAN_WEBHOOK_SECRET` on octopus-api) | You | ⬜ |
+| 8 | Sign in once on the website and each app against the new API (apps: reopen twice to load the update) | You | ⬜ |
 
 ---
 

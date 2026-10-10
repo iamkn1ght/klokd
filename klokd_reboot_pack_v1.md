@@ -509,6 +509,10 @@ All locked product, technical, and design decisions. Check this before proposing
 | D-56 | Re-hire = "Book again": an employer can offer a new shift directly to a worker who has finished a shift for them; it isn't broadcast. Declining reopens it to applicants | 09 Oct 2026 | LOCKED |
 | D-57 | Kipkiren Pay integration activates by configuration alone: when `PAYMENT_RAIL_API_BASE` + app id + secret are set, escrow holds start at worker selection, check-in requires a funded hold, approved pay is paid out by the watcher sweep, and cancels / no-shows / disputes refund. Unset = everything else works and pay waits in the approved queue | 09 Oct 2026 | LOCKED |
 | D-58 | Show-up rate = shifts started ÷ (started + no-shows), recomputed from the attendance ledger | 09 Oct 2026 | LOCKED |
+| D-59 | octopus-api is Kirimon's shared platform backend (core + product arms: Klokd, LunchDrop, …). It lives in its own repo `iamkn1ght/octopus-api` and its own Railway project at https://octopus-api-production.up.railway.app; the Klokd repo holds no API code. Old `klokd` service = forwarder only, delete on/after 17 Oct | 10 Oct 2026 | LOCKED |
+| D-60 | SQLite path must be absolute on the volume (`file:/app/data/octopus.db`); daily `VACUUM INTO` backups, 7 on the volume + off-site to Supabase Storage | 10 Oct 2026 | LOCKED |
+| D-61 | Account suspension is its own field (`suspended_at`), separate from sign-up activation; blocks sign-in, refresh and every request; Identiti `ACCOUNT_SUSPENDED` applies it | 10 Oct 2026 | LOCKED |
+| D-62 | API trusts one proxy hop (rate limits per caller); CORS limited to `CORS_ORIGINS`; `/demo` routes staff-only | 10 Oct 2026 | LOCKED |
 
 ---
 
@@ -675,6 +679,8 @@ Current status as of Pack v1.3 (09 Oct 2026, evening). Everything below is pushe
 - Employer mobile app sign-in fixed (it never worked: no challenge id / profile sent)
 - Tests: 54/54 passing (stale payment tests rewritten)
 
+**10 Oct 2026:** octopus-api moved to its own repo + Railway project (D-59); DB persistence fixed + backups (D-60); suspension (D-61); proxy/CORS/demo hardening (D-62); partner webhooks moved (Todoku, Helpan). Open items are in BACKLOG.md §2 — including deleting the `klokd` forwarder on/after 17 Oct.
+
 **Needs you (not code):**
 1. Set `ADMIN_PHONES` (your staff number(s), e.g. `+2547…`) and `ADMIN_ACCESS_KEY` (24+ random characters, e.g. `openssl rand -base64 32`) on the Railway `octopus-api` service — the operations console can't be opened until then
 2. Check production for old seed-demo rows (OQ-21)
@@ -693,6 +699,6 @@ Current status as of Pack v1.3 (09 Oct 2026, evening). Everything below is pushe
 
 ---
 
-*Klokd · Reboot Pack v1.3 · 09 October 2026 (v1.2 · v1.1 · 08 Oct 2026 · v1.0 · March 2026)*
+*Klokd · Reboot Pack v1.4 · 10 October 2026 (v1.3 · 09 Oct 2026 · v1.2 · v1.1 · 08 Oct 2026 · v1.0 · March 2026)*
 *A Kirimon Market Ventures Company · klokd.co.ke · @klokdKE*
 *Update this document at the end of every session. Version control in filename.*
