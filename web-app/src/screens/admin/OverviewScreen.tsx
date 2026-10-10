@@ -2,14 +2,15 @@
  * Operations overview (admin) — all live:
  *   GET /admin/stats          people, shifts, queues, money by stage
  *   GET /admin/rails-health   partner services with latency + detail
+ *   GET /admin/backups        database backups (POST /admin/backups/run)
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { GlassCard, FadeUp, LiveDot } from '../../components/KlokdLayout';
-import { Eyebrow, StatusPill } from '../../components/Primitives';
+import { Eyebrow, StatusPill, GhostBtn } from '../../components/Primitives';
 import { ErrorState } from '../../components/States';
 import { Notice } from '../../components/Form';
-import { useApiData } from '../../hooks/useApiData';
+import { useApiData, useApiAction } from '../../hooks/useApiData';
 import { navigate } from '../../navigation/router';
 import { StatRow } from '../../components/StatRow';
 import { colors, spacing, radius } from '../../theme';
@@ -41,9 +42,36 @@ interface Rails {
   hakkenBacklog?: { workersUnregistered: number; employersUnregistered: number; openShiftsNotBroadcast: number } | null;
 }
 
+interface Backups {
+  lastRun: { file: string; bytes: number; offsite: 'uploaded' | 'not-configured' | 'failed'; error?: string; at: string } | null;
+  local: { file: string; bytes: number; at: string }[];
+  offsiteConfigured: boolean;
+}
+
+const size = (b: number) => (b < 1024 * 1024 ? `${Math.max(1, Math.round(b / 1024))} KB` : `${(b / 1024 / 1024).toFixed(1)} MB`);
+
 export function OverviewScreen() {
   const stats = useApiData<Stats>('/admin/stats', { pollMs: 60_000 });
   const rails = useApiData<Rails>('/admin/rails-health', { pollMs: 60_000 });
+  const backups = useApiData<Backups>('/admin/backups', { pollMs: 300_000 });
+  const act = useApiAction();
+  const [backingUp, setBackingUp] = useState(false);
+  const [backupMsg, setBackupMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+
+  const backupNow = async () => {
+    setBackingUp(true);
+    setBackupMsg(null);
+    try {
+      const r: any = await act('/admin/backups/run');
+      const off = r?.offsite === 'uploaded' ? 'and copied off-site' : r?.offsite === 'failed' ? `but the off-site copy failed${r?.error ? ` (${r.error})` : ''}` : '(off-site storage not configured)';
+      setBackupMsg({ tone: r?.offsite === 'failed' ? 'err' : 'ok', text: `Backup saved ${off}.` });
+      backups.reload();
+    } catch (e: any) {
+      setBackupMsg({ tone: 'err', text: e.message });
+    } finally {
+      setBackingUp(false);
+    }
+  };
 
   if (stats.status === 'loading') return <View style={styles.loading}><ActivityIndicator color={colors.electric} /></View>;
   if (stats.status === 'error') return <ErrorState title="Couldn’t load the overview." detail={stats.error ?? undefined} onRetry={stats.reload} />;
@@ -89,6 +117,31 @@ export function OverviewScreen() {
             <Line k="Paid to workers" v={`${s.paid.count} · ${kes(s.paid.netKes)}`} />
             <Line k="Klokd fees earned" v={kes(s.paid.feesKes)} />
             <Line k="Klokd fees pending" v={kes(s.approvedUnpaid.feesKes)} />
+          </GlassCard>
+
+          <Eyebrow style={{ marginTop: spacing.xl }}>DATABASE BACKUPS</Eyebrow>
+          <GlassCard padding={spacing.lg} style={{ marginTop: spacing.sm }}>
+            {backups.status === 'error' && <Text style={styles.backupNote}>Couldn’t load backup status.</Text>}
+            {backups.data && (() => {
+              const b = backups.data;
+              const latest = b.local[0];
+              const off = !b.offsiteConfigured
+                ? 'Not configured'
+                : !b.lastRun
+                  ? 'Next run after a backup'
+                  : b.lastRun.offsite === 'uploaded' ? `Uploaded ${ago(b.lastRun.at)}` : `Failed ${ago(b.lastRun.at)}`;
+              return (
+                <>
+                  <Line k="Latest backup" v={latest ? `${ago(latest.at)} · ${size(latest.bytes)}` : 'None yet'} />
+                  <Line k="Off-site copy (Supabase)" v={off} />
+                  <Line k="Copies on the volume" v={String(b.local.length)} />
+                </>
+              );
+            })()}
+            {backupMsg ? <Notice tone={backupMsg.tone}>{backupMsg.text}</Notice> : null}
+            <View style={{ flexDirection: 'row', marginTop: spacing.sm }}>
+              <GhostBtn size="sm" onPress={backingUp ? undefined : backupNow}>{backingUp ? 'Backing up…' : 'Back up now'}</GhostBtn>
+            </View>
           </GlassCard>
         </View>
       </View>
@@ -141,6 +194,7 @@ function Line({ k, v }: { k: string; v: string }) {
 }
 
 const styles = StyleSheet.create({
+  backupNote: { color: colors.white50, fontSize: 12.5 },
   loading: { paddingVertical: 80, alignItems: 'center' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   cell: { flex: 1, minWidth: 200 },
