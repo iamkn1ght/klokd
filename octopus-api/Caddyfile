@@ -1,0 +1,9 @@
+{
+	admin off
+}
+
+:{$PORT:3000} {
+	reverse_proxy https://octopus-api-production.up.railway.app {
+		header_up Host octopus-api-production.up.railway.app
+	}
+}
