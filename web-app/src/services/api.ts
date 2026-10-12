@@ -8,6 +8,8 @@
  *   3. Deployed Railway API — the default everywhere. For local work run
  *      octopus-api (`npm run dev`) and set EXPO_PUBLIC_API_URL=http://localhost:3000.
  */
+import { newId, stampSend } from '../lib/requestIds';
+
 const API_ORIGIN =
   process.env.EXPO_PUBLIC_API_URL ||
   (typeof window !== 'undefined' && (window as any).__KLOKD_API_URL__) ||
@@ -31,13 +33,15 @@ export async function api<T = unknown>(path: string, options: ApiOptions = {}): 
   const { method = 'GET', body, token } = options;
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
+  // Every write gets its own key so a retried request is recognised, not duplicated.
+  if (method !== 'GET') headers['Idempotency-Key'] = newId();
 
   let res: Response;
   try {
     res = await fetch(`${BASE_URL}${path}`, {
       method,
       headers,
-      body: body ? JSON.stringify(body) : undefined,
+      body: body ? JSON.stringify(stampSend(body)) : undefined,
     });
   } catch {
     throw new Error('Cannot reach the Klokd API. Check your connection and try again.');

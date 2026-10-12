@@ -12,6 +12,7 @@ import { Icons } from '../../components/Icons';
 import * as Location from 'expo-location';
 import { useApi } from '../../hooks/useApi';
 import { colors, typography } from '../../theme';
+import { captureCheckin } from '../../lib/requestIds';
 
 type Props = {
   navigation: NativeStackNavigationProp<any>;
@@ -85,6 +86,8 @@ export function ActiveShiftScreen({ navigation, route }: Props) {
   const handleClockOut = async () => {
     setBusy(true);
     setMessage(null);
+    // Stamped at the tap: when the worker finished, whatever the network does.
+    const stamp = captureCheckin();
     let body: Record<string, unknown> = {};
     try {
       const { status } = await Location.getForegroundPermissionsAsync();
@@ -96,7 +99,7 @@ export function ActiveShiftScreen({ navigation, route }: Props) {
       // Location is evidence only — clock-out never waits on it.
     }
     try {
-      await post(`/attendance/shifts/${shiftId}/clock-out`, body);
+      await post(`/attendance/shifts/${shiftId}/clock-out`, { ...stamp, ...body });
       await load();
     } catch (e: any) {
       setMessage(e?.message ?? 'Couldn’t clock you out. Try again.');

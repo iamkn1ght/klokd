@@ -20,6 +20,7 @@ import { useApiData, useApiAction } from '../../hooks/useApiData';
 import { Link } from '../../navigation/router';
 import { colors, spacing, radius, typography } from '../../theme';
 import { kes, longDay, time, hours, hm } from '../../lib/format';
+import { captureCheckin } from '../../lib/requestIds';
 
 interface ShiftInfo {
   id: string;
@@ -111,13 +112,14 @@ export function WorkerShiftDetail({ id }: { id: string }) {
     run(async () => {
       const pos = await getPosition();
       if (!pos) throw new Error('Allow location for klokd.co.ke in your browser, then try again. It’s read once, only now.');
-      await act(`/attendance/shifts/${s.id}/arrive`, { lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy });
+      await act(`/attendance/shifts/${s.id}/arrive`, { ...captureCheckin(), lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy });
     }, 'You’re checked in. Ask the manager for the start PIN.');
 
   const clockOut = () =>
     run(async () => {
+      const stamp = captureCheckin(); // the tap, not the slower location fix
       const pos = await getPosition();
-      await act(`/attendance/shifts/${s.id}/clock-out`, pos ? { lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy } : {});
+      await act(`/attendance/shifts/${s.id}/clock-out`, { ...stamp, ...(pos ? { lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy } : {}) });
     }, 'Clocked out. Your pay is below.');
 
   return (

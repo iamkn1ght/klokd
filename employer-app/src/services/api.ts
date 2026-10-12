@@ -8,6 +8,8 @@
  *      never reach the dev machine's localhost, so the deployed API is the
  *      only safe default for real devices.
  */
+import { newId, stampSend } from '../lib/requestIds';
+
 const API_ORIGIN =
   process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') ||
   'https://octopus-api-production.up.railway.app';
@@ -24,11 +26,13 @@ export async function api<T = unknown>(path: string, options: ApiOptions = {}): 
   const { method = 'GET', body, token } = options;
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
+  // Every write gets its own key so a retried request is recognised, not duplicated.
+  if (method !== 'GET') headers['Idempotency-Key'] = newId();
 
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
     headers,
-    body: body ? JSON.stringify(body) : undefined,
+    body: body ? JSON.stringify(stampSend(body)) : undefined,
   });
 
   const data = await res.json();

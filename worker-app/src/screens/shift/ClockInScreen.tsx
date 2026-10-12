@@ -12,6 +12,7 @@ import { AmbientOrbs, SafeTop } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { useApi } from '../../hooks/useApi';
 import { colors, typography } from '../../theme';
+import { captureCheckin } from '../../lib/requestIds';
 
 type Props = {
   navigation: NativeStackNavigationProp<any>;
@@ -145,7 +146,10 @@ export function ClockInScreen({ navigation, route }: Props) {
         return;
       }
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      // Stamped at the location fix: when the worker was actually there.
+      const stamp = captureCheckin();
       await post(`/attendance/shifts/${shiftId}/arrive`, {
+        ...stamp,
         lat: loc.coords.latitude,
         lng: loc.coords.longitude,
         accuracy: loc.coords.accuracy ?? undefined,
@@ -158,6 +162,8 @@ export function ClockInScreen({ navigation, route }: Props) {
     setBusy(false);
   };
 
+  // The start PIN is checked only by the server, so it is sent live and never
+  // stored or queued on the phone; without signal the manager starts the shift.
   const start = async () => {
     if (pin.length !== 4) return;
     setBusy(true);
