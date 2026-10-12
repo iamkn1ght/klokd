@@ -80,8 +80,8 @@ Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke)
 | Profile / Me (data rights, sign out), notifications inbox | ✅ |
 | M-Pesa setup | 🟡 Waits on Kipkiren Pay wallets |
 | Store-build readiness: idempotency key on every write; check-in capture evidence (event id, monotonic stamps); PIN live-only | ✅ |
-| Push notifications (`expo-notifications` + token registration) | ⬜ Needs native build |
-| Play Store / TestFlight builds | ⬜ |
+| Push notifications: registers after sign-in, banners while open, tap opens inbox | ✅ iPhone via Expo Go · Android needs an APK build + Firebase push key |
+| Play Store / TestFlight builds | ⛔ Needs Google Play ($25) and Apple Developer ($99/yr) accounts |
 | Offline check-in | ⬜ |
 
 ## 5. Employer app
@@ -98,7 +98,8 @@ Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke)
 | Notifications inbox | ✅ |
 | Fund a shift / payment method | 🟡 Waits on Kipkiren Pay |
 | Idempotency key on every write (store-build readiness) | ✅ |
-| Push notifications, store builds | ⬜ |
+| Push notifications | ✅ iPhone via Expo Go · Android needs APK + Firebase key |
+| Store builds | ⛔ Needs Google Play and Apple Developer accounts |
 | Rate-intelligence strip | ⬜ |
 
 ## 6. Website (klokd.co.ke)
@@ -129,7 +130,7 @@ Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke)
 | Database on the volume (absolute path), daily backups on volume + Supabase | ✅ |
 | Account suspension enforced; per-caller rate limits; CORS allowlist; staff-only demo routes | ✅ |
 | Postgres (Supabase) for production | ⬜ Before multi-product |
-| EAS project transfer `kmv209 → mumbus` | ⬜ |
+| Both apps on the `mumbus` Expo account (new projects; `preview` channel) | ✅ |
 | One `_dmarc` record on klokd.co.ke (OQ-18) | ⬜ |
 | Core / Klokd-arm split for LunchDrop (see octopus-api `SPEC.md` §16) | ⬜ |
 
