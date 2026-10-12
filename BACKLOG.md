@@ -1,6 +1,6 @@
 # Klokd — Backlog
 
-**As of 10 October 2026** · Kirimon Market Ventures
+**As of 12 October 2026** · Kirimon Market Ventures
 Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke).
 
 **Legend:** ✅ Done (live) · 🟡 Built, waiting on a partner/config · 🔨 In progress · ⬜ To do · ⛔ Blocked (not code)
@@ -79,6 +79,7 @@ Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke)
 | Shifts tab, Pay tab (per-shift breakdown, payout state), step-up confirm | ✅ (payouts 🟡) |
 | Profile / Me (data rights, sign out), notifications inbox | ✅ |
 | M-Pesa setup | 🟡 Waits on Kipkiren Pay wallets |
+| Store-build readiness: idempotency key on every write; check-in capture evidence (event id, monotonic stamps); PIN live-only | ✅ |
 | Push notifications (`expo-notifications` + token registration) | ⬜ Needs native build |
 | Play Store / TestFlight builds | ⬜ |
 | Offline check-in | ⬜ |
@@ -96,6 +97,7 @@ Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke)
 | Team (re-hire) | ✅ |
 | Notifications inbox | ✅ |
 | Fund a shift / payment method | 🟡 Waits on Kipkiren Pay |
+| Idempotency key on every write (store-build readiness) | ✅ |
 | Push notifications, store builds | ⬜ |
 | Rate-intelligence strip | ⬜ |
 
