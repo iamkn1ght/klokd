@@ -22,12 +22,12 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { colors, spacing, radius } from '../theme';
 
-export type AdminRoute = 'overview' | 'verification' | 'attendance' | 'disputes' | 'payments' | 'privacy' | 'audit' | 'users';
+export type AdminRoute = 'overview' | 'verification' | 'attendance' | 'disputes' | 'payments' | 'privacy' | 'rates' | 'statutory' | 'breaches' | 'audit' | 'users';
 
 interface NavItem {
   key: AdminRoute;
   label: string;
-  icon: 'home' | 'shield' | 'clock' | 'flag' | 'cash' | 'doc' | 'users';
+  icon: 'home' | 'shield' | 'clock' | 'flag' | 'cash' | 'doc' | 'users' | 'sliders' | 'report' | 'alert';
   badge?: number;
 }
 
@@ -38,6 +38,9 @@ const NAV: NavItem[] = [
   { key: 'disputes', label: 'Disputes', icon: 'flag' },
   { key: 'payments', label: 'Payments', icon: 'cash' },
   { key: 'privacy', label: 'Data requests', icon: 'shield' },
+  { key: 'rates', label: 'Statutory rates', icon: 'sliders' },
+  { key: 'statutory', label: 'Monthly report', icon: 'report' },
+  { key: 'breaches', label: 'Breach log', icon: 'alert' },
   { key: 'audit', label: 'Audit log', icon: 'doc' },
   { key: 'users', label: 'Users', icon: 'users' },
 ];
@@ -84,6 +87,29 @@ function NavIcon({ name, color, size = 18 }: { name: NavItem['icon']; color: str
         <Svg width={size} height={size} viewBox="0 0 20 20">
           <Path d="M4 2h8l4 4v12H4z" {...p} />
           <Path d="M12 2v4h4M7 10h6M7 13h6M7 7h2" {...p} />
+        </Svg>
+      );
+    case 'sliders':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 20 20">
+          <Path d="M4 5h12M4 10h12M4 15h12" {...p} />
+          <Circle cx="7" cy="5" r="1.8" {...p} />
+          <Circle cx="13" cy="10" r="1.8" {...p} />
+          <Circle cx="8" cy="15" r="1.8" {...p} />
+        </Svg>
+      );
+    case 'report':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 20 20">
+          <Path d="M3 3h14v14H3z" {...p} />
+          <Path d="M6.5 13.5V10M10 13.5V7M13.5 13.5v-5" {...p} />
+        </Svg>
+      );
+    case 'alert':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 20 20">
+          <Path d="M10 3l8 14H2z" {...p} />
+          <Path d="M10 8.5v3.5M10 14.5v.1" {...p} />
         </Svg>
       );
     case 'users':

@@ -82,11 +82,13 @@ export function GhostBtn({
   onPress,
   tone = 'default',
   size = 'md',
+  disabled,
 }: {
   children: React.ReactNode;
   onPress?: () => void;
   tone?: 'default' | 'danger';
   size?: 'sm' | 'md';
+  disabled?: boolean;
 }) {
   const pad = size === 'sm' ? { v: 9, h: 14, f: 12.5 } : { v: 13, h: 20, f: 14 };
   const borderColor = tone === 'danger' ? 'rgba(255,107,107,0.35)' : colors.white15;
@@ -94,8 +96,10 @@ export function GhostBtn({
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       style={({ hovered, pressed }: any) => [
         {
+          opacity: disabled ? 0.45 : 1,
           paddingVertical: pad.v,
           paddingHorizontal: pad.h,
           borderRadius: radius.lg,
@@ -105,8 +109,8 @@ export function GhostBtn({
           alignItems: 'center',
           justifyContent: 'center',
         },
-        hovered && { backgroundColor: colors.white06, borderColor: tone === 'danger' ? 'rgba(255,107,107,0.55)' : colors.white25 },
-        pressed && { transform: [{ scale: 0.985 }] },
+        hovered && !disabled && { backgroundColor: colors.white06, borderColor: tone === 'danger' ? 'rgba(255,107,107,0.55)' : colors.white25 },
+        pressed && !disabled && { transform: [{ scale: 0.985 }] },
       ]}
     >
       <Text style={{ color: text, fontWeight: '700', fontSize: pad.f, letterSpacing: -0.15 }}>{children}</Text>

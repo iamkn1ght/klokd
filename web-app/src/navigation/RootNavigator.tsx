@@ -40,6 +40,9 @@ import { PaymentsScreen } from '../screens/admin/PaymentsScreen';
 import { PrivacyScreen } from '../screens/admin/PrivacyScreen';
 import { AuditScreen } from '../screens/admin/AuditScreen';
 import { UsersScreen } from '../screens/admin/UsersScreen';
+import { RatesScreen } from '../screens/admin/RatesScreen';
+import { StatutoryScreen } from '../screens/admin/StatutoryScreen';
+import { BreachesScreen } from '../screens/admin/BreachesScreen';
 import { colors, spacing } from '../theme';
 import { useRoute, navigate, defaultRouteFor } from './router';
 
@@ -67,6 +70,9 @@ const ADMIN_TITLES: Record<AdminRoute, { title: string; subtitle: string }> = {
   disputes: { title: 'Disputes', subtitle: 'Problems reported by workers and businesses that need a decision.' },
   payments: { title: 'Pay & payouts', subtitle: 'Every shift’s pay, from approval to M-Pesa.' },
   privacy: { title: 'Data requests', subtitle: 'Correction and deletion requests under the Data Protection Act (30-day deadline).' },
+  rates: { title: 'Statutory rates', subtitle: 'PAYE, NSSF, SHIF, housing levy and fees used to calculate every shift’s pay. Every change is audited.' },
+  statutory: { title: 'Monthly statutory report', subtitle: 'Deductions to remit to KRA, NSSF and SHA, by business, with a CSV export.' },
+  breaches: { title: 'Breach log', subtitle: 'Personal-data breaches and the 72-hour window to notify the ODPC.' },
   audit: { title: 'Audit log', subtitle: 'Append-only record of sensitive actions.' },
   users: { title: 'Users', subtitle: 'Workers and businesses on Klokd.' },
 };
@@ -191,6 +197,9 @@ export function RootNavigator() {
           {tab === 'disputes' && <DisputesScreen />}
           {tab === 'payments' && <PaymentsScreen />}
           {tab === 'privacy' && <PrivacyScreen />}
+          {tab === 'rates' && <RatesScreen />}
+          {tab === 'statutory' && <StatutoryScreen />}
+          {tab === 'breaches' && <BreachesScreen />}
           {tab === 'audit' && <AuditScreen />}
           {tab === 'users' && <UsersScreen />}
         </TabErrorBoundary>

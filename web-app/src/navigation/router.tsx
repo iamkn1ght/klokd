@@ -34,7 +34,7 @@ export type Route =
 
 export const WORKER_TABS = ['home', 'shifts', 'pay', 'profile'] as const;
 export const EMPLOYER_TABS = ['dashboard', 'shifts', 'pay', 'team', 'verify'] as const;
-export const ADMIN_TABS = ['overview', 'verification', 'attendance', 'disputes', 'payments', 'privacy', 'audit', 'users'] as const;
+export const ADMIN_TABS = ['overview', 'verification', 'attendance', 'disputes', 'payments', 'privacy', 'rates', 'statutory', 'breaches', 'audit', 'users'] as const;
 
 export function defaultRouteFor(persona: string): string {
   if (persona === 'employer') return '/employer/dashboard';

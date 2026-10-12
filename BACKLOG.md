@@ -110,9 +110,9 @@ Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke)
 | Worker area: home, shifts, shift detail, pay, me | ✅ |
 | Employer area: dashboard, shifts, attendance panel, verify, pay, team | ✅ |
 | Staff console: overview, verification, attendance review, disputes, pay & payouts, privacy (DSR), audit, users | ✅ |
-| Staff console: compliance rate configuration + history | ⬜ (API ready) |
-| Staff console: monthly statutory report / KRA CSV | ⬜ (API ready) |
-| Staff console: breach log with 72-hour ODPC countdown | ⬜ (API ready) |
+| Staff console: statutory rates — view, validated edit, reset to default, history | ✅ |
+| Staff console: monthly statutory report (payouts + calculated at clock-out), CSV | ✅ |
+| Staff console: breach log — report, 72-hour ODPC countdown, notified / contained / closed, notes | ✅ |
 | Re-open public sign-in | ⛔ After SMS works and echo is off |
 | SEO: pre-rendered public pages, sitemap | ⬜ |
 
