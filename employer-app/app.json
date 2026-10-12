@@ -8,9 +8,6 @@
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "scheme": "klokdbusiness",
-    "updates": {
-      "url": "https://u.expo.dev/f29c48de-8704-4c2f-a60a-7c53934e2676"
-    },
     "runtimeVersion": {
       "policy": "sdkVersion"
     },
@@ -36,14 +33,23 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "owner": "kmv209",
+    "owner": "mumbus",
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#00E5A0"
+        }
+      ]
+    ],
     "extra": {
       "eas": {
-        "projectId": "f29c48de-8704-4c2f-a60a-7c53934e2676"
+        "projectId": "6c161028-7337-4681-b052-a0b571205df0"
       }
     },
-    "plugins": [
-      "expo-secure-store"
-    ]
+    "updates": {
+      "url": "https://u.expo.dev/6c161028-7337-4681-b052-a0b571205df0"
+    }
   }
 }

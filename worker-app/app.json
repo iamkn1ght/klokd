@@ -8,9 +8,6 @@
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "scheme": "klokd",
-    "updates": {
-      "url": "https://u.expo.dev/0f6b66f6-460e-4704-9824-6b60b882f266"
-    },
     "runtimeVersion": {
       "policy": "sdkVersion"
     },
@@ -37,6 +34,11 @@
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.RECORD_AUDIO"
       ]
     },
@@ -57,13 +59,22 @@
         }
       ],
       "expo-font",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#00E5A0"
+        }
+      ]
     ],
-    "owner": "kmv209",
+    "owner": "mumbus",
     "extra": {
       "eas": {
-        "projectId": "0f6b66f6-460e-4704-9824-6b60b882f266"
+        "projectId": "b0ad4125-58c3-4f80-9fee-b18462e0f3ee"
       }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/b0ad4125-58c3-4f80-9fee-b18462e0f3ee"
     }
   }
 }
