@@ -6,7 +6,7 @@
  */
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import { api } from '../services/api';
+import { api, setSessionHooks } from '../services/api';
 
 interface AuthState {
   isLoading: boolean;
@@ -47,6 +47,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await SecureStore.deleteItemAsync(REFRESH_KEY).catch(() => undefined);
     setState({ isLoading: false, isAuthenticated: false, accessToken: null, businessName: null });
   };
+
+  // Renew the 15-minute access token from the refresh token whenever it
+  // expires mid-session; sign out only when renewal is refused.
+  useEffect(() => {
+    setSessionHooks({
+      getRefreshToken: () => SecureStore.getItemAsync(REFRESH_KEY),
+      onRenewed: async token => {
+        await SecureStore.setItemAsync(TOKEN_KEY, token);
+        setState(s => ({ ...s, accessToken: token }));
+      },
+      onExpired: () => {
+        void clear();
+      },
+    });
+    return () => setSessionHooks(null);
+  }, []);
 
   // Restore: probe the stored token, refresh it once if it's stale.
   useEffect(() => {

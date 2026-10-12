@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { storage } from '../services/storage';
-import { api } from '../services/api';
+import { api, setSessionHooks } from '../services/api';
 
 interface User {
   userId: string;
@@ -72,6 +72,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Load stored auth on mount
   useEffect(() => {
     loadStoredAuth();
+  }, []);
+
+  // Renew the 15-minute access token from the refresh token when it expires;
+  // sign out only when renewal is refused (refresh token expired or revoked).
+  useEffect(() => {
+    setSessionHooks({
+      getRefreshToken: () => storage.getItem(REFRESH_KEY),
+      onRenewed: async token => {
+        await storage.setItem(TOKEN_KEY, token);
+        setState(prev => ({ ...prev, accessToken: token }));
+      },
+      onExpired: () => {
+        void storage.deleteItem(TOKEN_KEY);
+        void storage.deleteItem(REFRESH_KEY);
+        void storage.deleteItem(USER_KEY);
+        setState({ isLoading: false, isAuthenticated: false, isNewUser: false, accessToken: null, user: null, profile: null });
+      },
+    });
+    return () => setSessionHooks(null);
   }, []);
 
   const loadStoredAuth = async () => {

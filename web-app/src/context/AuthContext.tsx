@@ -12,7 +12,7 @@
  * keeps you signed in; a dead token is refreshed once, then dropped.
  */
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { api } from '../services/api';
+import { api, setSessionHooks } from '../services/api';
 
 export type Persona = 'worker' | 'employer' | 'admin';
 
@@ -142,6 +142,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [persona, setPersona] = useState<Persona | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Renew the 15-minute access token from the refresh token whenever it
+  // expires mid-session; sign out only when renewal is refused.
+  useEffect(() => {
+    setSessionHooks({
+      getRefreshToken: () => {
+        try {
+          return localStorage.getItem(REFRESH_KEY);
+        } catch {
+          return null;
+        }
+      },
+      onRenewed: token => {
+        try {
+          localStorage.setItem(TOKEN_KEY, token);
+        } catch {
+          // storage unavailable — the in-memory token still works this visit
+        }
+        setAccessToken(token);
+      },
+      onExpired: () => {
+        setAccount(null);
+        setPersona(null);
+        setAccessToken(null);
+        persist(null, null);
+      },
+    });
+    return () => setSessionHooks(null);
+  }, []);
 
   // Restore the stored session on boot.
   useEffect(() => {

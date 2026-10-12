@@ -29,7 +29,7 @@ interface ApiOptions {
   token?: string;
 }
 
-export async function api<T = unknown>(path: string, options: ApiOptions = {}): Promise<T> {
+async function call<T = unknown>(path: string, options: ApiOptions = {}): Promise<T> {
   const { method = 'GET', body, token } = options;
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -50,10 +50,65 @@ export async function api<T = unknown>(path: string, options: ApiOptions = {}): 
   const data = await res.json().catch(() => null);
 
   if (!res.ok || data?.success === false) {
-    throw new Error(data?.details?.[0]?.message || data?.error || `API error ${res.status}`);
+    const err: any = new Error(data?.details?.[0]?.message || data?.error || `API error ${res.status}`);
+    err.status = res.status;
+    throw err;
   }
 
   return data.data ?? data;
+}
+
+// ─── Session renewal ────────────────────────────────────
+// Access tokens last 15 minutes. When a signed-in request is refused as
+// expired, renew once with the refresh token (shared by concurrent requests),
+// retry, and end the session only if renewal fails. The auth context supplies
+// where tokens live and what to do on renewal / expiry.
+export interface SessionHooks {
+  getRefreshToken: () => Promise<string | null> | string | null;
+  onRenewed: (accessToken: string) => Promise<void> | void;
+  onExpired: () => void;
+}
+
+let session: SessionHooks | null = null;
+export function setSessionHooks(hooks: SessionHooks | null) {
+  session = hooks;
+}
+
+let renewing: Promise<string | null> | null = null;
+function renewAccessToken(): Promise<string | null> {
+  if (!session) return Promise.resolve(null);
+  if (!renewing) {
+    renewing = (async () => {
+      try {
+        const refreshToken = await session!.getRefreshToken();
+        if (!refreshToken) return null;
+        const r = await call<{ accessToken: string }>('/auth/refresh', { method: 'POST', body: { refreshToken } });
+        await session!.onRenewed(r.accessToken);
+        return r.accessToken;
+      } catch {
+        return null;
+      } finally {
+        // Callers already waiting keep this result; later expiries renew afresh.
+        renewing = null;
+      }
+    })();
+  }
+  return renewing;
+}
+
+export async function api<T = unknown>(path: string, options: ApiOptions = {}): Promise<T> {
+  try {
+    return await call<T>(path, options);
+  } catch (e: any) {
+    // Auth endpoints manage their own tokens; only signed-in calls renew.
+    if (e?.status !== 401 || !options.token || path.startsWith('/auth/')) throw e;
+    const fresh = await renewAccessToken();
+    if (!fresh) {
+      session?.onExpired();
+      throw new Error('Your session has ended. Please sign in again.');
+    }
+    return call<T>(path, { ...options, token: fresh });
+  }
 }
 
 export const API_ORIGIN_EXPORT = API_ORIGIN;
