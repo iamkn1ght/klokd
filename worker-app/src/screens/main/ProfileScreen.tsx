@@ -136,11 +136,13 @@ export function ProfileScreen({ navigation }: Props) {
                   </View>
                   <Text style={styles.since}>Since {new Date(m.memberSince).toLocaleDateString('en-KE', { month: 'short', year: 'numeric' })}</Text>
                 </View>
-                <TouchableOpacity onPress={() => openName(canEditName ? 'name' : 'nameCorrection')} hitSlop={8} style={{ alignSelf: 'flex-start' }}>
-                  <Text style={[styles.nameLink, placeholderName && { color: colors.electric }]}>
-                    {placeholderName ? 'Add your real name' : canEditName ? 'Edit name' : 'Name wrong? Ask for a correction'}
-                  </Text>
-                </TouchableOpacity>
+                {canEditName && (
+                  <TouchableOpacity onPress={() => openName('name')} hitSlop={8} style={{ alignSelf: 'flex-start' }}>
+                    <Text style={[styles.nameLink, placeholderName && { color: colors.electric }]}>
+                      {placeholderName ? 'Add your real name' : 'Edit name'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </Glass>
 

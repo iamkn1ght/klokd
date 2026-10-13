@@ -17,7 +17,11 @@
       "channel": "preview",
       "android": {
         "buildType": "apk"
-      }
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://octopus-api-production.up.railway.app"
+      },
+      "environment": "preview"
     },
     "production": {
       "channel": "production",
