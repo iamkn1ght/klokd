@@ -16,6 +16,7 @@ import { useApi } from '../../hooks/useApi';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../theme';
 import { day } from '../../lib/format';
+import * as Updates from 'expo-updates';
 import type { WorkerMe } from './HomeScreen';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
@@ -68,7 +69,14 @@ export function ProfileScreen({ navigation }: Props) {
       <SafeTop />
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
         {me.status === 'loading' && <ActivityIndicator color={colors.electric} style={{ marginTop: 40 }} />}
-        {me.status === 'error' && <Text style={styles.err}>{me.error}</Text>}
+        {me.status === 'error' && (
+          <>
+            <Text style={styles.err}>{me.error}</Text>
+            <TouchableOpacity style={styles.signOut} onPress={logout}>
+              <Text style={styles.signOutText}>Sign out</Text>
+            </TouchableOpacity>
+          </>
+        )}
         {m && (
           <>
             <Text style={styles.h1}>{m.firstName} {m.lastName}</Text>
@@ -164,9 +172,22 @@ export function ProfileScreen({ navigation }: Props) {
             </TouchableOpacity>
           </>
         )}
+        <Text style={styles.version}>{versionLabel()}</Text>
       </ScrollView>
     </View>
   );
+}
+
+// Which published update this phone is running — quote it when reporting a problem.
+function versionLabel(): string {
+  try {
+    const id = Updates.updateId;
+    const at = Updates.createdAt;
+    if (!id) return 'Klokd · development build';
+    return `Klokd · update ${id.slice(0, 8)}${at ? ` · ${at.toLocaleDateString('en-KE', { day: 'numeric', month: 'short' })} ${at.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}` : ''}`;
+  } catch {
+    return 'Klokd';
+  }
 }
 
 function Toggle({ title, detail, value, onChange }: { title: string; detail: string; value: boolean; onChange: (v: boolean) => void }) {
@@ -191,6 +212,7 @@ function Stat({ k, l }: { k: string; l: string }) {
 }
 
 const styles = StyleSheet.create({
+  version: { color: colors.white35, fontSize: 11, textAlign: 'center', marginTop: 28 },
   screen: { flex: 1, backgroundColor: colors.ink },
   h1: { fontSize: 26, fontWeight: '900', color: colors.white, letterSpacing: -0.9, marginTop: 8 },
   meta: { fontSize: 12.5, color: colors.white60, marginTop: 4 },
