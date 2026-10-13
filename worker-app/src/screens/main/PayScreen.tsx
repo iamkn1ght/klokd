@@ -6,11 +6,12 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, TextInput } from 'react-native';
 import { StatusPill, Label, GradientBtn } from '../../components/Primitives';
-import { AmbientOrbs, SafeTop } from '../../components/KlokdLayout';
+import { AmbientOrbs, SafeTop, Glass } from '../../components/KlokdLayout';
 import { useData } from '../../hooks/useData';
 import { useApi } from '../../hooks/useApi';
 import { colors, typography } from '../../theme';
 import { kes, day, hm, monthLabel, time } from '../../lib/format';
+import { useTabBarSpace } from '../../components/KlokdTabBar';
 
 interface Earnings {
   paymentsLive: boolean;
@@ -43,6 +44,7 @@ const STATE: Record<string, { label: string; tone: 'mint' | 'warn' | 'err' | 'ne
 };
 
 export function PayScreen() {
+  const tabSpace = useTabBarSpace();
   const q = useData<Earnings>('/me/earnings', { pollMs: 60_000 });
   const [open, setOpen] = useState<string | null>(null);
   const d = q.data;
@@ -52,7 +54,7 @@ export function PayScreen() {
     <View style={styles.screen}>
       <AmbientOrbs intensity="subtle" />
       <SafeTop />
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 30 }}>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: tabSpace }}>
         <Text style={styles.h1}>Pay</Text>
         {q.status === 'loading' && <ActivityIndicator color={colors.electric} style={{ marginTop: 40 }} />}
         {q.status === 'error' && <Text style={styles.err}>{q.error}</Text>}
@@ -76,7 +78,7 @@ export function PayScreen() {
                 const st = STATE[s.status] ?? { label: s.status, tone: 'neutral' as const };
                 const isOpen = open === s.shiftId;
                 return (
-                  <TouchableOpacity key={s.shiftId} activeOpacity={0.9} onPress={() => setOpen(isOpen ? null : s.shiftId)} style={styles.row}>
+                  <Glass key={s.shiftId} onPress={() => setOpen(isOpen ? null : s.shiftId)} style={styles.row}>
                     <View style={{ flexDirection: 'row', gap: 10 }}>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.title}>{s.role} · {s.venue}</Text>
@@ -104,7 +106,7 @@ export function PayScreen() {
                         {s.payment?.needsConfirmation && <ConfirmPayout paymentId={s.payment.id} onDone={q.reload} />}
                       </View>
                     )}
-                  </TouchableOpacity>
+                  </Glass>
                 );
               })}
             </View>
@@ -159,7 +161,7 @@ const styles = StyleSheet.create({
   heroSub: { fontSize: 12, color: colors.white65, marginTop: 4 },
   note: { fontSize: 12, color: colors.white60, lineHeight: 17, marginTop: 12 },
   empty: { color: colors.white60, fontSize: 13, textAlign: 'center', marginTop: 20 },
-  row: { padding: 14, borderRadius: 16, backgroundColor: colors.white03, borderWidth: 1, borderColor: colors.white08 },
+  row: { padding: 14, borderRadius: 16, },
   title: { fontSize: 14, fontWeight: '800', color: colors.white },
   meta: { fontSize: 11.5, color: colors.white55, marginTop: 3, lineHeight: 16 },
   net: { fontSize: 15, fontWeight: '900', color: colors.white },

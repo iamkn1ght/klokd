@@ -10,7 +10,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, TextInput } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GradientBtn, IconBtn, StatusPill, Label } from '../../components/Primitives';
-import { AmbientOrbs, SafeTop } from '../../components/KlokdLayout';
+import { AmbientOrbs, SafeTop, Glass } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { useData } from '../../hooks/useData';
 import { useApi } from '../../hooks/useApi';
@@ -120,7 +120,7 @@ export function ShiftDetailScreen({ navigation, route }: Props) {
           {msg && <Text style={[styles.msg, { color: msg.ok ? colors.electric : colors.warning }]}>{msg.text}</Text>}
 
           {status === 'POSTED' && (
-            <View style={styles.block}>
+            <Glass style={styles.block}>
               {s.myApplication === 'PENDING' ? (
                 <>
                   <Text style={styles.blockH}>You’ve applied</Text>
@@ -138,11 +138,11 @@ export function ShiftDetailScreen({ navigation, route }: Props) {
                   </GradientBtn>
                 </>
               )}
-            </View>
+            </Glass>
           )}
 
           {status === 'CONFIRMED' && (
-            <View style={[styles.block, styles.blockHi]}>
+            <Glass style={[styles.block, styles.blockHi]}>
               <Text style={styles.blockH}>{s.directOffer ? `${s.employer.businessName} wants you back` : 'You got the shift'}</Text>
               <Text style={styles.p}>Confirm so they know you’re coming. Confirming accepts the written particulars below.</Text>
               {contract ? <Text style={styles.contract}>{contract}</Text> : (
@@ -153,11 +153,11 @@ export function ShiftDetailScreen({ navigation, route }: Props) {
               <TouchableOpacity disabled={busy} onPress={() => run(() => post(`/shifts/${id}/decline`), 'Declined. It’s gone back to other workers.')} style={{ marginTop: 14 }}>
                 <Text style={[styles.link, { color: colors.white70 }]}>Decline</Text>
               </TouchableOpacity>
-            </View>
+            </Glass>
           )}
 
           {status === 'ACCEPTED' && (
-            <View style={[styles.block, styles.blockHi]}>
+            <Glass style={[styles.block, styles.blockHi]}>
               <Text style={styles.blockH}>{att.data?.shift.arrivedAt ? 'Checked in — get the start PIN' : 'You’re confirmed'}</Text>
               <Text style={styles.p}>Check in from an hour before the start, at the venue. The manager gives you a 4-digit PIN to start.</Text>
               <GradientBtn onPress={() => navigation.navigate('ClockIn', { shift: { id } })}>{att.data?.shift.arrivedAt ? 'Enter start PIN' : 'Check in at the venue'}</GradientBtn>
@@ -170,18 +170,18 @@ export function ShiftDetailScreen({ navigation, route }: Props) {
                   <Text style={[styles.link, { color: colors.warning }]}>{confirmCancel ? 'Tap again to cancel my shift' : 'I can’t make it'}</Text>
                 </TouchableOpacity>
               )}
-            </View>
+            </Glass>
           )}
 
           {status === 'ACTIVE' && (
-            <View style={[styles.block, styles.blockHi]}>
+            <Glass style={[styles.block, styles.blockHi]}>
               <Text style={styles.blockH}>You’re on shift</Text>
               <GradientBtn onPress={() => navigation.navigate('ActiveShift', { shift: { id } })}>Open the shift timer</GradientBtn>
-            </View>
+            </Glass>
           )}
 
           {settlement && (
-            <View style={styles.block}>
+            <Glass style={styles.block}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Text style={styles.blockH}>Your pay</Text>
                 <StatusPill tone={settlement.status === 'DISPUTED' ? 'err' : settlement.status === 'AWAITING_APPROVAL' ? 'warn' : 'mint'}>
@@ -198,11 +198,11 @@ export function ShiftDetailScreen({ navigation, route }: Props) {
                 {settlement.status === 'PAID' && 'Paid to your M-Pesa.'}
                 {settlement.status === 'DISPUTED' && 'On hold while Klokd reviews a reported problem.'}
               </Text>
-            </View>
+            </Glass>
           )}
 
           {needsRating && (
-            <View style={styles.block}>
+            <Glass style={styles.block}>
               <Text style={styles.blockH}>Rate {s.employer.businessName}</Text>
               <View style={{ flexDirection: 'row', gap: 10, marginVertical: 10 }}>
                 {[1, 2, 3, 4, 5].map(n => (
@@ -216,7 +216,7 @@ export function ShiftDetailScreen({ navigation, route }: Props) {
               <GradientBtn size="md" disabled={!stars || busy} onPress={() => run(() => post('/ratings', { shiftId: id, stars, comment: comment.trim() || undefined }), 'Thanks — your rating is in.', () => setRated(true))}>
                 Send rating
               </GradientBtn>
-            </View>
+            </Glass>
           )}
 
           {['ACTIVE', 'COMPLETED', 'PAID'].includes(status ?? '') && (
@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
   facts: { gap: 8, marginTop: 14 },
   notes: { color: colors.white75, fontSize: 13, lineHeight: 19, marginTop: 14 },
   msg: { fontSize: 13, fontWeight: '700', marginTop: 16 },
-  block: { marginTop: 18, padding: 16, borderRadius: 18, backgroundColor: colors.white03, borderWidth: 1, borderColor: colors.white08 },
+  block: { marginTop: 18, padding: 16, borderRadius: 18, },
   blockHi: { backgroundColor: colors.electricAlpha['06'], borderColor: colors.electricAlpha['25'] },
   blockH: { fontSize: 16, fontWeight: '900', color: colors.white },
   p: { fontSize: 12.5, color: colors.white65, lineHeight: 18, marginTop: 6, marginBottom: 12 },

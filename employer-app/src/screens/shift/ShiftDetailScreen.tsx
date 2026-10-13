@@ -12,7 +12,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, TextInput } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GradientBtn, IconBtn, StatusPill, Label, Chip } from '../../components/Primitives';
-import { AmbientOrbs, SafeTop } from '../../components/KlokdLayout';
+import { AmbientOrbs, SafeTop, Glass } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { useData } from '../../hooks/useData';
 import { useApi } from '../../hooks/useApi';
@@ -114,7 +114,7 @@ export function ShiftDetailScreen({ navigation, route }: Props) {
           {msg && <Text style={[styles.msg, { color: msg.ok ? colors.volt : colors.warning }]}>{msg.text}</Text>}
 
           {posted && (
-            <View style={styles.block}>
+            <Glass style={styles.block}>
               <Label color={colors.white60}>Applicants · {applicants.data?.length ?? 0}</Label>
               {applicants.status === 'loading' && <ActivityIndicator color={colors.volt} />}
               {applicants.data?.length === 0 && <Text style={styles.p}>No applicants yet. Verified workers nearby can see this shift now.</Text>}
@@ -134,11 +134,11 @@ export function ShiftDetailScreen({ navigation, route }: Props) {
                   )}
                 </View>
               ))}
-            </View>
+            </Glass>
           )}
 
           {a?.noShow && (
-            <View style={[styles.block, styles.alert]}>
+            <Glass style={[styles.block, styles.alert]}>
               <Text style={styles.blockH}>{workerName} hasn’t shown up</Text>
               <Text style={styles.p}>Wait longer, reopen the shift for your other applicants, or cancel it.</Text>
               <View style={styles.row}>
@@ -146,12 +146,12 @@ export function ShiftDetailScreen({ navigation, route }: Props) {
                 <Btn label="Find a replacement" strong onPress={() => run(() => post(`/attendance/shifts/${id}/no-show`, { action: 'replace' }), 'Reopened. Pick someone from your applicants.')} />
                 <Btn label="Cancel shift" danger onPress={() => run(() => post(`/attendance/shifts/${id}/no-show`, { action: 'cancel' }), 'Shift cancelled.')} />
               </View>
-            </View>
+            </Glass>
           )}
           {a?.late && !a.noShow && <Text style={styles.lateNote}>{workerName} is running late. We’ve reminded them.</Text>}
 
           {a?.pin && (
-            <View style={[styles.block, styles.pinBlock]}>
+            <Glass style={[styles.block, styles.pinBlock]}>
               <Label color={colors.volt}>Start PIN</Label>
               <Text style={styles.pin}>{a.pin}</Text>
               <Text style={styles.p}>
@@ -170,18 +170,18 @@ export function ShiftDetailScreen({ navigation, route }: Props) {
               ) : (
                 <TouchableOpacity onPress={() => setOverrideOpen(true)}><Text style={styles.link}>Start without PIN</Text></TouchableOpacity>
               ))}
-            </View>
+            </Glass>
           )}
 
           {s.status === 'ACTIVE' && a?.summary.startedAt && (
-            <View style={styles.block}>
+            <Glass style={styles.block}>
               <Text style={styles.blockH}>{workerName} is on shift</Text>
               <Text style={styles.p}>Started at {time(a.summary.startedAt)}. You’ll see it here when they finish.</Text>
-            </View>
+            </Glass>
           )}
 
           {a?.settlement && (
-            <View style={styles.block}>
+            <Glass style={styles.block}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <Text style={styles.blockH}>Pay</Text>
                 <StatusPill tone={a.settlement.status === 'AWAITING_APPROVAL' ? 'warn' : a.settlement.status === 'DISPUTED' ? 'err' : 'mint'}>
@@ -208,11 +208,11 @@ export function ShiftDetailScreen({ navigation, route }: Props) {
                 </>
               )}
               {a.settlement.status === 'APPROVED' && <Text style={styles.small}>Approved. The M-Pesa payout goes out once Klokd payments (Kipkiren Pay) are live.</Text>}
-            </View>
+            </Glass>
           )}
 
           {!rated && (pending.data ?? []).some(p => p.shiftId === id) && (
-            <View style={styles.block}>
+            <Glass style={styles.block}>
               <Text style={styles.blockH}>Rate {workerName}</Text>
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 {[1, 2, 3, 4, 5].map(n => (
@@ -220,11 +220,11 @@ export function ShiftDetailScreen({ navigation, route }: Props) {
                 ))}
               </View>
               <GradientBtn size="sm" disabled={!stars || busy} onPress={() => run(() => post('/ratings', { shiftId: id, stars }), 'Rating sent.').then(() => setRated(true))}>Send rating</GradientBtn>
-            </View>
+            </Glass>
           )}
 
           {a?.events && a.events.length > 0 && (
-            <View style={styles.block}>
+            <Glass style={styles.block}>
               <Label color={colors.white60}>Timeline</Label>
               {a.events.map(e => (
                 <View key={e.id} style={styles.event}>
@@ -232,17 +232,17 @@ export function ShiftDetailScreen({ navigation, route }: Props) {
                   <Text style={styles.eventT}>{EVENT[e.type] ?? e.type}{e.distanceM != null ? ` · ${e.distanceM} m away` : ''}</Text>
                 </View>
               ))}
-            </View>
+            </Glass>
           )}
 
           {s.worker && (
-            <View style={styles.block}>
+            <Glass style={styles.block}>
               {contract ? <Text style={styles.contract}>{contract}</Text> : (
                 <TouchableOpacity onPress={async () => { try { setContract((await get<{ body: string }>(`/shifts/${id}/contract`)).body); } catch (e: any) { setMsg({ ok: false, text: e?.message }); } }}>
                   <Text style={styles.link}>Read the written particulars (contract)</Text>
                 </TouchableOpacity>
               )}
-            </View>
+            </Glass>
           )}
 
           {['POSTED', 'CONFIRMED', 'ACCEPTED'].includes(s.status) && (
@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
   notes: { fontSize: 13, color: colors.white75, marginTop: 8, lineHeight: 19 },
   msg: { fontSize: 13, fontWeight: '700' },
   err: { color: colors.warning, fontSize: 13 },
-  block: { padding: 16, borderRadius: 18, backgroundColor: colors.white03, borderWidth: 1, borderColor: colors.white08, gap: 10 },
+  block: { padding: 16, borderRadius: 18, gap: 10 },
   alert: { backgroundColor: 'rgba(255,107,107,0.06)', borderColor: 'rgba(255,107,107,0.25)' },
   pinBlock: { backgroundColor: colors.voltAlpha['07'], borderColor: colors.voltAlpha['25'] },
   blockH: { fontSize: 16, fontWeight: '900', color: colors.white },

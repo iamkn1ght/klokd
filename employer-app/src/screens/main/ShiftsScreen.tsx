@@ -6,10 +6,11 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { StatusPill, GradientBtn } from '../../components/Primitives';
-import { AmbientOrbs, SafeTop } from '../../components/KlokdLayout';
+import { AmbientOrbs, SafeTop, Glass } from '../../components/KlokdLayout';
 import { useData } from '../../hooks/useData';
 import { colors } from '../../theme';
 import { kes, when } from '../../lib/format';
+import { useTabBarSpace } from '../../components/KlokdTabBar';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
 
@@ -27,12 +28,13 @@ export const SHIFT_PILL: Record<string, { label: string; tone: 'mint' | 'warn' |
 };
 
 export function ShiftsScreen({ navigation }: Props) {
+  const tabSpace = useTabBarSpace();
   const q = useData<Mine[]>('/shifts/mine', { pollMs: 30_000 });
   return (
     <View style={styles.screen}>
       <AmbientOrbs intensity="subtle" />
       <SafeTop />
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 30, gap: 10 }}>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: tabSpace, gap: 10 }}>
         <View style={styles.head}>
           <Text style={styles.h1}>Shifts</Text>
           <GradientBtn size="sm" onPress={() => navigation.navigate('PostShift')}>Post a shift</GradientBtn>
@@ -48,7 +50,7 @@ export function ShiftsScreen({ navigation }: Props) {
         {(q.data ?? []).map(s => {
           const pill = SHIFT_PILL[s.status] ?? { label: s.status, tone: 'neutral' as const };
           return (
-            <TouchableOpacity key={s.id} activeOpacity={0.85} onPress={() => navigation.navigate('ShiftDetail', { id: s.id })} style={styles.row}>
+            <Glass key={s.id} onPress={() => navigation.navigate('ShiftDetail', { id: s.id })} style={styles.row}>
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={styles.role}>{s.role}</Text>
@@ -60,7 +62,7 @@ export function ShiftsScreen({ navigation }: Props) {
                 <Text style={styles.pay}>{kes(s.rateKes)}</Text>
                 <Text style={styles.meta}>{s.applications} applicant{s.applications === 1 ? '' : 's'}</Text>
               </View>
-            </TouchableOpacity>
+            </Glass>
           );
         })}
       </ScrollView>
@@ -73,7 +75,7 @@ const styles = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, marginBottom: 6 },
   h1: { fontSize: 28, fontWeight: '900', color: colors.white, letterSpacing: -0.9 },
   err: { color: colors.warning },
-  row: { flexDirection: 'row', gap: 12, padding: 14, borderRadius: 16, backgroundColor: colors.white03, borderWidth: 1, borderColor: colors.white08 },
+  row: { flexDirection: 'row', gap: 12, padding: 14, borderRadius: 16, },
   role: { fontSize: 15, fontWeight: '800', color: colors.white },
   meta: { fontSize: 11.5, color: colors.white55, marginTop: 4 },
   pay: { fontSize: 15, fontWeight: '900', color: colors.volt },

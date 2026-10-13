@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Chip, GradientBtn, Eyebrow, Label, StepProgress } from '../../components/Primitives';
-import { AmbientOrbs, FadeUp, SafeTop } from '../../components/KlokdLayout';
+import { AmbientOrbs, FadeUp, SafeTop, Glass } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { useApi } from '../../hooks/useApi';
 import { colors } from '../../theme';
@@ -22,9 +22,9 @@ function OnbHeader({ step, onBack }: { step: number; onBack?: () => void }) {
   return (
     <View style={styles.header}>
       {onBack ? (
-        <TouchableOpacity onPress={onBack} style={styles.backBtn}>
+        <Glass onPress={onBack} style={styles.backBtn}>
           <Icons.back color={colors.white} size={14} />
-        </TouchableOpacity>
+        </Glass>
       ) : <View style={{ width: 34 }} />}
       <View style={{ flex: 1 }}>
         <StepProgress step={step} total={5} />
@@ -116,7 +116,7 @@ export function SkillsScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.ink },
   header: { paddingHorizontal: 18, paddingTop: 12, flexDirection: 'row', alignItems: 'center', gap: 14 },
-  backBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: 0.5, borderColor: colors.white12, backgroundColor: colors.white04, alignItems: 'center', justifyContent: 'center' },
+  backBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   titleBlock: { paddingHorizontal: 22, paddingTop: 20 },
   h2: { fontSize: 25, fontWeight: '900', letterSpacing: -0.8, lineHeight: 29, color: colors.white, marginBottom: 8 },
   sub: { fontSize: 13.5, color: colors.white50, lineHeight: 20 },

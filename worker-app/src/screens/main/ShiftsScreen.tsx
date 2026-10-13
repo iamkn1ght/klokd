@@ -6,10 +6,11 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { StatusPill, Label } from '../../components/Primitives';
-import { AmbientOrbs, SafeTop } from '../../components/KlokdLayout';
+import { AmbientOrbs, SafeTop, Glass } from '../../components/KlokdLayout';
 import { useData } from '../../hooks/useData';
 import { colors } from '../../theme';
 import { kes, when } from '../../lib/format';
+import { useTabBarSpace } from '../../components/KlokdTabBar';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
 
@@ -44,6 +45,7 @@ const PILL: Record<string, { label: string; tone: 'mint' | 'warn' | 'err' | 'neu
 };
 
 export function ShiftsScreen({ navigation }: Props) {
+  const tabSpace = useTabBarSpace();
   const q = useData<Mine>('/me/shifts', { pollMs: 30_000 });
   const open = (id: string) => navigation.navigate('ShiftDetail', { id });
   const d = q.data;
@@ -53,7 +55,7 @@ export function ShiftsScreen({ navigation }: Props) {
     <View style={styles.screen}>
       <AmbientOrbs intensity="subtle" />
       <SafeTop />
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 30 }}>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: tabSpace }}>
         <Text style={styles.h1}>My shifts</Text>
         {q.status === 'loading' && <ActivityIndicator color={colors.electric} style={{ marginTop: 40 }} />}
         {q.status === 'error' && <Text style={styles.err}>{q.error}</Text>}
@@ -106,7 +108,7 @@ function Group({ title, rows, open }: { title: string; rows: MyShift[]; open: (i
 
 function Row({ onPress, title, sub, when: w, right, pill, extra }: { onPress: () => void; title: string; sub: string; when: string; right: string; pill: { label: string; tone: 'mint' | 'warn' | 'err' | 'neutral' }; extra?: string | null }) {
   return (
-    <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={styles.row}>
+    <Glass onPress={onPress} style={styles.row}>
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Text style={styles.title} numberOfLines={1}>{title}</Text>
@@ -119,7 +121,7 @@ function Row({ onPress, title, sub, when: w, right, pill, extra }: { onPress: ()
         <StatusPill tone={pill.tone}>{pill.label}</StatusPill>
         {extra ? <Text style={styles.extra}>{extra}</Text> : null}
       </View>
-    </TouchableOpacity>
+    </Glass>
   );
 }
 
@@ -128,7 +130,7 @@ const styles = StyleSheet.create({
   h1: { fontSize: 28, fontWeight: '900', color: colors.white, letterSpacing: -0.9, marginTop: 8, marginBottom: 6 },
   err: { color: colors.warning, marginTop: 20 },
   group: { marginTop: 22, gap: 10 },
-  row: { flexDirection: 'row', gap: 12, padding: 14, borderRadius: 16, backgroundColor: colors.white03, borderWidth: 1, borderColor: colors.white08 },
+  row: { flexDirection: 'row', gap: 12, padding: 14, borderRadius: 16, },
   title: { fontSize: 15, fontWeight: '800', color: colors.white, flexShrink: 1 },
   sub: { fontSize: 12, color: colors.white70, marginTop: 3 },
   when: { fontSize: 11.5, color: colors.white55, marginTop: 2 },

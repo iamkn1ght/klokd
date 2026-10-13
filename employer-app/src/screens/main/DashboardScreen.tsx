@@ -9,12 +9,13 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GradientBtn, Label } from '../../components/Primitives';
-import { AmbientOrbs, SafeTop, FadeUp } from '../../components/KlokdLayout';
+import { AmbientOrbs, SafeTop, FadeUp, Glass } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { useData } from '../../hooks/useData';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../theme';
 import { kes, time, greeting, day } from '../../lib/format';
+import { useTabBarSpace } from '../../components/KlokdTabBar';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
 
@@ -51,6 +52,7 @@ const FEED: Record<string, (w: string) => string> = {
 };
 
 export function DashboardScreen({ navigation }: Props) {
+  const tabSpace = useTabBarSpace();
   const { businessName } = useAuth();
   const ov = useData<Overview>('/employer/overview', { pollMs: 60_000 });
   const profile = useData<EmployerProfile>('/identity/employers/profile');
@@ -70,7 +72,7 @@ export function DashboardScreen({ navigation }: Props) {
     <View style={styles.screen}>
       <AmbientOrbs intensity="subtle" />
       <SafeTop />
-      <ScrollView contentContainerStyle={{ paddingBottom: 30 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.volt} />}>
+      <ScrollView contentContainerStyle={{ paddingBottom: tabSpace }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.volt} />}>
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.date}>{day(new Date())}</Text>
@@ -143,10 +145,10 @@ export function DashboardScreen({ navigation }: Props) {
 
 function Tile({ k, l }: { k: string; l: string }) {
   return (
-    <View style={styles.tile}>
+    <Glass style={styles.tile}>
       <Text style={styles.tileK} numberOfLines={1} adjustsFontSizeToFit>{k}</Text>
       <Text style={styles.tileL}>{l}</Text>
-    </View>
+    </Glass>
   );
 }
 
@@ -167,7 +169,7 @@ const styles = StyleSheet.create({
   heroNote: { fontSize: 11.5, color: colors.white55, marginTop: 10, lineHeight: 16 },
   approve: { color: colors.warning, fontSize: 13, fontWeight: '800', marginTop: 10 },
   tiles: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, marginTop: 12, marginBottom: 12 },
-  tile: { flex: 1, padding: 12, borderRadius: 14, backgroundColor: colors.white03, borderWidth: 1, borderColor: colors.white08 },
+  tile: { flex: 1, padding: 12, borderRadius: 14, },
   tileK: { fontSize: 16, fontWeight: '900', color: colors.white },
   tileL: { fontSize: 10, color: colors.white55, marginTop: 3, textTransform: 'uppercase', letterSpacing: 0.4 },
   empty: { color: colors.white55, fontSize: 12.5, lineHeight: 18 },

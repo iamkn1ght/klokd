@@ -6,31 +6,33 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { StatusPill, GradientBtn } from '../../components/Primitives';
-import { AmbientOrbs, SafeTop } from '../../components/KlokdLayout';
+import { AmbientOrbs, SafeTop, Glass } from '../../components/KlokdLayout';
 import { useData } from '../../hooks/useData';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../theme';
 import { day } from '../../lib/format';
+import { useTabBarSpace } from '../../components/KlokdTabBar';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
 
 interface Member { workerId: string; name: string; initials: string; shiftsHere: number; lastWorked: string; roles: string[]; yourRating: number | null; showUpRate: number | null; totalShifts: number; verified: boolean; trusted: boolean }
 
 export function TeamScreen({ navigation }: Props) {
+  const tabSpace = useTabBarSpace();
   const q = useData<Member[]>('/employer/team');
   const { logout } = useAuth();
   return (
     <View style={styles.screen}>
       <AmbientOrbs intensity="subtle" />
       <SafeTop />
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 30, gap: 12 }}>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: tabSpace, gap: 12 }}>
         <Text style={styles.h1}>Team</Text>
         <Text style={styles.p}>People who’ve worked for you. Book someone again and the shift goes straight to them.</Text>
         {q.status === 'loading' && <ActivityIndicator color={colors.volt} style={{ marginTop: 30 }} />}
         {q.status === 'error' && <Text style={styles.err}>{q.error}</Text>}
         {q.status === 'ready' && q.data!.length === 0 && <Text style={styles.empty}>Workers appear here after their first finished shift with you.</Text>}
         {(q.data ?? []).map(m => (
-          <View key={m.workerId} style={styles.card}>
+          <Glass key={m.workerId} style={styles.card}>
             <View style={styles.top}>
               <View style={styles.avatar}><Text style={styles.avatarText}>{m.initials}</Text></View>
               <View style={{ flex: 1 }}>
@@ -45,7 +47,7 @@ export function TeamScreen({ navigation }: Props) {
               {m.showUpRate != null ? ` · ${Math.round(m.showUpRate)}% show-up` : ''}
             </Text>
             <GradientBtn size="sm" disabled={!m.verified} onPress={() => navigation.navigate('PostShift', { inviteWorkerId: m.workerId, inviteName: m.name })}>Book again</GradientBtn>
-          </View>
+          </Glass>
         ))}
         <TouchableOpacity style={styles.signOut} onPress={logout}><Text style={styles.signOutText}>Sign out</Text></TouchableOpacity>
       </ScrollView>
@@ -59,7 +61,7 @@ const styles = StyleSheet.create({
   p: { color: colors.white65, fontSize: 13, lineHeight: 19 },
   err: { color: colors.warning },
   empty: { color: colors.white60, fontSize: 13, textAlign: 'center', marginTop: 20 },
-  card: { padding: 16, borderRadius: 18, backgroundColor: colors.white03, borderWidth: 1, borderColor: colors.white08, gap: 10 },
+  card: { padding: 16, borderRadius: 18, gap: 10 },
   top: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.volt, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: colors.ink, fontWeight: '900' },

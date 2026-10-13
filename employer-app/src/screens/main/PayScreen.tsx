@@ -6,10 +6,11 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { StatusPill } from '../../components/Primitives';
-import { AmbientOrbs, SafeTop } from '../../components/KlokdLayout';
+import { AmbientOrbs, SafeTop, Glass } from '../../components/KlokdLayout';
 import { useData } from '../../hooks/useData';
 import { colors } from '../../theme';
 import { kes, day, hm, time } from '../../lib/format';
+import { useTabBarSpace } from '../../components/KlokdTabBar';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
 
@@ -28,13 +29,14 @@ const PILL: Record<string, { label: string; tone: 'mint' | 'warn' | 'err' | 'neu
 };
 
 export function PayScreen({ navigation }: Props) {
+  const tabSpace = useTabBarSpace();
   const q = useData<Billing>('/employer/billing', { pollMs: 60_000 });
   const d = q.data;
   return (
     <View style={styles.screen}>
       <AmbientOrbs intensity="subtle" />
       <SafeTop />
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 30, gap: 12 }}>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: tabSpace, gap: 12 }}>
         <Text style={styles.h1}>Pay & billing</Text>
         {q.status === 'loading' && <ActivityIndicator color={colors.volt} style={{ marginTop: 40 }} />}
         {q.status === 'error' && <Text style={styles.err}>{q.error}</Text>}
@@ -54,7 +56,7 @@ export function PayScreen({ navigation }: Props) {
             {d.lines.map(l => {
               const pill = PILL[l.status] ?? { label: l.status, tone: 'neutral' as const };
               return (
-                <TouchableOpacity key={l.shiftId} style={styles.row} onPress={() => navigation.navigate('ShiftDetail', { id: l.shiftId })}>
+                <Glass key={l.shiftId} style={styles.row} onPress={() => navigation.navigate('ShiftDetail', { id: l.shiftId })}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.title}>{l.role} · {l.worker ?? '—'}</Text>
                     <Text style={styles.meta}>{day(l.date)} · {hm(l.workedMinutes)}{l.status === 'AWAITING_APPROVAL' ? ` · auto-approves ${time(l.approveBy)}` : ''}{l.mpesaRef ? ` · ${l.mpesaRef}` : ''}</Text>
@@ -63,7 +65,7 @@ export function PayScreen({ navigation }: Props) {
                     <Text style={styles.total}>{kes(l.totalKes)}</Text>
                     <StatusPill tone={pill.tone}>{pill.label}</StatusPill>
                   </View>
-                </TouchableOpacity>
+                </Glass>
               );
             })}
           </>
@@ -75,10 +77,10 @@ export function PayScreen({ navigation }: Props) {
 
 function Tile({ k, l, warn }: { k: string; l: string; warn?: boolean }) {
   return (
-    <View style={styles.tile}>
+    <Glass style={styles.tile}>
       <Text style={[styles.tileK, warn && { color: colors.warning }]} numberOfLines={1} adjustsFontSizeToFit>{k}</Text>
       <Text style={styles.tileL}>{l}</Text>
-    </View>
+    </Glass>
   );
 }
 
@@ -90,10 +92,10 @@ const styles = StyleSheet.create({
   small: { color: colors.white55, fontSize: 11.5 },
   empty: { color: colors.white60, fontSize: 13, textAlign: 'center', marginTop: 10 },
   tiles: { flexDirection: 'row', gap: 8 },
-  tile: { flex: 1, padding: 14, borderRadius: 14, backgroundColor: colors.white03, borderWidth: 1, borderColor: colors.white08 },
+  tile: { flex: 1, padding: 14, borderRadius: 14, },
   tileK: { fontSize: 18, fontWeight: '900', color: colors.white },
   tileL: { fontSize: 10.5, color: colors.white55, marginTop: 3, textTransform: 'uppercase', letterSpacing: 0.4 },
-  row: { flexDirection: 'row', gap: 10, padding: 14, borderRadius: 16, backgroundColor: colors.white03, borderWidth: 1, borderColor: colors.white08 },
+  row: { flexDirection: 'row', gap: 10, padding: 14, borderRadius: 16, },
   title: { fontSize: 14, fontWeight: '800', color: colors.white },
   meta: { fontSize: 11.5, color: colors.white55, marginTop: 3 },
   total: { fontSize: 15, fontWeight: '900', color: colors.white },

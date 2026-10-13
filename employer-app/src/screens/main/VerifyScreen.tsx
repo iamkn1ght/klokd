@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GradientBtn, IconBtn, StatusPill, Label } from '../../components/Primitives';
-import { AmbientOrbs, SafeTop } from '../../components/KlokdLayout';
+import { AmbientOrbs, SafeTop, Glass } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { useData } from '../../hooks/useData';
 import { useApi } from '../../hooks/useApi';
@@ -65,7 +65,7 @@ export function VerifyScreen({ navigation }: Props) {
           <Text style={styles.p}>Workers only see shifts from businesses with a KRA PIN and current Work Injury Benefits Act cover on file.</Text>
           {msg && <Text style={{ color: msg.ok ? colors.volt : colors.warning, fontWeight: '700' }}>{msg.text}</Text>}
 
-          <View style={styles.block}>
+          <Glass style={styles.block}>
             <View style={styles.blockHead}>
               <Text style={styles.blockH}>1 · Business</Text>
               <StatusPill tone={p.kraPinMasked ? 'mint' : 'warn'}>{p.kraPinMasked ? 'Done' : 'To do'}</StatusPill>
@@ -79,9 +79,9 @@ export function VerifyScreen({ navigation }: Props) {
             <GradientBtn size="sm" disabled={busy || !KRA_RE.test(pin) || (name.trim().length < 2 && p.businessName === 'Unregistered business')} onPress={() => run(() => put('/identity/employers/profile', { businessName: name.trim() || p.businessName, kraPin: pin, contactPerson: contact.trim() || undefined }), 'Business details saved.')}>
               Save business details
             </GradientBtn>
-          </View>
+          </Glass>
 
-          <View style={styles.block}>
+          <Glass style={styles.block}>
             <View style={styles.blockHead}>
               <Text style={styles.blockH}>2 · WIBA cover</Text>
               <StatusPill tone={p.wiba.status === 'confirmed' ? 'mint' : p.wiba.status === 'expired' ? 'err' : 'warn'}>{p.wiba.status === 'confirmed' ? 'Done' : p.wiba.status === 'expired' ? 'Expired' : 'To do'}</StatusPill>
@@ -94,7 +94,7 @@ export function VerifyScreen({ navigation }: Props) {
             <GradientBtn size="sm" disabled={busy || insurer.trim().length < 2 || policy.trim().length < 3 || !expiryDate || expiryDate < new Date()} onPress={() => run(() => post('/identity/employers/wiba', { insurer: insurer.trim(), policyRef: policy.trim(), policyExpiry: expiryDate!.toISOString() }), 'WIBA policy declared.')}>
               Declare WIBA policy
             </GradientBtn>
-          </View>
+          </Glass>
 
           {p.canPostShifts && <GradientBtn onPress={() => navigation.replace('PostShift')}>Post a shift</GradientBtn>}
         </ScrollView>
@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 18, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { color: colors.white, fontSize: 16, fontWeight: '900' },
   p: { color: colors.white70, fontSize: 13, lineHeight: 19 },
-  block: { padding: 16, borderRadius: 18, backgroundColor: colors.white03, borderWidth: 1, borderColor: colors.white08, gap: 10 },
+  block: { padding: 16, borderRadius: 18, gap: 10 },
   blockHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   blockH: { fontSize: 16, fontWeight: '900', color: colors.white },
   small: { fontSize: 12, color: colors.white60 },

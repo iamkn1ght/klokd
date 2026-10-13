@@ -6,7 +6,7 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GradientBtn, Eyebrow, Logo } from '../../components/Primitives';
-import { AmbientOrbs, FadeUp, SafeTop, PressScale } from '../../components/KlokdLayout';
+import { AmbientOrbs, FadeUp, SafeTop, PressScale, Glass } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { colors } from '../../theme';
 
@@ -36,13 +36,13 @@ export function WelcomeScreen({ navigation }: Props) {
             const Ico = Icons[s.icon];
             return (
               <FadeUp key={s.t} delay={160 + i * 70}>
-                <View style={styles.step}>
+                <Glass style={styles.step}>
                   <View style={styles.stepIcon}><Ico color={colors.volt} size={18} /></View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.stepT}>{s.t}</Text>
                     <Text style={styles.stepD}>{s.d}</Text>
                   </View>
-                </View>
+                </Glass>
               </FadeUp>
             );
           })}
@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 30 },
   h1: { fontSize: 32, fontWeight: '900', color: colors.white, letterSpacing: -1.3, marginTop: 10, lineHeight: 36 },
   sub: { fontSize: 15, color: colors.white70, lineHeight: 22, marginTop: 12 },
-  step: { flexDirection: 'row', gap: 14, padding: 14, borderRadius: 18, backgroundColor: colors.white03, borderWidth: 1, borderColor: colors.white08 },
+  step: { flexDirection: 'row', gap: 14, padding: 14, borderRadius: 18, },
   stepIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: colors.voltAlpha['10'], alignItems: 'center', justifyContent: 'center' },
   stepT: { fontSize: 15, fontWeight: '900', color: colors.white },
   stepD: { fontSize: 12.5, color: colors.white65, lineHeight: 18, marginTop: 3 },

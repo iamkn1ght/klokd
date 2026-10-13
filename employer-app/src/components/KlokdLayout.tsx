@@ -26,9 +26,11 @@ import {
   Animated,
   Easing,
   ViewStyle,
+  StyleProp,
 } from 'react-native';
 import Svg, { Defs, Pattern, Rect, Circle, LinearGradient as SvgLinearGradient, RadialGradient as SvgRadialGradient, Stop } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, radius } from '../theme';
 
@@ -96,8 +98,8 @@ export function PressScale({
  *   </View>
  */
 export function AmbientOrbs({ intensity = 'default' }: { intensity?: 'default' | 'subtle' }) {
-  const aOpacity = intensity === 'subtle' ? 0.12 : 0.22;
-  const bOpacity = intensity === 'subtle' ? 0.05 : 0.10;
+  const aOpacity = intensity === 'subtle' ? 0.2 : 0.3;
+  const bOpacity = intensity === 'subtle' ? 0.1 : 0.16;
 
   // Native: true radial orbs via SVG — soft glow with no hard edges,
   // static and cheap (rendered once, no animation).
@@ -322,6 +324,82 @@ export function LiveDot({ size = 7, color = colors.electric }: { size?: number; 
 // ─── Glass cards ──────────────────────────────────────────
 
 /**
+ * Glass — the iOS-style frosted surface every card sits on: real background
+ * blur (Apple's dark material on iOS), a faint white fill, a hairline border
+ * that's brighter along the top edge (light catching the glass), and
+ * continuous iOS corners. Pass `onPress` to make the whole surface tappable.
+ *
+ * Callers style size/spacing/radius; fill and border come from here.
+ */
+export function Glass({
+  children,
+  style,
+  onPress,
+  tone = 'default',
+  intensity = 40,
+  accessibilityLabel,
+}: {
+  children?: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+  onPress?: () => void;
+  tone?: 'default' | 'electric';
+  intensity?: number;
+  accessibilityLabel?: string;
+}) {
+  const flat = (StyleSheet.flatten(style) ?? {}) as ViewStyle;
+  const r = flat.borderRadius ?? radius.xxl;
+  const shell: ViewStyle = {
+    borderRadius: r,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: tone === 'electric' ? 'rgba(0,229,160,0.32)' : 'rgba(255,255,255,0.13)',
+    borderTopColor: tone === 'electric' ? 'rgba(0,229,160,0.5)' : 'rgba(255,255,255,0.24)',
+    backgroundColor: Platform.OS === 'web' ? 'rgba(255,255,255,0.06)' : 'transparent',
+    ...(Platform.OS === 'web' ? ({ backdropFilter: 'blur(24px) saturate(160%)' } as any) : {}),
+  };
+  const layers = (
+    <>
+      {Platform.OS !== 'web' && (
+        <BlurView
+          intensity={intensity}
+          tint={Platform.OS === 'ios' ? 'systemThinMaterialDark' : 'dark'}
+          experimentalBlurMethod="dimezisBlurView"
+          style={StyleSheet.absoluteFill}
+        />
+      )}
+      <View
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFill,
+          { backgroundColor: tone === 'electric' ? 'rgba(0,229,160,0.07)' : 'rgba(255,255,255,0.045)' },
+        ]}
+      />
+      {/* sheen: light catching the top of the glass */}
+      <LinearGradient
+        pointerEvents="none"
+        colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0)']}
+        style={[StyleSheet.absoluteFill, { height: 48 }]}
+      />
+      {children}
+    </>
+  );
+  if (onPress) {
+    return (
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        style={({ pressed }) => [shell, style, pressed && { opacity: 0.85, transform: [{ scale: 0.985 }] }]}
+      >
+        {layers}
+      </Pressable>
+    );
+  }
+  return <View style={[shell, style]}>{layers}</View>;
+}
+
+/**
  * The Klokd glass card — frosted, soft border, electric-tinted shadow on hover.
  * Use for any container that should read as floating glass over the orbs.
  *
@@ -360,7 +438,11 @@ export function GlassCard({
   };
 
   if (!interactive) {
-    return <View style={[base, style]}>{children}</View>;
+    return (
+      <Glass tone={variant === 'electric' ? 'electric' : 'default'} style={[{ padding, borderRadius: radius.xxl }, style]}>
+        {children}
+      </Glass>
+    );
   }
 
   return (

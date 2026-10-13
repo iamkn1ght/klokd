@@ -10,11 +10,12 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, RefreshControl, A
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
 import { StatusPill, Label, VLine, GradientBtn } from '../../components/Primitives';
-import { AmbientOrbs, SafeTop, FadeUp } from '../../components/KlokdLayout';
+import { AmbientOrbs, SafeTop, FadeUp, Glass } from '../../components/KlokdLayout';
 import { Icons } from '../../components/Icons';
 import { useData } from '../../hooks/useData';
 import { colors } from '../../theme';
 import { kes, when, greeting, day } from '../../lib/format';
+import { useTabBarSpace } from '../../components/KlokdTabBar';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
 
@@ -62,6 +63,7 @@ function Stat({ n, l, color, star }: { n: string; l: string; color: string; star
 }
 
 export function HomeScreen({ navigation }: Props) {
+  const tabSpace = useTabBarSpace();
   const [where, setWhere] = useState<{ lat: number; lng: number; mine: boolean }>({ ...CBD, mine: false });
   const me = useData<WorkerMe>('/me/worker');
   const feed = useData<FeedShift[]>(`/shifts/available?lat=${where.lat}&lng=${where.lng}&radiusKm=25`, { pollMs: 60_000 });
@@ -96,20 +98,20 @@ export function HomeScreen({ navigation }: Props) {
     <View style={styles.screen}>
       <AmbientOrbs intensity="subtle" />
       <SafeTop />
-      <ScrollView contentContainerStyle={{ paddingBottom: 24 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.electric} />}>
+      <ScrollView contentContainerStyle={{ paddingBottom: tabSpace }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.electric} />}>
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.date}>{day(new Date())}</Text>
             <Text style={styles.greeting} numberOfLines={1}>{greeting()}{m ? `, ${m.firstName}` : ''}</Text>
           </View>
-          <TouchableOpacity style={styles.bellBtn} onPress={() => navigation.navigate('Notifications')} accessibilityLabel="Notifications">
+          <Glass style={styles.bellBtn} onPress={() => navigation.navigate('Notifications')} accessibilityLabel="Notifications">
             <Icons.bell color={colors.white} size={16} />
             {(inbox.data?.unread ?? 0) > 0 && <View style={styles.bellDot} />}
-          </TouchableOpacity>
+          </Glass>
         </View>
 
         <FadeUp delay={60} style={{ paddingHorizontal: 20, paddingTop: 14 }}>
-          <View style={styles.ledger}>
+          <Glass style={styles.ledger}>
             <View style={styles.ledgerHead}>
               <Label color={colors.white55}>This month · {m ? kes(m.monthEarningsKes) : '—'}</Label>
               {m?.verificationStatus === 'APPROVED' ? <Text style={styles.verified}>ID VERIFIED</Text> : null}
@@ -124,7 +126,7 @@ export function HomeScreen({ navigation }: Props) {
             {m && !m.paymentsLive && (
               <Text style={styles.ledgerNote}>M-Pesa payouts start when Klokd payments go live. Your pay is tracked in the Pay tab.</Text>
             )}
-          </View>
+          </Glass>
         </FadeUp>
 
         {m && m.verificationStatus !== 'APPROVED' && (
@@ -148,22 +150,22 @@ export function HomeScreen({ navigation }: Props) {
 
           {feed.status === 'loading' && <ActivityIndicator color={colors.electric} style={{ marginTop: 24 }} />}
           {feed.status === 'error' && (
-            <View style={styles.empty}>
+            <Glass style={styles.empty}>
               <Text style={styles.emptyH}>Couldn’t load shifts</Text>
               <Text style={styles.emptyP}>{feed.error}</Text>
               <TouchableOpacity onPress={feed.reload}><Text style={styles.retry}>Try again</Text></TouchableOpacity>
-            </View>
+            </Glass>
           )}
           {feed.status === 'ready' && feed.data!.length === 0 && (
-            <View style={styles.empty}>
+            <Glass style={styles.empty}>
               <Text style={styles.emptyH}>No open shifts nearby right now</Text>
               <Text style={styles.emptyP}>New shifts appear the moment a business posts them. Pull down to refresh.</Text>
-            </View>
+            </Glass>
           )}
           <View style={{ gap: 10 }}>
             {(feed.data ?? []).map((s, i) => (
               <FadeUp key={s.id} delay={100 + Math.min(i, 5) * 60}>
-                <TouchableOpacity activeOpacity={0.85} onPress={() => navigation.navigate('ShiftDetail', { id: s.id })} style={styles.card}>
+                <Glass onPress={() => navigation.navigate('ShiftDetail', { id: s.id })} style={styles.card}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10 }}>
                     <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
@@ -178,7 +180,7 @@ export function HomeScreen({ navigation }: Props) {
                     </View>
                     <Text style={styles.pay}>{kes(s.rateKes)}</Text>
                   </View>
-                </TouchableOpacity>
+                </Glass>
               </FadeUp>
             ))}
           </View>
@@ -193,9 +195,9 @@ const styles = StyleSheet.create({
   headerRow: { paddingHorizontal: 20, paddingTop: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
   date: { fontSize: 12.5, color: colors.white55, marginBottom: 3, fontWeight: '600' },
   greeting: { fontSize: 26, fontWeight: '900', letterSpacing: -0.9, color: colors.white },
-  bellBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.white05, borderWidth: 0.5, borderColor: colors.white08, alignItems: 'center', justifyContent: 'center' },
+  bellBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   bellDot: { position: 'absolute', top: 8, right: 9, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.electric, borderWidth: 1.5, borderColor: colors.ink },
-  ledger: { borderRadius: 18, padding: 16, backgroundColor: colors.white03, borderWidth: 1, borderColor: colors.white06 },
+  ledger: { borderRadius: 18, padding: 16, },
   ledgerHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   verified: { fontSize: 10, color: colors.electric, fontWeight: '800', letterSpacing: 0.6 },
   ledgerNote: { fontSize: 11, color: colors.white55, marginTop: 12, lineHeight: 16 },
@@ -204,12 +206,12 @@ const styles = StyleSheet.create({
   bannerP: { fontSize: 12, color: colors.white70, lineHeight: 17 },
   offerBanner: { backgroundColor: colors.electricAlpha['08'], borderColor: colors.electricAlpha['35'] },
   offerText: { color: colors.electric, fontSize: 13.5, fontWeight: '900' },
-  card: { borderRadius: 16, padding: 14, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: colors.white08 },
+  card: { borderRadius: 16, padding: 14, },
   role: { fontSize: 15, fontWeight: '800', color: colors.white, letterSpacing: -0.28 },
   venue: { fontSize: 12, color: colors.white70, marginBottom: 3 },
   meta: { fontSize: 11, color: colors.white55 },
   pay: { fontSize: 17, fontWeight: '900', color: colors.electric, letterSpacing: -0.34 },
-  empty: { padding: 18, borderRadius: 16, borderWidth: 1, borderColor: colors.white08, backgroundColor: colors.white03, alignItems: 'center' },
+  empty: { padding: 18, borderRadius: 16, alignItems: 'center' },
   emptyH: { color: colors.white, fontSize: 14, fontWeight: '800' },
   emptyP: { color: colors.white60, fontSize: 12, textAlign: 'center', marginTop: 4, lineHeight: 17 },
   retry: { color: colors.electric, fontSize: 13, fontWeight: '800', marginTop: 10 },

@@ -8,6 +8,8 @@
  */
 import React, { useRef, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet, Animated, Platform } from 'react-native';
+import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { EASE } from './KlokdLayout';
@@ -58,6 +60,18 @@ function TabItem({
   );
 }
 
+/** Height of the floating tab bar above the home indicator. */
+export const TAB_BAR_HEIGHT = 64;
+
+/**
+ * Bottom padding for a tab screen's scroll content so the last item can
+ * scroll clear of the floating, translucent tab bar.
+ */
+export function useTabBarSpace(extra = 16): number {
+  const insets = useSafeAreaInsets();
+  return TAB_BAR_HEIGHT + Math.max(insets.bottom, 10) + extra;
+}
+
 export function KlokdTabBar({
   state,
   descriptors,
@@ -69,6 +83,15 @@ export function KlokdTabBar({
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+      {/* iOS-style bar material: content scrolls underneath, blurred */}
+      {Platform.OS !== 'web' && (
+        <BlurView
+          intensity={60}
+          tint={Platform.OS === 'ios' ? 'systemChromeMaterialDark' : 'dark'}
+          experimentalBlurMethod="dimezisBlurView"
+          style={StyleSheet.absoluteFill}
+        />
+      )}
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
         const label = (options.tabBarLabel as string) ?? options.title ?? route.name;
@@ -82,6 +105,7 @@ export function KlokdTabBar({
             onPress={() => {
               const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
               if (!focused && !event.defaultPrevented) {
+                void Haptics.selectionAsync().catch(() => undefined);
                 navigation.navigate(route.name);
               }
             }}
@@ -94,10 +118,15 @@ export function KlokdTabBar({
 
 const styles = StyleSheet.create({
   bar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
     flexDirection: 'row',
-    backgroundColor: 'rgba(13,13,20,0.98)',
-    borderTopWidth: 1,
-    borderTopColor: colors.white08,
+    overflow: 'hidden',
+    backgroundColor: Platform.OS === 'web' ? 'rgba(13,13,20,0.72)' : 'rgba(13,13,20,0.35)',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.14)',
     paddingTop: 10,
     paddingHorizontal: 8,
     ...(Platform.OS === 'web' ? ({ backdropFilter: 'blur(20px)' } as any) : {}),
