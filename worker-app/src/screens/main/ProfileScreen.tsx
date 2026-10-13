@@ -63,6 +63,9 @@ export function ProfileScreen({ navigation }: Props) {
 
   const m = me.data;
   const verified = m?.verificationStatus === 'APPROVED';
+  // An old onboarding build saved everyone as "User Name"; let them fix it.
+  const placeholderName = m?.firstName === 'User' && m?.lastName === 'Name';
+  const canEditName = !verified || placeholderName;
   const dirty = !!m && skills.slice().sort().join() !== m.skills.slice().sort().join();
 
   const act = async (fn: () => Promise<unknown>, ok: string) => {
@@ -133,8 +136,10 @@ export function ProfileScreen({ navigation }: Props) {
                   </View>
                   <Text style={styles.since}>Since {new Date(m.memberSince).toLocaleDateString('en-KE', { month: 'short', year: 'numeric' })}</Text>
                 </View>
-                <TouchableOpacity onPress={() => openName(verified ? 'nameCorrection' : 'name')} hitSlop={8} style={{ alignSelf: 'flex-start' }}>
-                  <Text style={styles.nameLink}>{verified ? 'Name wrong? Ask for a correction' : 'Edit name'}</Text>
+                <TouchableOpacity onPress={() => openName(canEditName ? 'name' : 'nameCorrection')} hitSlop={8} style={{ alignSelf: 'flex-start' }}>
+                  <Text style={[styles.nameLink, placeholderName && { color: colors.electric }]}>
+                    {placeholderName ? 'Add your real name' : canEditName ? 'Edit name' : 'Name wrong? Ask for a correction'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </Glass>

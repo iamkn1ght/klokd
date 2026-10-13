@@ -52,11 +52,11 @@ export function SkillsScreen({ navigation }: Props) {
   const handleContinue = async () => {
     setLoading(true);
     try {
-      await put('/identity/workers/profile', {
-        firstName: 'User', lastName: 'Name',
-        skills: Array.from(picked),
-      });
-    } catch {}
+      // Skills only — the name was captured at sign-up and comes from the ID check.
+      await put('/me/worker/skills', { skills: Array.from(picked) });
+    } catch {
+      // Not blocking: skills can be added any time from the Me tab.
+    }
     setLoading(false);
     navigation.navigate('MpesaSetup');
   };
