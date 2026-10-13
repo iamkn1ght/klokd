@@ -96,7 +96,7 @@ function Icon({ name, color = colors.electric, size = 22 }: { name: string; colo
 
 // ─── Page ────────────────────────────────────────────────
 
-export function LandingScreen({ onSignIn }: { onSignIn: () => void }) {
+export function LandingScreen({ onSignIn, onOpenApp }: { onSignIn: () => void; onOpenApp?: () => void }) {
   const { width } = useWindowDimensions();
   const mobile = width < 760;
   const wide = width >= 1040;
@@ -142,7 +142,11 @@ export function LandingScreen({ onSignIn }: { onSignIn: () => void }) {
             ))}
           </View>
         )}
-        <GradientBtn size="sm" onPress={onSignIn}>{EARLY_ACCESS ? 'Early access →' : 'Sign in →'}</GradientBtn>
+        {onOpenApp ? (
+          <GradientBtn size="sm" onPress={onOpenApp}>Open my dashboard →</GradientBtn>
+        ) : (
+          <GradientBtn size="sm" onPress={onSignIn}>{EARLY_ACCESS ? 'Early access →' : 'Sign in →'}</GradientBtn>
+        )}
       </FadeUp>
       </View>
 

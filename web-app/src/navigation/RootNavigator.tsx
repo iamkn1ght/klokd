@@ -86,10 +86,8 @@ export function RootNavigator() {
     if (isLoading) return;
     const authed = !!account && !!persona;
 
-    if (route.name === 'landing' && authed) {
-      navigate(defaultRouteFor(persona!), { replace: true });
-      return;
-    }
+    // The home page is always the landing page, signed in or not; signed-in
+    // visitors get an "Open my dashboard" button instead of a redirect.
     if (route.name === 'worker' || route.name === 'employer' || route.name === 'admin') {
       if (!authed) {
         try {
@@ -117,7 +115,15 @@ export function RootNavigator() {
     navigate('/', { replace: true });
   };
 
-  if (route.name === 'landing') return <LandingScreen onSignIn={() => navigate('/signin')} />;
+  if (route.name === 'landing') {
+    const authed = !!account && !!persona;
+    return (
+      <LandingScreen
+        onSignIn={() => navigate('/signin')}
+        onOpenApp={authed ? () => navigate(defaultRouteFor(persona!)) : undefined}
+      />
+    );
+  }
   if (route.name === 'legal') return <LegalScreen doc={route.doc} />;
 
   // Early-access builds route public sign-in to the waitlist; staff sign-in
