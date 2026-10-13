@@ -8,6 +8,7 @@ import { PostShiftScreen } from '../screens/shift/PostShiftScreen';
 import { ShiftDetailScreen } from '../screens/shift/ShiftDetailScreen';
 import { VerifyScreen } from '../screens/main/VerifyScreen';
 import { NotificationsScreen } from '../screens/main/NotificationsScreen';
+import { SettingsScreen } from '../screens/main/SettingsScreen';
 import { colors } from '../theme';
 
 const Stack = createNativeStackNavigator();
@@ -35,6 +36,7 @@ export function RootNavigator() {
           <Stack.Screen name="ShiftDetail" component={ShiftDetailScreen} />
           <Stack.Screen name="Verify" component={VerifyScreen} />
           <Stack.Screen name="Notifications" component={NotificationsScreen} />
+          <Stack.Screen name="Settings" component={SettingsScreen} />
         </>
       )}
     </Stack.Navigator>

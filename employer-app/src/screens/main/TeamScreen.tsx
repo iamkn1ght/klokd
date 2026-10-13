@@ -8,7 +8,6 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { StatusPill, GradientBtn } from '../../components/Primitives';
 import { AmbientOrbs, SafeTop, Glass } from '../../components/KlokdLayout';
 import { useData } from '../../hooks/useData';
-import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../theme';
 import { day } from '../../lib/format';
 import { useTabBarSpace } from '../../components/KlokdTabBar';
@@ -20,7 +19,6 @@ interface Member { workerId: string; name: string; initials: string; shiftsHere:
 export function TeamScreen({ navigation }: Props) {
   const tabSpace = useTabBarSpace();
   const q = useData<Member[]>('/employer/team');
-  const { logout } = useAuth();
   return (
     <View style={styles.screen}>
       <AmbientOrbs intensity="subtle" />
@@ -49,7 +47,6 @@ export function TeamScreen({ navigation }: Props) {
             <GradientBtn size="sm" disabled={!m.verified} onPress={() => navigation.navigate('PostShift', { inviteWorkerId: m.workerId, inviteName: m.name })}>Book again</GradientBtn>
           </Glass>
         ))}
-        <TouchableOpacity style={styles.signOut} onPress={logout}><Text style={styles.signOutText}>Sign out</Text></TouchableOpacity>
       </ScrollView>
     </View>
   );

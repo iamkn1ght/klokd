@@ -79,10 +79,15 @@ export function DashboardScreen({ navigation }: Props) {
             <Text style={styles.greeting} numberOfLines={1}>{greeting()}</Text>
             <Text style={styles.biz} numberOfLines={1}>{p?.businessName ?? businessName ?? ''}</Text>
           </View>
-          <TouchableOpacity style={styles.bell} onPress={() => navigation.navigate('Notifications')} accessibilityLabel="Notifications">
-            <Icons.bell color={colors.white} size={16} />
-            {(inbox.data?.unread ?? 0) > 0 && <View style={styles.bellDot} />}
-          </TouchableOpacity>
+          <View style={styles.headerBtns}>
+            <Glass style={styles.bell} onPress={() => navigation.navigate('Notifications')} accessibilityLabel="Notifications">
+              <Icons.bell color={colors.white} size={16} />
+              {(inbox.data?.unread ?? 0) > 0 && <View style={styles.bellDot} />}
+            </Glass>
+            <Glass style={styles.bell} onPress={() => navigation.navigate('Settings')} accessibilityLabel="Settings">
+              <Icons.user color={colors.white} size={17} />
+            </Glass>
+          </View>
         </View>
 
         {p && !p.canPostShifts && (
@@ -158,7 +163,8 @@ const styles = StyleSheet.create({
   date: { fontSize: 12.5, color: colors.white55, fontWeight: '600' },
   greeting: { fontSize: 26, fontWeight: '900', color: colors.white, letterSpacing: -0.9, marginTop: 2 },
   biz: { fontSize: 13, color: colors.volt, fontWeight: '800', marginTop: 2 },
-  bell: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.white05, alignItems: 'center', justifyContent: 'center' },
+  headerBtns: { flexDirection: 'row', gap: 8 },
+  bell: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   bellDot: { position: 'absolute', top: 8, right: 9, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.volt, borderWidth: 1.5, borderColor: colors.ink },
   banner: { marginHorizontal: 20, marginTop: 14, padding: 14, borderRadius: 16, backgroundColor: 'rgba(255,179,71,0.10)', borderWidth: 1, borderColor: 'rgba(255,179,71,0.28)', gap: 8 },
   bannerH: { fontSize: 14, fontWeight: '900', color: colors.white },
