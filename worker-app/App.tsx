@@ -1,8 +1,9 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
+import { BrandIntro } from './src/components/Story';
 import { configurePushDisplay, registerForPush, onNotificationTap } from './src/lib/push';
 
 const navigationRef = createNavigationContainerRef<any>();
@@ -26,6 +27,9 @@ function PushBridge() {
 }
 
 export default function App() {
+  // Branded intro on every launch; the app (and the stored session) loads underneath.
+  const [intro, setIntro] = useState(true);
+  const endIntro = useCallback(() => setIntro(false), []);
   return (
     <AuthProvider>
       <NavigationContainer ref={navigationRef}>
@@ -33,6 +37,7 @@ export default function App() {
         <RootNavigator />
         <PushBridge />
       </NavigationContainer>
+      {intro && <BrandIntro onDone={endIntro} tagline="Verified shifts. Clear pay." />}
     </AuthProvider>
   );
 }
