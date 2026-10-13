@@ -37,7 +37,9 @@ export function ShiftsScreen({ navigation }: Props) {
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: tabSpace, gap: 10 }}>
         <View style={styles.head}>
           <Text style={styles.h1}>Shifts</Text>
-          <GradientBtn size="sm" onPress={() => navigation.navigate('PostShift')}>Post a shift</GradientBtn>
+          <View style={{ width: 148 }}>
+            <GradientBtn size="sm" onPress={() => navigation.navigate('PostShift')}>Post a shift</GradientBtn>
+          </View>
         </View>
         {q.status === 'loading' && <ActivityIndicator color={colors.volt} style={{ marginTop: 40 }} />}
         {q.status === 'error' && <Text style={styles.err}>{q.error}</Text>}

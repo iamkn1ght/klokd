@@ -61,6 +61,13 @@ export function DashboardScreen({ navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const o = ov.data;
   const p = profile.data;
+  // Greet the person by first name; show the business name only once it's a
+  // real business name (sign-up seeds it with the person's own name).
+  const rawPerson = (p?.contactPerson ?? p?.businessName ?? businessName ?? '').trim();
+  const person = rawPerson === 'Unregistered business' ? '' : rawPerson;
+  const firstName = person.split(/\s+/)[0] ?? '';
+  const bizName = (p?.businessName ?? '').trim();
+  const businessLine = bizName && p?.contactPerson && bizName !== p.contactPerson.trim() && bizName !== 'Unregistered business' ? bizName : null;
 
   const refresh = async () => {
     setRefreshing(true);
@@ -76,8 +83,8 @@ export function DashboardScreen({ navigation }: Props) {
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.date}>{day(new Date())}</Text>
-            <Text style={styles.greeting} numberOfLines={1}>{greeting()}</Text>
-            <Text style={styles.biz} numberOfLines={1}>{p?.businessName ?? businessName ?? ''}</Text>
+            <Text style={styles.greeting} numberOfLines={1}>{greeting()}{firstName ? `, ${firstName}` : ''}</Text>
+            {businessLine ? <Text style={styles.biz} numberOfLines={1}>{businessLine}</Text> : null}
           </View>
           <View style={styles.headerBtns}>
             <Glass style={styles.bell} onPress={() => navigation.navigate('Notifications')} accessibilityLabel="Notifications">
