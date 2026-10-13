@@ -5,11 +5,11 @@ import { VerifyIDScreen } from '../screens/onboarding/VerifyIDScreen';
 import { SkillsScreen } from '../screens/onboarding/SkillsScreen';
 import { ConsentScreen } from '../screens/onboarding/ConsentScreen';
 import { MpesaSetupScreen } from '../screens/onboarding/MpesaSetupScreen';
-import { RailsLoginScreen } from '../screens/onboarding/RailsLoginScreen';
+import { SignInScreen } from '../screens/onboarding/SignInScreen';
 
 export type OnboardingStackParamList = {
   Welcome: undefined;
-  RailsLogin: undefined;
+  SignIn: undefined;
   VerifyID: undefined;
   Skills: undefined;
   Consent: undefined;
@@ -28,7 +28,7 @@ export function OnboardingNavigator() {
       }}
     >
       <Stack.Screen name="Welcome" component={WelcomeScreen} />
-      <Stack.Screen name="RailsLogin" component={RailsLoginScreen} />
+      <Stack.Screen name="SignIn" component={SignInScreen} />
       <Stack.Screen name="VerifyID" component={VerifyIDScreen} />
       <Stack.Screen name="Skills" component={SkillsScreen} />
       <Stack.Screen name="Consent" component={ConsentScreen} />

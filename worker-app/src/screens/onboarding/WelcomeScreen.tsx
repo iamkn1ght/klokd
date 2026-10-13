@@ -62,8 +62,8 @@ export function WelcomeScreen({ navigation }: Props) {
       </ScrollView>
 
       <View style={styles.footer}>
-        <GradientBtn onPress={() => navigation.navigate('RailsLogin')}>Get started</GradientBtn>
-        <PressScale onPress={() => navigation.navigate('RailsLogin')} style={styles.signIn}>
+        <GradientBtn onPress={() => navigation.navigate('SignIn')}>Get started</GradientBtn>
+        <PressScale onPress={() => navigation.navigate('SignIn')} style={styles.signIn}>
           <Text style={styles.signInText}>I already have an account</Text>
         </PressScale>
       </View>
