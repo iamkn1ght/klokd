@@ -81,6 +81,7 @@ Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke)
 | M-Pesa setup | 🟡 Waits on Kipkiren Pay wallets |
 | Store-build readiness: idempotency key on every write; check-in capture evidence (event id, monotonic stamps); PIN live-only | ✅ |
 | Push notifications: registers after sign-in, banners while open, tap opens inbox | ✅ iPhone via Expo Go · Android needs an APK build + Firebase push key |
+| Android APK (preview, installable without Play Store) | ✅ 13 Oct 2026 — shared with investor; gets OTA updates from the `preview` channel |
 | Play Store / TestFlight builds | ⛔ Needs Google Play ($25) and Apple Developer ($99/yr) accounts |
 | Offline check-in | ⬜ |
 
