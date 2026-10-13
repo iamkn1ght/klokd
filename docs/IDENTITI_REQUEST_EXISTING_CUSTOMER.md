@@ -2,6 +2,8 @@
 
 **From:** Klokd (octopus-api) · **Date:** 13 October 2026 · **Priority:** P0, returning users can't sign in
 
+**Status: done, 13 Oct 2026.** Identiti commit `15d4d7f`, deployed. Verified in production: a second create by the same app returns `200` with the same `account_uuid` and `existing: true`, and a Klokd sign-in for that number completes. Identiti's tests: 238/238.
+
 ## Problem
 
 `POST /v1/customers` refuses a phone number that already has an account with `400 validation_phone_already_registered`, and the response doesn't say which account. There is no lookup by phone.
