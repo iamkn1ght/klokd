@@ -1,13 +1,14 @@
 /**
  * Users (admin) — GET /admin/workers and /admin/employers, paged. Deactivate
- * or reactivate an account (PATCH /admin/users/:userId/status, audited).
+ * or reactivate an account (PATCH /admin/users/:userId/status, audited), and
+ * correct a worker's name (PATCH /admin/workers/:workerId/name, audited).
  * Phone numbers are shown masked; full records come from a data request.
  */
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { GlassCard } from '../../components/KlokdLayout';
 import { StatusPill, GhostBtn } from '../../components/Primitives';
-import { Chip, Notice } from '../../components/Form';
+import { Chip, Notice, Field } from '../../components/Form';
 import { ErrorState, EmptyState } from '../../components/States';
 import { useApiData, useApiAction } from '../../hooks/useApiData';
 import { colors, spacing } from '../../theme';
@@ -25,6 +26,20 @@ export function UsersScreen() {
   const q = useApiData<Paged<W | E>>(`/admin/${kind}?page=${page}&limit=25`);
   const act = useApiAction();
   const [msg, setMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+  const [fixing, setFixing] = useState<{ id: string; first: string; last: string; reason: string } | null>(null);
+
+  const saveName = async () => {
+    if (!fixing) return;
+    setMsg(null);
+    try {
+      await act(`/admin/workers/${fixing.id}/name`, { firstName: fixing.first.trim(), lastName: fixing.last.trim(), reason: fixing.reason.trim() }, 'PATCH');
+      setMsg({ tone: 'ok', text: `Name corrected to ${fixing.first.trim()} ${fixing.last.trim()}. The worker has been told.` });
+      setFixing(null);
+      q.reload();
+    } catch (e: any) {
+      setMsg({ tone: 'err', text: e.message });
+    }
+  };
 
   const setActive = async (userId: string, isActive: boolean) => {
     setMsg(null);
@@ -71,9 +86,27 @@ export function UsersScreen() {
                   <StatusPill tone={e.kraPin && e.wibaPolicyRef ? 'mint' : 'warn'}>{e.kraPin && e.wibaPolicyRef ? 'can post' : 'not verified'}</StatusPill>
                 )}
                 {!r.user.isActive && <StatusPill tone="err">deactivated</StatusPill>}
+                {isW && (
+                  <GhostBtn size="sm" onPress={() => setFixing({ id: w.id, first: w.firstName, last: w.lastName === '—' ? '' : w.lastName, reason: '' })}>
+                    Correct name
+                  </GhostBtn>
+                )}
                 <GhostBtn size="sm" tone={r.user.isActive ? 'danger' : 'default'} onPress={() => setActive(r.userId, !r.user.isActive)}>
                   {r.user.isActive ? 'Deactivate' : 'Reactivate'}
                 </GhostBtn>
+                {isW && fixing?.id === w.id && (
+                  <View style={styles.fix}>
+                    <View style={styles.fixRow}>
+                      <Field label="First name" value={fixing.first} onChangeText={v => setFixing(f => f && { ...f, first: v })} style={{ flex: 1, minWidth: 160 }} />
+                      <Field label="Last name" value={fixing.last} onChangeText={v => setFixing(f => f && { ...f, last: v })} style={{ flex: 1, minWidth: 160 }} />
+                    </View>
+                    <Field label="Reason (kept in the audit log)" value={fixing.reason} onChangeText={v => setFixing(f => f && { ...f, reason: v })} placeholder="e.g. Worker asked for a correction; matches their ID" />
+                    <View style={styles.fixRow}>
+                      <GhostBtn size="sm" disabled={fixing.first.trim().length < 2 || fixing.last.trim().length < 2 || fixing.reason.trim().length < 5} onPress={saveName}>Save name</GhostBtn>
+                      <GhostBtn size="sm" onPress={() => setFixing(null)}>Cancel</GhostBtn>
+                    </View>
+                  </View>
+                )}
               </View>
             );
           })}
@@ -97,4 +130,6 @@ const styles = StyleSheet.create({
   name: { color: colors.white, fontSize: 14, fontWeight: '800' },
   meta: { color: colors.white55, fontSize: 12, marginTop: 2 },
   pager: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  fix: { width: '100%', gap: spacing.sm, paddingTop: spacing.sm },
+  fixRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
 });
