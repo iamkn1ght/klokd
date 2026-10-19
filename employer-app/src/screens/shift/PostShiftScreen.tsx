@@ -4,7 +4,7 @@
  * minimum wage. From the Team tab, the shift is offered straight to one
  * worker (inviteWorkerId).
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GradientBtn, Chip, IconBtn, Label } from '../../components/Primitives';
@@ -29,10 +29,45 @@ const AREAS = [
 ];
 const TIME_RE = /^([01]?\d|2[0-3]):([0-5]\d)$/;
 
+interface RateGuide {
+  scope: 'area' | 'nairobi' | 'none';
+  sample: number;
+  windowDays: number;
+  hourly: { lowKes: number; medianKes: number; highKes: number } | null;
+  forHours: { hours: number; lowKes: number; highKes: number } | null;
+  minimumWageKes: number | null;
+}
+
+function RateStrip({ guide, role, area, pay }: { guide: RateGuide; role: string; area: string; pay: number }) {
+  const band = guide.hourly;
+  if (!band && !guide.minimumWageKes) return null;
+  const where = guide.scope === 'area' ? `in ${area}` : 'across Nairobi';
+  const low = guide.forHours?.lowKes;
+  return (
+    <View style={styles.strip}>
+      {band ? (
+        <>
+          <Text style={styles.stripMain}>
+            {role} shifts {where}: {guide.forHours ? `${kes(guide.forHours.lowKes)}–${kes(guide.forHours.highKes).replace('KES ', '')} for ${+guide.forHours.hours.toFixed(1)} h` : `${kes(band.lowKes)}–${kes(band.highKes).replace('KES ', '')} an hour`}
+          </Text>
+          <Text style={styles.stripSub}>
+            The middle half of {guide.sample} shifts posted on Klokd in the last {guide.windowDays} days
+            {guide.forHours ? ` · ${kes(band.lowKes)}–${band.highKes.toLocaleString('en-KE')} an hour` : ''}
+          </Text>
+          {low != null && pay > 0 && pay < low ? <Text style={styles.stripWarn}>Below what most businesses pay — expect fewer applicants.</Text> : null}
+        </>
+      ) : (
+        <Text style={styles.stripSub}>Not enough {role.toLowerCase()} shifts on Klokd yet to show a typical rate.</Text>
+      )}
+      {guide.minimumWageKes ? <Text style={styles.stripSub}>Legal minimum for the shift: {kes(guide.minimumWageKes)}</Text> : null}
+    </View>
+  );
+}
+
 export function PostShiftScreen({ navigation, route }: Props) {
   const invite = route.params?.inviteWorkerId;
   const inviteName = route.params?.inviteName;
-  const { post } = useApi();
+  const { post, get } = useApi();
   const days = useMemo(() => {
     const out: { key: string; label: string; date: Date }[] = [];
     const base = new Date();
@@ -70,6 +105,23 @@ export function PostShiftScreen({ navigation, route }: Props) {
   if (startAt && endAt && endAt <= startAt) endAt = new Date(endAt.getTime() + 86_400_000);
   const hours = startAt && endAt ? (endAt.getTime() - startAt.getTime()) / 3_600_000 : 0;
   const payNum = Number(pay.replace(/\D/g, ''));
+
+  // Rate guide (OQ-10): what businesses on Klokd paid for this role and area.
+  // Quiet when it can't load — it's a guide, never a gate.
+  const [guide, setGuide] = useState<RateGuide | null>(null);
+  const guideHours = hours > 0 && hours <= 12 ? +hours.toFixed(2) : null;
+  useEffect(() => {
+    if (!roleValue) return setGuide(null);
+    const qs = `role=${encodeURIComponent(roleValue)}&area=${encodeURIComponent(area)}${guideHours ? `&hours=${guideHours}` : ''}`;
+    let live = true;
+    const t = setTimeout(() => {
+      get<RateGuide>(`/klokd/shifts/rate-guide?${qs}`).then(g => live && setGuide(g)).catch(() => live && setGuide(null));
+    }, 300);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [roleValue, area, guideHours, get]);
 
   const problem = !roleValue
     ? 'Pick a role.'
@@ -157,6 +209,7 @@ export function PostShiftScreen({ navigation, route }: Props) {
           <Label color={colors.white60}>Pay for the shift (KES)</Label>
           <TextInput value={pay} onChangeText={setPay} keyboardType="number-pad" style={styles.input} />
           {payNum > 0 && hours > 0 ? <Text style={styles.hint}>≈ {kes(payNum / hours)} an hour · you pay {kes(payNum + Math.round(payNum * 0.04))} incl. the 4% Klokd fee</Text> : null}
+          {guide ? <RateStrip guide={guide} role={roleValue} area={area} pay={payNum} /> : null}
         </View>
         <View>
           <Label color={colors.white60}>Notes for workers (optional)</Label>
@@ -180,4 +233,8 @@ const styles = StyleSheet.create({
   hoursK: { color: colors.volt, fontWeight: '900', fontSize: 15 },
   hint: { color: colors.white55, fontSize: 11.5, marginTop: 6 },
   err: { color: colors.warning, fontSize: 13 },
+  strip: { marginTop: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.voltAlpha['25'], backgroundColor: colors.voltAlpha['07'], gap: 4 },
+  stripMain: { color: colors.white, fontSize: 13, fontWeight: '800' },
+  stripSub: { color: colors.white55, fontSize: 11.5, lineHeight: 16 },
+  stripWarn: { color: colors.warning, fontSize: 11.5, fontWeight: '700' },
 });

@@ -188,6 +188,44 @@ function atTime(day: Date, hhmm: string): Date {
   return d;
 }
 
+interface RateGuide {
+  scope: 'area' | 'nairobi' | 'none';
+  sample: number;
+  windowDays: number;
+  hourly: { lowKes: number; medianKes: number; highKes: number } | null;
+  forHours: { hours: number; lowKes: number; highKes: number } | null;
+  minimumWageKes: number | null;
+}
+
+const k = (n: number) => n.toLocaleString('en-KE');
+
+/** "Waiter shifts in Westlands: KES 1,600–1,900 for 5 h", from Klokd's own postings. */
+function RateStrip({ guide, role, area, pay }: { guide: RateGuide; role: string; area: string; pay: number }) {
+  const band = guide.hourly;
+  if (!band && !guide.minimumWageKes) return null;
+  const where = guide.scope === 'area' ? `in ${area}` : 'across Nairobi';
+  const f = guide.forHours;
+  return (
+    <View style={styles.rateStrip}>
+      {band ? (
+        <>
+          <Text style={styles.rateMain}>
+            {role} shifts {where}: KES {f ? `${k(f.lowKes)}–${k(f.highKes)} for ${+f.hours.toFixed(1)} h` : `${k(band.lowKes)}–${k(band.highKes)} an hour`}
+          </Text>
+          <Text style={styles.rateSub}>
+            The middle half of {guide.sample} shifts posted on Klokd in the last {guide.windowDays} days
+            {f ? ` · KES ${k(band.lowKes)}–${k(band.highKes)} an hour` : ''}
+          </Text>
+          {f && pay > 0 && pay < f.lowKes ? <Text style={styles.rateWarn}>Below what most businesses pay — expect fewer applicants.</Text> : null}
+        </>
+      ) : (
+        <Text style={styles.rateSub}>Not enough {role.toLowerCase()} shifts on Klokd yet to show a typical rate.</Text>
+      )}
+      {guide.minimumWageKes ? <Text style={styles.rateSub}>Legal minimum for the shift: KES {k(guide.minimumWageKes)}</Text> : null}
+    </View>
+  );
+}
+
 function PostShift({ invite }: { invite: string | null }) {
   const { accessToken } = useAuth();
   const { profile, status: profileStatus } = useEmployerProfile();
@@ -217,6 +255,25 @@ function PostShift({ invite }: { invite: string | null }) {
   const hours = startAt && endAt ? (endAt.getTime() - startAt.getTime()) / 3600_000 : 0;
   const payNum = Number(pay.replace(/[^\d]/g, ''));
   const startsInPast = !!startAt && startAt.getTime() < Date.now();
+
+  // Rate guide (OQ-10): what businesses on Klokd paid for this role and area.
+  // Quiet when it can't load — a guide, never a gate.
+  const [guide, setGuide] = useState<RateGuide | null>(null);
+  const guideHours = hours > 0 && hours <= 12 ? +hours.toFixed(2) : null;
+  useEffect(() => {
+    if (!roleValue || !accessToken) return setGuide(null);
+    const qs = `role=${encodeURIComponent(roleValue)}&area=${encodeURIComponent(area)}${guideHours ? `&hours=${guideHours}` : ''}`;
+    let live = true;
+    const t = setTimeout(() => {
+      api<RateGuide>(`/klokd/shifts/rate-guide?${qs}`, { token: accessToken })
+        .then(g => live && setGuide(g))
+        .catch(() => live && setGuide(null));
+    }, 300);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [roleValue, area, guideHours, accessToken]);
 
   const problems: string[] = [];
   if (!roleValue) problems.push('Pick a role.');
@@ -320,6 +377,7 @@ function PostShift({ invite }: { invite: string | null }) {
             hint={payNum && hours > 0 ? `≈ KES ${Math.round(payNum / hours).toLocaleString()} an hour` : undefined}
           />
         </View>
+        {guide ? <RateStrip guide={guide} role={roleValue} area={area} pay={payNum} /> : null}
         <Field
           label="Notes for workers (optional)"
           value={notes}
@@ -603,6 +661,10 @@ function BackLink() {
 }
 
 const styles = StyleSheet.create({
+  rateStrip: { marginTop: spacing.md, marginBottom: spacing.lg, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: 'rgba(188,255,78,0.25)', backgroundColor: 'rgba(188,255,78,0.06)', gap: 4 },
+  rateMain: { color: colors.white, fontSize: 14, fontWeight: '800' },
+  rateSub: { color: colors.white60, fontSize: 12, lineHeight: 17 },
+  rateWarn: { color: colors.warning, fontSize: 12, fontWeight: '700' },
   head: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: spacing.md, flexWrap: 'wrap', marginBottom: spacing.lg },
   h1: { color: colors.white, fontSize: 26, fontWeight: '900', letterSpacing: -1, marginTop: 8 },
   h2: { color: colors.white, fontSize: 19, fontWeight: '900', letterSpacing: -0.6, marginTop: 6, marginBottom: spacing.md },
