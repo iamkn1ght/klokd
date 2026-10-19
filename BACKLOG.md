@@ -1,6 +1,6 @@
 # Klokd — Backlog
 
-**As of 12 October 2026** · Kirimon Market Ventures
+**As of 19 October 2026** · Kirimon Market Ventures
 Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke).
 
 **Legend:** ✅ Done (live) · 🟡 Built, waiting on a partner/config · 🔨 In progress · ⬜ To do · ⛔ Blocked (not code)
@@ -11,7 +11,7 @@ Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke)
 
 | Area | State |
 |---|---|
-| API (octopus-api) | ✅ Live: own repo (`iamkn1ght/octopus-api`), own Railway project, `https://octopus-api-production.up.railway.app`. Full shift loop, attendance, settlements, disputes, ratings, notifications, privacy, staff console, daily backups. 55/55 tests passing |
+| API (octopus-api) | ✅ Live: own repo (`iamkn1ght/octopus-api`), own Railway project, `https://octopus-api-production.up.railway.app`. Full shift loop, attendance, settlements, disputes, ratings, notifications, privacy, staff console, daily backups. 83/83 tests passing; load test passed (80 users, 30 min, 0 errors) |
 | Website (klokd.co.ke) | ✅ Live. Landing, legal, early access, worker area, employer area, staff console — all on real data |
 | Worker app | ✅ All screens on real data. Over-the-air updates via Expo (`preview`). No store build yet |
 | Employer app | ✅ All screens on real data. Over-the-air updates via Expo (`preview`). No store build yet |
@@ -30,9 +30,12 @@ Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke)
 | 3 | Partner webhook URLs on `octopus-api-production.up.railway.app`: Todoku and Helpan updated; Identiti has no outgoing webhooks yet; Kipkiren Pay noted for provisioning. Delete the `klokd` forwarder after a few quiet days | You | ✅ / ⬜ |
 | 4 | Confirm off-site backups land in Supabase Storage — see **Database backups** on the staff Overview | You + Eng | ⬜ |
 | 5 | Identiti's Supabase on a paid plan — it has paused 3 times (OQ-15) | Silvia | ⛔ |
-| 6 | **Delete the `klokd` forwarder service + empty `klokd-volume`** (Railway project `happy-smile`) on or after **17 Oct 2026**, once nothing calls `klokd-production.up.railway.app` | You | ⬜ Reminder |
+| 6 | **Delete the `klokd` forwarder service** (Railway `happy-smile`): volume deleted 19 Oct ✅. Check scheduled for 22 Oct 09:00 (claude.ai/code/routines/trig_017YR2MFuNkAbefFsVi1LXNp); delete the service if its HTTP Logs are quiet | You | ⬜ 22 Oct |
 | 7 | Rotate the Helpan secrets pasted on 10 Oct: Supabase DB password, `IDENTITI_INTERNAL_HMAC_SECRET` (Helpan + Identiti together), `WEBHOOK_HMAC_SECRET` (same value into `HELPAN_WEBHOOK_SECRET` on octopus-api) | You | ⬜ |
 | 8 | Sign in once on the website and each app against the new API (apps: reopen twice to load the update) | You | ⬜ |
+| 9 | **Push + publish the 19 Oct work**: octopus-api (7 commits; deploy applies 3 migrations), klokd repo (website redeploys; worker + employer OTA on `preview`) | You → Eng | ⬜ Waiting for your go |
+| 10 | Check production for old seed-demo rows (OQ-21) — staff console → Users, phones `+25472000000…` / `+25471000000…` | You | ⬜ |
+| 11 | Privacy Policy §6 says "encrypted at rest" — not true of the SQLite file until the Postgres move (OQ-22) | You + counsel | ⬜ |
 
 ---
 
@@ -59,11 +62,11 @@ Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke)
 | Helpan agent (briefings, delegated sign-up) | 🟡 | Rail returned 500s (OQ-16) |
 | DPA: export, correction/deletion requests, erase, breach log | ✅ | |
 | Compliance config changes + history, statutory monthly report / CSV | ✅ API | Web screens to do (§6) |
-| Offline check-in queue | ⬜ | Server replay rules + device queue |
-| Rate-intelligence strip for Post a Shift | ⬜ | Data source undecided (OQ-10) |
-| Attendance-event retention job | ⬜ | Period needs counsel (OQ-20) |
-| Formal OWASP / encryption review | ⬜ | |
-| Load test at 80 users / 30 min | ⬜ | k6 script exists |
+| Offline check-in queue | ✅ 19 Oct | Replay once per tap; timed from the phone's monotonic clock; flagged for review (D-63) |
+| Rate guide for Post a Shift | ✅ 19 Oct | Klokd's own postings, last 90 days, middle half; legal minimum (D-65) |
+| Attendance-event retention job | 🟡 Built 19 Oct | Runs once `ATTENDANCE_RETENTION_MONTHS` is set (OQ-20) (D-64) |
+| Formal OWASP / encryption review | ✅ 19 Oct | `SECURITY_REVIEW.md`: 13 fixed (incl. pay/dispute access leaks), 6 open (D-67) |
+| Load test at 80 users / 30 min | ✅ 19 Oct | Local copy: 301,338 requests, 0 errors, p95 128 ms, p99 155 ms |
 
 ---
 
@@ -83,7 +86,7 @@ Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke)
 | Push notifications: registers after sign-in, banners while open, tap opens inbox | ✅ iPhone via Expo Go · Android needs an APK build + Firebase push key |
 | Android APK (preview, installable without Play Store) | ✅ 13 Oct 2026 — shared with investor; gets OTA updates from the `preview` channel |
 | Play Store / TestFlight builds | ⛔ Needs Google Play ($25) and Apple Developer ($99/yr) accounts |
-| Offline check-in | ⬜ |
+| Offline check-in (saved without signal, sent later) | ✅ 19 Oct (OTA pending) |
 
 ## 5. Employer app
 
@@ -101,7 +104,7 @@ Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke)
 | Idempotency key on every write (store-build readiness) | ✅ |
 | Push notifications | ✅ iPhone via Expo Go · Android needs APK + Firebase key |
 | Store builds | ⛔ Needs Google Play and Apple Developer accounts |
-| Rate-intelligence strip | ⬜ |
+| Rate guide strip | ✅ 19 Oct (OTA pending) |
 
 ## 6. Website (klokd.co.ke)
 
@@ -116,7 +119,7 @@ Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke)
 | Staff console: monthly statutory report (payouts + calculated at clock-out), CSV | ✅ |
 | Staff console: breach log — report, 72-hour ODPC countdown, notified / contained / closed, notes | ✅ |
 | Re-open public sign-in | ⛔ After SMS works and echo is off |
-| SEO: pre-rendered public pages, sitemap | ⬜ |
+| SEO: pre-rendered `/`, `/terms`, `/privacy`, sitemap, robots | ✅ 19 Oct (deploy pending) |
 
 ---
 
@@ -130,10 +133,10 @@ Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke)
 | Previous address forwards to octopus-api (Railway `klokd` service); delete once partners have moved | ✅ / ⬜ |
 | Database on the volume (absolute path), daily backups on volume + Supabase | ✅ |
 | Account suspension enforced; per-caller rate limits; CORS allowlist; staff-only demo routes | ✅ |
-| Postgres (Supabase) for production | ⬜ Before multi-product |
+| Postgres (Supabase) for production | 🟡 Prepared 19 Oct (`POSTGRES_MIGRATION.md`); needs a project + window (OQ-23) |
 | Both apps on the `mumbus` Expo account (new projects; `preview` channel) | ✅ |
-| One `_dmarc` record on klokd.co.ke (OQ-18) | ⬜ |
-| Core / Klokd-arm split for LunchDrop (see octopus-api `SPEC.md` §16) | ⬜ |
+| One `_dmarc` record on klokd.co.ke (OQ-18) | ✅ 19 Oct (`p=reject`) |
+| Core / Klokd-arm split for LunchDrop (see octopus-api `SPEC.md` §16) | ✅ Step 1, 19 Oct (four core→arm imports left) |
 
 ---
 
@@ -178,7 +181,7 @@ When octopus-api moves address, partners must update webhook URLs.
 - [ ] Push notifications on phones (store builds)
 - [ ] Database persistence verified + backups
 - [ ] ODPC registered; Privacy Policy published; DPAs signed
-- [ ] Load test: 80 users, 30 minutes, zero errors
+- [x] Load test: 80 users, 30 minutes, zero errors (local copy, 19 Oct)
 - [ ] 50 employers + 200 workers onboarded
 
 ---

@@ -2,7 +2,7 @@
 ## Session Continuity Document · Kirimon Market Ventures
 
 **Product:** Klokd — Casual Labour Marketplace (Product B)
-**Pack version:** v1.3 · 09 October 2026, evening (v1.2 · 09 Oct · v1.1 · 08 Oct · v1.0 · March 2026)
+**Pack version:** v1.5 · 19 October 2026 (v1.4 · 10 Oct · v1.3 · 09 Oct evening · v1.2 · 09 Oct · v1.1 · 08 Oct · v1.0 · March 2026)
 **Prepared by:** Chamia Mutuku, Co-Founder & CPO
 **Classification:** Confidential · Internal Use Only
 **Rule:** Update this document at the end of every working session. Never start a session without reading it first.
@@ -513,6 +513,12 @@ All locked product, technical, and design decisions. Check this before proposing
 | D-60 | SQLite path must be absolute on the volume (`file:/app/data/octopus.db`); daily `VACUUM INTO` backups, 7 on the volume + off-site to Supabase Storage | 10 Oct 2026 | LOCKED |
 | D-61 | Account suspension is its own field (`suspended_at`), separate from sign-up activation; blocks sign-in, refresh and every request; Identiti `ACCOUNT_SUSPENDED` applies it | 10 Oct 2026 | LOCKED |
 | D-62 | API trusts one proxy hop (rate limits per caller); CORS limited to `CORS_ORIGINS`; `/demo` routes staff-only | 10 Oct 2026 | LOCKED |
+| D-63 | Offline check-in: arrive and clock-out are saved on the phone without signal and replayed; each tap applies once (`clientEventId`); the server times it as receive time − the phone's monotonic delay (same app run, ≤ 12 h), else receive time + `OFFLINE_TIME_UNVERIFIED`; delays over 2 min carry `OFFLINE_REPLAY` for review. The start PIN is never queued — without signal the manager starts the shift | 19 Oct 2026 | LOCKED |
+| D-64 | Attendance-event retention: after `ATTENDANCE_RETENTION_MONTHS` (unset until counsel, OQ-20) events on closed shifts fold into per-worker counts and are deleted with their reviews; shift geohashes cleared. Pay, contracts and shift times keep 7 years. The table stays append-only except through the purge gate | 19 Oct 2026 | LOCKED (period open) |
+| D-65 | Rate guide (resolves OQ-10 provisionally): Post a Shift shows the middle half of hourly rates posted on Klokd for the role in the last 90 days (area if 5+, else Nairobi), scaled to the shift's hours, plus the legal minimum. No outside data | 19 Oct 2026 | PROVISIONAL |
+| D-66 | octopus-api layout: `src/core/` (platform) + `src/arms/klokd/` (product); Klokd routes at `/api/v1/klokd/…`, old root paths kept as aliases; a test blocks new arm→arm / core→arm imports | 19 Oct 2026 | LOCKED |
+| D-67 | Object-level access: pay, pay statements, disputes and pay holds are visible only to the shift's worker, its employer and staff (`requireShiftParty`); refresh tokens hashed at rest; production refuses to boot without JWT secrets | 19 Oct 2026 | LOCKED |
+| D-68 | Public web pages are prerendered at build (`/`, `/terms`, `/privacy` + sitemap.xml, robots.txt) from the same copy the app renders (`web-app/src/content/`) | 19 Oct 2026 | LOCKED |
 
 ---
 
@@ -531,7 +537,7 @@ These are unresolved as of the pack date. Any session that resolves one must upd
 | OQ-07 | Who is Ivy? (Referenced as interview lead and DPIA co-owner) | Phase 0 validation work | P1 |
 | OQ-08 | WIBA Option B insurance partner — which insurer? What is the commercial arrangement? | Sprint 7+ (Option B design if selected) | P2 |
 | OQ-09 | Section 37 advice: Does a 30-day block fully satisfy the legal obligation or is further action required? | Sprint 5 S37 implementation | P2 |
-| OQ-10 | Rate intelligence data source — how will the KES [min]–[max] strip in Post a Shift be populated initially? | Sprint 13 Post a Shift screen | P2 |
+| OQ-10 | ~~Rate intelligence data source~~ Built on Klokd's own postings (D-65). Open only if you want an outside source too | — | P3 |
 | OQ-11 | Exact registered company name as on the certificate (e.g. "Klokd Limited")? | Terms + Privacy wording (D-44) | P1 |
 | OQ-12 | `OTP_SANDBOX_ECHO=true` on the production API returns OTP codes to any caller (account takeover). Turn off when OQ-13 resolves, or sooner if the demo apps can lose sign-in | Any real users | P0 |
 | OQ-13 | Todoku reports SMS / voice / WhatsApp channels unavailable — real OTPs can't reach phones | Re-opening public sign-in (D-37) | P0 |
@@ -539,10 +545,12 @@ These are unresolved as of the pack date. Any session that resolves one must upd
 | OQ-15 | Identiti's Supabase project (`tjqpyblyoslyoplmnlua`) free tier auto-paused 3× (22 May, 18 Jul, 08 Oct) — move to a paid plan | All sign-ups (account creation fails while paused) | P0 |
 | OQ-16 | Helpan rail returned 500 on every write (25 Jul) — fixed? | Any Helpan feature work | P2 |
 | OQ-17 | Hakken `klokd` app still `provisioning` — Silvia to flip to `active` | Formal Hakken go-live | P2 |
-| OQ-18 | Two `_dmarc` TXT records on klokd.co.ke (`p=reject` and `p=none`) — keep one | Email deliverability | P2 |
+| OQ-18 | Two `_dmarc` TXT records on klokd.co.ke — 19 Oct: you have Cloudflare access; the `p=reject` record was deleted by mistake and is being re-added as the single record (both report addresses). Confirm one record remains | Email deliverability / anti-spoofing | P1 |
 | OQ-19 | Push to phones: the API now sends Expo push to registered device tokens (POST /me/push-token) and keeps an in-app inbox, but neither app registers a token yet — that needs `expo-notifications`, a native module, so a new store build (not an OTA). Until then alerts appear in the app/website inbox and bell | Alerts when the app is closed | P1 |
 | OQ-21 | Production may still hold rows from the old `/admin/seed-demo` endpoint (fake employers with real brand names, fake shifts, synthetic phones `+25472000000x` / `+25471000000x`). Check the admin Users page; purge if present | Clean data | P1 |
-| OQ-20 | Attendance-event retention period (proposed 12 months, then aggregate) — needs counsel + ODPC position | DPA compliance | P2 |
+| OQ-20 | Attendance-event retention period (proposed 12 months, then aggregate) — needs counsel + ODPC position. The job is built (D-64); set `ATTENDANCE_RETENTION_MONTHS` once decided | DPA compliance | P2 |
+| OQ-22 | Privacy Policy §6 says data is "encrypted at rest". The SQLite file isn't (the volume may be, at Railway's level); true after the Postgres move. Reword or move first | Accurate legal copy | P1 |
+| OQ-23 | Which Supabase project hosts octopus-api's Postgres (Klokd's or a new platform one), on a paid plan, and when is the 30-minute window? See octopus-api `POSTGRES_MIGRATION.md` | Postgres move (SPEC §16 step 4) | P1 |
 
 ### 12a. Kipkiren Pay — built, waiting for the rail (D-57)
 
@@ -670,6 +678,10 @@ At 40 shifts/month × KES 1,800 gross per shift:
 
 ## 18. Next Session Starting Point
 
+**v1.5 · 19 Oct 2026 — read this first.** The partner-independent code backlog is done but **not deployed**: octopus-api has 7 unpushed commits (3 migrations), the klokd repo has worker/employer/web commits (OTA + website redeploy pending). See RECAP addendum 8 and BACKLOG §2 rows 9–11. Next: (1) push + publish once approved; (2) sign in on each surface; (3) 22 Oct forwarder check → delete `klokd` service; (4) OQ-21 seed rows; (5) OQ-22 privacy wording; (6) OQ-23 → Postgres rehearsal; (7) native builds for push (OQ-19). Superseded below: "SEO", "Offline check-in queue; rate-intelligence strip", "formal OWASP / encryption review" — all done 19 Oct.
+
+*Earlier status (v1.3–v1.4), kept for history:*
+
 Current status as of Pack v1.3 (09 Oct 2026, evening). Everything below is pushed to `main` and deployed (API + website); app OTAs published to `preview`.
 
 **Completed 09 Oct 2026:**
@@ -699,6 +711,6 @@ Current status as of Pack v1.3 (09 Oct 2026, evening). Everything below is pushe
 
 ---
 
-*Klokd · Reboot Pack v1.4 · 10 October 2026 (v1.3 · 09 Oct 2026 · v1.2 · v1.1 · 08 Oct 2026 · v1.0 · March 2026)*
+*Klokd · Reboot Pack v1.5 · 19 October 2026 (v1.4 · 10 Oct 2026 · v1.3 · 09 Oct 2026 · v1.2 · v1.1 · 08 Oct 2026 · v1.0 · March 2026)*
 *A Kirimon Market Ventures Company · klokd.co.ke · @klokdKE*
 *Update this document at the end of every session. Version control in filename.*
