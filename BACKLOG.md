@@ -33,7 +33,7 @@ Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke)
 | 6 | **Delete the `klokd` forwarder service** (Railway `happy-smile`): volume deleted 19 Oct ✅. Check scheduled for 22 Oct 09:00 (claude.ai/code/routines/trig_017YR2MFuNkAbefFsVi1LXNp); delete the service if its HTTP Logs are quiet | You | ⬜ 22 Oct |
 | 7 | Rotate the Helpan secrets pasted on 10 Oct: Supabase DB password, `IDENTITI_INTERNAL_HMAC_SECRET` (Helpan + Identiti together), `WEBHOOK_HMAC_SECRET` (same value into `HELPAN_WEBHOOK_SECRET` on octopus-api) | You | ⬜ |
 | 8 | Sign in once on the website and each app against the new API (apps: reopen twice to load the update) | You | ⬜ |
-| 9 | **Push + publish the 19 Oct work**: octopus-api (7 commits; deploy applies 3 migrations), klokd repo (website redeploys; worker + employer OTA on `preview`) | You → Eng | ⬜ Waiting for your go |
+| 9 | 19 Oct work pushed + live: API (3 migrations applied), website (prerendered pages, sitemap), worker + employer OTA on `preview` (groups 6490aa3e, 682dd993) | Eng | ✅ |
 | 10 | Check production for old seed-demo rows (OQ-21) — staff console → Users, phones `+25472000000…` / `+25471000000…` | You | ⬜ |
 | 11 | Privacy Policy §6 says "encrypted at rest" — not true of the SQLite file until the Postgres move (OQ-22) | You + counsel | ⬜ |
 
@@ -86,7 +86,7 @@ Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke)
 | Push notifications: registers after sign-in, banners while open, tap opens inbox | ✅ iPhone via Expo Go · Android needs an APK build + Firebase push key |
 | Android APK (preview, installable without Play Store) | ✅ 13 Oct 2026 — shared with investor; gets OTA updates from the `preview` channel |
 | Play Store / TestFlight builds | ⛔ Needs Google Play ($25) and Apple Developer ($99/yr) accounts |
-| Offline check-in (saved without signal, sent later) | ✅ 19 Oct (OTA pending) |
+| Offline check-in (saved without signal, sent later) | ✅ 19 Oct  |
 
 ## 5. Employer app
 
@@ -104,7 +104,7 @@ Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke)
 | Idempotency key on every write (store-build readiness) | ✅ |
 | Push notifications | ✅ iPhone via Expo Go · Android needs APK + Firebase key |
 | Store builds | ⛔ Needs Google Play and Apple Developer accounts |
-| Rate guide strip | ✅ 19 Oct (OTA pending) |
+| Rate guide strip | ✅ 19 Oct  |
 
 ## 6. Website (klokd.co.ke)
 
@@ -119,7 +119,7 @@ Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke)
 | Staff console: monthly statutory report (payouts + calculated at clock-out), CSV | ✅ |
 | Staff console: breach log — report, 72-hour ODPC countdown, notified / contained / closed, notes | ✅ |
 | Re-open public sign-in | ⛔ After SMS works and echo is off |
-| SEO: pre-rendered `/`, `/terms`, `/privacy`, sitemap, robots | ✅ 19 Oct (deploy pending) |
+| SEO: pre-rendered `/`, `/terms`, `/privacy`, sitemap, robots | ✅ 19 Oct  |
 
 ---
 
