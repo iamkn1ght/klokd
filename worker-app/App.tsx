@@ -4,7 +4,9 @@ import { NavigationContainer, createNavigationContainerRef } from '@react-naviga
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { BrandIntro } from './src/components/Story';
+import { AppState } from 'react-native';
 import { configurePushDisplay, registerForPush, onNotificationTap } from './src/lib/push';
+import { flushQueue, getQueue, loadQueue } from './src/lib/offlineQueue';
 
 const navigationRef = createNavigationContainerRef<any>();
 configurePushDisplay();
@@ -26,6 +28,28 @@ function PushBridge() {
   return null;
 }
 
+// Sends check-ins saved without signal: on sign-in, whenever the app comes back
+// to the front, and every 30 s while something is waiting.
+function CheckinQueueBridge() {
+  const { isAuthenticated, getToken } = useAuth();
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const flush = () => {
+      if (getQueue().pending.length) void flushQueue(getToken);
+    };
+    void loadQueue().then(flush);
+    const sub = AppState.addEventListener('change', s => {
+      if (s === 'active') flush();
+    });
+    const t = setInterval(flush, 30_000);
+    return () => {
+      sub.remove();
+      clearInterval(t);
+    };
+  }, [isAuthenticated, getToken]);
+  return null;
+}
+
 export default function App() {
   // Branded intro on every launch; the app (and the stored session) loads underneath.
   const [intro, setIntro] = useState(true);
@@ -36,6 +60,7 @@ export default function App() {
         <StatusBar style="light" />
         <RootNavigator />
         <PushBridge />
+        <CheckinQueueBridge />
       </NavigationContainer>
       {intro && <BrandIntro onDone={endIntro} tagline="Verified shifts. Clear pay." />}
     </AuthProvider>

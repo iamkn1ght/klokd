@@ -13,6 +13,9 @@ import { Icons } from '../../components/Icons';
 import { useApi } from '../../hooks/useApi';
 import { colors, typography } from '../../theme';
 import { captureCheckin } from '../../lib/requestIds';
+import { enqueueTap, flushQueue, pendingFor, subscribeQueue } from '../../lib/offlineQueue';
+import { isRetryable } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 
 type Props = {
   navigation: NativeStackNavigationProp<any>;
@@ -68,7 +71,7 @@ interface WorkerAttendance {
   pinAttemptsLeft: number;
 }
 
-type Phase = 'loading' | 'confirm' | 'arrive' | 'pin' | 'error';
+type Phase = 'loading' | 'confirm' | 'arrive' | 'queued' | 'pin' | 'error';
 
 /**
  * Check-in, Uber-style:
@@ -77,10 +80,13 @@ type Phase = 'loading' | 'confirm' | 'arrive' | 'pin' | 'error';
  *   3. arrived   → enter the manager's 4-digit PIN     POST /attendance/shifts/:id/start
  *   4. ACTIVE    → Active shift screen
  * The server's clock is the only clock; location is read only at these taps.
+ * No signal at step 2 → the arrival is saved on the phone with its capture and
+ * sent when there is (offlineQueue); the server times it from the tap.
  */
 export function ClockInScreen({ navigation, route }: Props) {
   const shiftId: string | undefined = route?.params?.shift?.id;
   const { post, get } = useApi();
+  const { getToken } = useAuth();
   const [view, setView] = useState<WorkerAttendance | null>(null);
   const [phase, setPhase] = useState<Phase>('loading');
   const [busy, setBusy] = useState(false);
@@ -99,6 +105,7 @@ export function ClockInScreen({ navigation, route }: Props) {
       setPhase('error');
       return;
     }
+    const queued = pendingFor(shiftId, 'arrive');
     try {
       const v = await get<WorkerAttendance>(`/attendance/shifts/${shiftId}`);
       setView(v);
@@ -107,12 +114,16 @@ export function ClockInScreen({ navigation, route }: Props) {
         return;
       }
       if (v.shift.status === 'CONFIRMED') setPhase('confirm');
-      else if (v.shift.status === 'ACCEPTED') setPhase(v.shift.arrivedAt ? 'pin' : 'arrive');
+      else if (v.shift.status === 'ACCEPTED') setPhase(v.shift.arrivedAt ? 'pin' : queued ? 'queued' : 'arrive');
       else {
         setMessage('This shift isn’t waiting for you to check in.');
         setPhase('error');
       }
     } catch (e: any) {
+      if (queued) {
+        setPhase('queued');
+        return;
+      }
       setMessage(e?.message ?? 'Couldn’t load the shift.');
       setPhase('error');
     }
@@ -122,6 +133,27 @@ export function ClockInScreen({ navigation, route }: Props) {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shiftId]);
+
+  // A saved arrival left the queue: it either landed (reload) or was refused (say why).
+  const queuedId = useRef<string | null>(null);
+  useEffect(
+    () =>
+      subscribeQueue(q => {
+        if (!shiftId) return;
+        const waiting = q.pending.find(t => t.shiftId === shiftId && t.kind === 'arrive');
+        if (waiting) {
+          queuedId.current = waiting.id;
+          return;
+        }
+        if (!queuedId.current) return;
+        const refused = q.failed.find(t => t.id === queuedId.current);
+        queuedId.current = null;
+        if (refused) setMessage(`Your saved check-in wasn’t accepted: ${refused.error}`);
+        void load();
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [shiftId]
+  );
 
   const confirm = async () => {
     setBusy(true);
@@ -145,20 +177,44 @@ export function ClockInScreen({ navigation, route }: Props) {
         setBusy(false);
         return;
       }
+      // GPS works without signal, so the fix is good even when the network isn't.
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       // Stamped at the location fix: when the worker was actually there.
       const stamp = captureCheckin();
-      await post(`/attendance/shifts/${shiftId}/arrive`, {
+      const body = {
         ...stamp,
         lat: loc.coords.latitude,
         lng: loc.coords.longitude,
         accuracy: loc.coords.accuracy ?? undefined,
         mocked: (loc as any).mocked === true,
-      });
+      };
+      try {
+        await post(`/attendance/shifts/${shiftId}/arrive`, body, { timeoutMs: 15_000 });
+      } catch (e: any) {
+        if (!isRetryable(e)) throw e;
+        await enqueueTap({
+          id: stamp.clientEventId,
+          kind: 'arrive',
+          shiftId: shiftId!,
+          label: view ? `${view.shift.role} at ${view.shift.venue}` : 'Your shift',
+          body,
+        });
+        setPhase('queued');
+        setBusy(false);
+        return;
+      }
       await load();
     } catch (e: any) {
       setMessage(e?.message ?? 'Couldn’t check you in. Try again.');
     }
+    setBusy(false);
+  };
+
+  const sendNow = async () => {
+    setBusy(true);
+    setMessage(null);
+    await flushQueue(getToken);
+    if (pendingFor(shiftId!, 'arrive')) setMessage('Still no connection. It will send by itself when you have signal.');
     setBusy(false);
   };
 
@@ -187,6 +243,7 @@ export function ClockInScreen({ navigation, route }: Props) {
     `${String(Math.floor((abs % 3_600_000) / 60_000)).padStart(2, '0')}:` +
     `${String(Math.floor((abs % 60_000) / 1000)).padStart(2, '0')}`;
   const ready = phase === 'pin';
+  const saved = phase === 'queued';
 
   return (
     <View style={styles.screen}>
@@ -219,7 +276,7 @@ export function ClockInScreen({ navigation, route }: Props) {
           >
             <Icons.pin color={ready ? colors.electric : colors.white55} size={22} />
             <Text style={[styles.ringLabel, { color: ready ? colors.electric : colors.white55 }]}>
-              {phase === 'loading' ? 'Loading…' : ready ? 'At venue' : busy ? 'Locating…' : 'Not checked in'}
+              {phase === 'loading' ? 'Loading…' : ready ? 'At venue' : saved ? 'Saved on phone' : busy ? 'Locating…' : 'Not checked in'}
             </Text>
           </LinearGradient>
         </View>
@@ -229,6 +286,7 @@ export function ClockInScreen({ navigation, route }: Props) {
             {phase === 'confirm' && 'Confirm your shift'}
             {phase === 'arrive' && 'Tap when you get there'}
             {phase === 'pin' && 'Ask the manager for the PIN'}
+            {phase === 'queued' && 'Check-in saved'}
             {phase === 'loading' && 'Loading your shift…'}
             {phase === 'error' && 'Can’t check in'}
           </Text>
@@ -237,6 +295,11 @@ export function ClockInScreen({ navigation, route }: Props) {
               {phase === 'confirm' && `${s.role} at ${s.venue}${s.area ? ` · ${s.area}` : ''}. Let them know you’re coming.`}
               {phase === 'arrive' && `We check you’re within 500 m of ${s.venue}. Your location is only read when you tap.`}
               {phase === 'pin' && `You’re checked in at ${s.venue}. Enter the 4-digit start PIN from the manager to start your shift.`}
+            </Text>
+          ) : null}
+          {saved ? (
+            <Text style={styles.statusSub}>
+              No signal right now. Your check-in is saved with the time you arrived and sends itself when you’re back online. The start PIN needs signal — or ask the manager to start the shift from their app.
             </Text>
           ) : null}
         </View>
@@ -273,6 +336,7 @@ export function ClockInScreen({ navigation, route }: Props) {
         {phase === 'confirm' && <GradientBtn disabled={busy} onPress={confirm}>{busy ? 'Confirming…' : 'I’ll be there'}</GradientBtn>}
         {phase === 'arrive' && <GradientBtn disabled={busy} onPress={arrive}>{busy ? 'Checking location…' : 'I’ve arrived'}</GradientBtn>}
         {phase === 'pin' && <GradientBtn disabled={busy || pin.length !== 4} onPress={start}>{busy ? 'Starting…' : 'Start shift'}</GradientBtn>}
+        {phase === 'queued' && <GradientBtn disabled={busy} onPress={sendNow}>{busy ? 'Sending…' : 'Try sending now'}</GradientBtn>}
         {phase === 'error' && <GradientBtn onPress={() => navigation.goBack()}>Back</GradientBtn>}
       </View>
     </View>

@@ -2,7 +2,7 @@
  * Active shift — live timer (server start time) + progress + pay due + clock-out.
  * Visuals from claude-design/screens/main.jsx.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,6 +13,9 @@ import * as Location from 'expo-location';
 import { useApi } from '../../hooks/useApi';
 import { colors, typography } from '../../theme';
 import { captureCheckin } from '../../lib/requestIds';
+import { enqueueTap, flushQueue, pendingFor, subscribeQueue } from '../../lib/offlineQueue';
+import { isRetryable } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 
 type Props = {
   navigation: NativeStackNavigationProp<any>;
@@ -48,21 +51,26 @@ const clock = (iso: string) => new Date(iso).toLocaleTimeString('en-GB', { hour:
  * Active shift — live timer from the SERVER's start time, progress through
  * the booked hours, and clock-out. Clock-out reads location once (recorded,
  * never blocks), then shows the pay due and when it's approved.
+ * No signal at clock-out → it's saved on the phone (offlineQueue) and the
+ * timer stops at the tap; the server times it from the tap when it lands.
  */
 export function ActiveShiftScreen({ navigation, route }: Props) {
   const shiftId: string | undefined = route?.params?.shift?.id;
   const { get, post } = useApi();
+  const { getToken } = useAuth();
   const [view, setView] = useState<WorkerAttendance | null>(null);
   const [now, setNow] = useState(Date.now());
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // Wall time of a clock-out saved on the phone, until the server has it.
+  const [savedOutAt, setSavedOutAt] = useState<number | null>(null);
 
   const load = async () => {
     if (!shiftId) return;
     try {
       setView(await get<WorkerAttendance>(`/attendance/shifts/${shiftId}`));
     } catch (e: any) {
-      setMessage(e?.message ?? 'Couldn’t load the shift.');
+      if (!pendingFor(shiftId, 'clock-out')) setMessage(e?.message ?? 'Couldn’t load the shift.');
     }
   };
 
@@ -73,10 +81,35 @@ export function ActiveShiftScreen({ navigation, route }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shiftId]);
 
+  // Follow a saved clock-out: show it while it waits, reload once it lands.
+  const waitingId = useRef<string | null>(null);
+  useEffect(
+    () =>
+      subscribeQueue(q => {
+        if (!shiftId) return;
+        const waiting = q.pending.find(t => t.shiftId === shiftId && t.kind === 'clock-out');
+        if (waiting) {
+          waitingId.current = waiting.id;
+          setSavedOutAt(new Date((waiting.body as any).capture?.deviceWallTime ?? waiting.queuedAt).getTime());
+          return;
+        }
+        setSavedOutAt(null);
+        if (!waitingId.current) return;
+        const refused = q.failed.find(t => t.id === waitingId.current);
+        waitingId.current = null;
+        if (refused) setMessage(`Your saved clock-out wasn’t accepted: ${refused.error}`);
+        void load();
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [shiftId]
+  );
+
   const s = view?.shift;
   const startedAt = s?.clockInAt ? new Date(s.clockInAt).getTime() : null;
-  const finished = s?.status !== 'ACTIVE' && !!s?.clockOutAt;
-  const elapsed = startedAt ? Math.max(0, Math.floor(((finished ? new Date(s!.clockOutAt!).getTime() : now) - startedAt) / 1000)) : 0;
+  const saved = savedOutAt != null && s?.status === 'ACTIVE';
+  const finished = (s?.status !== 'ACTIVE' && !!s?.clockOutAt) || saved;
+  const endedAt = saved ? savedOutAt! : s?.clockOutAt ? new Date(s.clockOutAt).getTime() : now;
+  const elapsed = startedAt ? Math.max(0, Math.floor(((finished ? endedAt : now) - startedAt) / 1000)) : 0;
   const hrs = String(Math.floor(elapsed / 3600)).padStart(2, '0');
   const mns = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
   const scs = String(elapsed % 60).padStart(2, '0');
@@ -99,11 +132,29 @@ export function ActiveShiftScreen({ navigation, route }: Props) {
       // Location is evidence only — clock-out never waits on it.
     }
     try {
-      await post(`/attendance/shifts/${shiftId}/clock-out`, { ...stamp, ...body });
+      await post(`/attendance/shifts/${shiftId}/clock-out`, { ...stamp, ...body }, { timeoutMs: 15_000 });
       await load();
     } catch (e: any) {
-      setMessage(e?.message ?? 'Couldn’t clock you out. Try again.');
+      if (isRetryable(e) && shiftId) {
+        await enqueueTap({
+          id: stamp.clientEventId,
+          kind: 'clock-out',
+          shiftId,
+          label: s ? `${s.role} at ${s.venue}` : 'Your shift',
+          body: { ...stamp, ...body },
+        });
+      } else {
+        setMessage(e?.message ?? 'Couldn’t clock you out. Try again.');
+      }
     }
+    setBusy(false);
+  };
+
+  const sendNow = async () => {
+    setBusy(true);
+    setMessage(null);
+    await flushQueue(getToken);
+    if (shiftId && pendingFor(shiftId, 'clock-out')) setMessage('Still no connection. It will send by itself when you have signal.');
     setBusy(false);
   };
 
@@ -115,14 +166,16 @@ export function ActiveShiftScreen({ navigation, route }: Props) {
         <IconBtn onPress={() => navigation.goBack()}>
           <Icons.back color={colors.white} size={14} />
         </IconBtn>
-        <StatusPill tone="mint">{finished ? '✓ DONE' : '● LIVE'}</StatusPill>
+        <StatusPill tone="mint">{saved ? '◌ SAVED' : finished ? '✓ DONE' : '● LIVE'}</StatusPill>
         <View style={{ width: 38 }} />
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }}>
         <View style={styles.timerBlock}>
           <Label color={colors.white40} style={{ marginBottom: 10 }}>
-            {s?.clockInAt ? `Started at ${clock(s.clockInAt)}${finished && s.clockOutAt ? ` · finished ${clock(s.clockOutAt)}` : ''}` : 'Loading…'}
+            {s?.clockInAt
+              ? `Started at ${clock(s.clockInAt)}${saved ? ` · finished ${clock(new Date(savedOutAt!).toISOString())}` : finished && s.clockOutAt ? ` · finished ${clock(s.clockOutAt)}` : ''}`
+              : 'Loading…'}
           </Label>
           <View style={{ flexDirection: 'row', justifyContent: 'center' }}>
             <Text style={[styles.timer, { color: colors.electric }]}>{hrs}</Text>
@@ -160,7 +213,8 @@ export function ActiveShiftScreen({ navigation, route }: Props) {
               {view?.settlement ? <Text style={styles.earningsOf}>after KES {view.settlement.deductionsKes.toLocaleString()} statutory deductions</Text> : null}
             </View>
             <Text style={styles.earningsSub}>
-              {!view?.settlement && 'Your pay is worked out when you clock out.'}
+              {saved && 'Clocked out on your phone — no signal yet. It sends by itself with the time you tapped, then your pay is worked out.'}
+              {!saved && !view?.settlement && 'Your pay is worked out when you clock out.'}
               {view?.settlement?.status === 'AWAITING_APPROVAL' && `The venue checks your hours — approved automatically by ${clock(view.settlement.approveBy)}.`}
               {view?.settlement?.status === 'APPROVED' && 'Approved. Sent to your M-Pesa once Klokd payments go live.'}
               {view?.settlement?.status === 'DISPUTED' && 'On hold — the venue reported a problem. Klokd will contact you.'}
@@ -178,13 +232,17 @@ export function ActiveShiftScreen({ navigation, route }: Props) {
       </ScrollView>
 
       <View style={styles.footer}>
-        {finished ? (
+        {saved ? (
+          <GradientBtn disabled={busy} onPress={sendNow}>{busy ? 'Sending…' : 'Try sending now'}</GradientBtn>
+        ) : finished ? (
           <GradientBtn onPress={() => navigation.popToTop()}>Done</GradientBtn>
         ) : (
           <GradientBtn disabled={busy || !s} onPress={handleClockOut}>{busy ? 'Clocking out…' : 'Clock out'}</GradientBtn>
         )}
         <Text style={styles.footerNote}>
-          {finished ? 'We’ll let you know when it’s approved.' : 'Your location is checked once when you clock out.'}
+          {saved
+            ? 'Saved on this phone. You can close the app — it sends when you’re online.'
+            : finished ? 'We’ll let you know when it’s approved.' : 'Your location is checked once when you clock out.'}
         </Text>
       </View>
     </View>

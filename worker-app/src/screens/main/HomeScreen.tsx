@@ -16,6 +16,7 @@ import { useData } from '../../hooks/useData';
 import { colors } from '../../theme';
 import { kes, when, greeting, day } from '../../lib/format';
 import { useTabBarSpace } from '../../components/KlokdTabBar';
+import { dismissFailed, getQueue, subscribeQueue } from '../../lib/offlineQueue';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
 
@@ -64,6 +65,8 @@ function Stat({ n, l, color, star }: { n: string; l: string; color: string; star
 
 export function HomeScreen({ navigation }: Props) {
   const tabSpace = useTabBarSpace();
+  const [queue, setQueue] = useState(getQueue());
+  useEffect(() => subscribeQueue(setQueue), []);
   const [where, setWhere] = useState<{ lat: number; lng: number; mine: boolean }>({ ...CBD, mine: false });
   const me = useData<WorkerMe>('/me/worker');
   const feed = useData<FeedShift[]>(`/shifts/available?lat=${where.lat}&lng=${where.lng}&radiusKm=25`, { pollMs: 60_000 });
@@ -136,6 +139,24 @@ export function HomeScreen({ navigation }: Props) {
             <GradientBtn size="sm" onPress={() => navigation.navigate('VerifyIDMain', { fromMain: true })}>Verify my ID</GradientBtn>
           </View>
         )}
+        {queue.pending.length > 0 && (
+          <View style={styles.banner}>
+            <Text style={styles.bannerH}>
+              {queue.pending.length === 1 ? '1 check-in' : `${queue.pending.length} check-ins`} waiting for signal
+            </Text>
+            <Text style={styles.bannerP}>
+              {queue.pending.map(t => `${t.kind === 'arrive' ? 'Arrival' : 'Clock-out'} · ${t.label}`).join('\n')}
+              {'\n'}Saved with the time you tapped. It sends by itself when you’re online.
+            </Text>
+          </View>
+        )}
+        {queue.failed.map(t => (
+          <View key={t.id} style={styles.banner}>
+            <Text style={styles.bannerH}>{t.kind === 'arrive' ? 'Your saved check-in' : 'Your saved clock-out'} wasn’t accepted</Text>
+            <Text style={styles.bannerP}>{t.label} · {t.error}</Text>
+            <TouchableOpacity onPress={() => dismissFailed(t.id)}><Text style={styles.retry}>Dismiss</Text></TouchableOpacity>
+          </View>
+        ))}
         {offers > 0 && (
           <TouchableOpacity style={[styles.banner, styles.offerBanner]} onPress={() => navigation.navigate('Shifts')}>
             <Text style={styles.offerText}>{offers} shift{offers === 1 ? '' : 's'} waiting for your answer →</Text>

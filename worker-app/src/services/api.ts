@@ -20,22 +20,51 @@ interface ApiOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   token?: string;
+  /** Give up after this long and treat it as no signal (a weak 3G link can hang for minutes). */
+  timeoutMs?: number;
+}
+
+/**
+ * True when a request failed for want of a connection or a working server
+ * (no response, timeout, 5xx, 429) — worth sending again later. A refusal
+ * from the server (4xx) is final.
+ */
+export function isRetryable(e: any): boolean {
+  return !!e?.offline || (typeof e?.status === 'number' && (e.status >= 500 || e.status === 429));
 }
 
 async function call<T = unknown>(path: string, options: ApiOptions = {}): Promise<T> {
-  const { method = 'GET', body, token } = options;
+  const { method = 'GET', body, token, timeoutMs } = options;
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
   // Every write gets its own key so a retried request is recognised, not duplicated.
   if (method !== 'GET') headers['Idempotency-Key'] = newId();
 
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(stampSend(body)) : undefined,
-  });
+  const controller = timeoutMs ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(stampSend(body)) : undefined,
+      signal: controller?.signal,
+    });
+  } catch {
+    const err: any = new Error('No connection. Check your signal and try again.');
+    err.offline = true;
+    throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 
-  const data = await res.json();
+  let data: any;
+  try {
+    data = await res.json();
+  } catch {
+    // A proxy error page instead of JSON: the API isn't answering properly.
+    data = { success: false, error: `The server didn’t answer (${res.status}). Try again shortly.` };
+  }
 
   if (!res.ok || data.success === false) {
     const err: any = new Error(data.error || `API error ${res.status}`);

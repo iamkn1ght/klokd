@@ -51,11 +51,20 @@ export function captureCheckin(): CheckinCapture {
   };
 }
 
-/** Stamp the send time onto a body carrying a capture, just before it goes out. */
+/**
+ * Stamp the send time onto a body carrying a capture, just before it goes out.
+ * Only when it was captured in this run of the app: after a restart the
+ * monotonic clock starts again, so the reading is left off and the server
+ * times the tap on receipt (flagged for review).
+ */
 export function stampSend<T>(body: T): T {
   const b: any = body;
   if (b && typeof b === 'object' && b.capture && typeof b.capture === 'object') {
-    return { ...b, capture: { ...b.capture, sentElapsedMs: elapsedMs() } };
+    const { sentElapsedMs: _stale, ...capture } = b.capture;
+    return {
+      ...b,
+      capture: capture.bootId === CLOCK_SESSION_ID ? { ...capture, sentElapsedMs: elapsedMs() } : capture,
+    };
   }
   return body;
 }
