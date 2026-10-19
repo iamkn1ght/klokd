@@ -14,9 +14,10 @@
 		respond 200
 	}
 
-	# Hashed bundles never change; index.html must always be fresh.
+	# Hashed bundles never change; the HTML pages must always be fresh.
 	header /_expo/* Cache-Control "public, max-age=31536000, immutable"
-	header /index.html Cache-Control "no-cache"
+	@pages path / /index.html /terms /terms/* /privacy /privacy/*
+	header @pages Cache-Control "no-cache"
 	header {
 		X-Content-Type-Options nosniff
 		Referrer-Policy strict-origin-when-cross-origin
@@ -25,7 +26,8 @@
 	}
 
 	handle {
-		try_files {path} /index.html
+		# /terms and /privacy are prerendered folders; everything else is the app.
+		try_files {path} {path}/index.html /index.html
 		file_server
 	}
 }

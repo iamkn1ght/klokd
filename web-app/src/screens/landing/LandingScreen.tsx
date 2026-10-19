@@ -19,44 +19,20 @@ import { colors, spacing, radius } from '../../theme';
 import { navigate } from '../../navigation/router';
 import { api, EARLY_ACCESS } from '../../services/api';
 import { ShiftClock } from '../../components/ShiftClock';
+// Copy lives in content/landing so the prerendered HTML says the same thing.
+import { AREAS, BUILT_IN, CLOSING, EMPLOYER_FLOW, EMPLOYER_STEPS, HERO, HOW, PROOF, WORKER_FLOW, WORKER_STEPS } from '../../content/landing';
 
 const WAITLIST_MIN_TO_SHOW = 25;
 
 // Web-only glass for custom surfaces (cards get it via GlassCard).
 const glass = Platform.OS === 'web' ? (GLASS_WEB as any) : null;
 const glassBlur = Platform.OS === 'web' ? ({ backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)' } as any) : null;
-const AREAS = ['Westlands', 'CBD', 'Kilimani'];
 
 type SectionKey = 'how' | 'workers' | 'employers';
 const NAV: { key: SectionKey; label: string }[] = [
   { key: 'how', label: 'How it works' },
   { key: 'workers', label: 'For workers' },
   { key: 'employers', label: 'For employers' },
-];
-
-const PROOF = [
-  { icon: 'shield', title: 'Verified workers', body: 'National ID checked once with the government register, before the first shift.' },
-  { icon: 'mpesa', title: 'Clear pay', body: 'Every shift shows pay and statutory deductions. M-Pesa payouts switch on with Klokd payments.' },
-  { icon: 'doc', title: 'Compliant contracts', body: 'Employment Act s.9 contract for every shift.' },
-] as const;
-
-const WORKER_STEPS = [
-  { t: 'Verify once', d: 'Your National ID, checked once with the government register. Every employer on Klokd sees you as verified.' },
-  { t: 'Pick a shift', d: 'Nearby shifts with the pay shown up front. Review the contract, then accept.' },
-  { t: 'Get paid', d: 'Clock out and see your pay with every deduction. It goes to your M-Pesa once Klokd payments are live.' },
-];
-
-const EMPLOYER_STEPS = [
-  { t: 'Verify your business', d: 'KRA PIN and WIBA cover, once. Then you can post.' },
-  { t: 'Post a shift', d: 'Role, time, area and pay in a couple of minutes. Verified workers nearby can apply straight away.' },
-  { t: 'Pick and approve', d: 'Choose from verified applicants, give the start PIN on arrival, then check the hours and approve the pay.' },
-];
-
-const BUILT_IN = [
-  { k: 'Contract', l: 'Generated for every shift, accepted before it starts' },
-  { k: 'PAYE · NSSF · SHIF', l: 'Calculated on every payslip' },
-  { k: 'Check-in', l: 'Location at arrival plus your start PIN, never tracked in between' },
-  { k: 'Data', l: 'Built to Kenya’s Data Protection Act 2019' },
 ];
 
 // ─── Icons ───────────────────────────────────────────────
@@ -155,16 +131,14 @@ export function LandingScreen({ onSignIn, onOpenApp }: { onSignIn: () => void; o
         <View style={[styles.heroLeft, !wide && { maxWidth: undefined }]}>
           <FadeUp delay={140}>
             <Text style={[styles.h1, mobile && styles.h1Mobile]}>
-              The shift you{'\n'}
-              <Text style={styles.h1Accent}>can trust.</Text>
+              {HERO.h1Lead}{'\n'}
+              <Text style={styles.h1Accent}>{HERO.h1Accent}</Text>
             </Text>
           </FadeUp>
 
           <FadeUp delay={220}>
             <Text style={[styles.subhead, mobile && styles.subheadMobile]}>
-              Klokd is a verified hospitality shift marketplace for Nairobi. Workers verify
-              once and check in with their phone. Businesses pick a verified worker, give
-              them a start PIN on arrival and approve the hours, with the paperwork handled.
+              {HERO.sub}
             </Text>
           </FadeUp>
 
@@ -227,11 +201,10 @@ export function LandingScreen({ onSignIn, onOpenApp }: { onSignIn: () => void; o
             <Text style={styles.sectionPillText}>HOW IT WORKS</Text>
           </View>
           <Text style={[styles.h2, mobile && styles.h2Mobile]}>
-            Built for <Text style={styles.h1Accent}>both sides</Text> of the shift.
+            {HOW.h2Lead} <Text style={styles.h1Accent}>{HOW.h2Accent}</Text> {HOW.h2Tail}
           </Text>
           <Text style={styles.sectionSub}>
-            Three steps for workers, three for employers. Klokd handles the contract, the
-            deductions and the payout in between.
+            {HOW.sub}
           </Text>
         </FadeUp>
 
@@ -241,7 +214,7 @@ export function LandingScreen({ onSignIn, onOpenApp }: { onSignIn: () => void; o
               <FlowCard
                 badge="FOR WORKERS"
                 tint={colors.electric}
-                title={'Find a shift.\nGet paid after clock-out.'}
+                title={WORKER_FLOW.title}
                 steps={WORKER_STEPS}
                 cta={workerCta}
                 onPress={() => navigate('/signin?persona=worker')}
@@ -253,7 +226,7 @@ export function LandingScreen({ onSignIn, onOpenApp }: { onSignIn: () => void; o
               <FlowCard
                 badge="FOR EMPLOYERS"
                 tint={colors.volt}
-                title={'Hire the shift.\nNot the headache.'}
+                title={EMPLOYER_FLOW.title}
                 steps={EMPLOYER_STEPS}
                 cta={employerCta}
                 onPress={() => navigate('/signin?persona=employer')}
@@ -280,11 +253,10 @@ export function LandingScreen({ onSignIn, onOpenApp }: { onSignIn: () => void; o
         <View style={[styles.closing, glass, mobile && styles.closingMobile]}>
           <View style={{ flex: 1, minWidth: 260 }}>
             <Text style={[styles.closingH, mobile && styles.closingHMobile]}>
-              Be first in when Klokd opens in your area.
+              {CLOSING.h}
             </Text>
             <Text style={styles.closingP}>
-              We’re onboarding workers and venues in small groups. Tell us who you are and
-              we’ll reach you when your spot opens.
+              {CLOSING.p}
             </Text>
           </View>
           <View style={{ minWidth: 200 }}>

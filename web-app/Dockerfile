@@ -16,6 +16,8 @@ ENV EXPO_PUBLIC_SIGNIN_MODE=$EXPO_PUBLIC_SIGNIN_MODE
 ENV CI=1
 
 RUN npx expo export --platform web --output-dir dist
+# Public pages as real HTML at real URLs, plus sitemap.xml and robots.txt.
+RUN node scripts/prerender.mjs dist
 
 # ─── Serve ─────────────────────────────────────────────
 FROM caddy:2-alpine

@@ -32,7 +32,15 @@ export type Route =
   | { name: 'legal'; doc: 'terms' | 'privacy' }
   | { name: 'notfound' };
 
-export const WORKER_TABS = ['home', 'shifts', 'pay', 'profile'] as const;
+// Search engines and shared links use real paths for the public pages
+// (/terms, /privacy — prerendered at build, see scripts/prerender.mjs). The app
+// itself routes by hash, so hand those paths to the hash router on load.
+if (Platform.OS === 'web' && typeof window !== 'undefined' && !window.location.hash) {
+  const p = window.location.pathname.replace(/\/+$/, '');
+  if (p === '/terms' || p === '/privacy') window.history.replaceState(null, '', `/#${p}`);
+}
+
+export const WORKER_TABS =['home', 'shifts', 'pay', 'profile'] as const;
 export const EMPLOYER_TABS = ['dashboard', 'shifts', 'pay', 'team', 'verify'] as const;
 export const ADMIN_TABS = ['overview', 'verification', 'attendance', 'disputes', 'payments', 'privacy', 'rates', 'statutory', 'breaches', 'audit', 'users'] as const;
 
