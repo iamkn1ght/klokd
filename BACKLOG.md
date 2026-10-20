@@ -1,6 +1,6 @@
 # Klokd — Backlog
 
-**As of 19 October 2026** · Kirimon Market Ventures
+**As of 20 October 2026** · Kirimon Market Ventures
 Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke).
 
 **Legend:** ✅ Done (live) · 🟡 Built, waiting on a partner/config · 🔨 In progress · ⬜ To do · ⛔ Blocked (not code)
@@ -33,6 +33,7 @@ Covers the API (octopus-api), worker app, employer app and website (klokd.co.ke)
 | 6 | **Delete the `klokd` forwarder service** (Railway `happy-smile`): volume deleted 19 Oct ✅. Check scheduled for 22 Oct 09:00 (claude.ai/code/routines/trig_017YR2MFuNkAbefFsVi1LXNp); delete the service if its HTTP Logs are quiet | You | ⬜ 22 Oct |
 | 7 | Rotate the Helpan secrets pasted on 10 Oct: Supabase DB password, `IDENTITI_INTERNAL_HMAC_SECRET` (Helpan + Identiti together), `WEBHOOK_HMAC_SECRET` (same value into `HELPAN_WEBHOOK_SECRET` on octopus-api) | You | ⬜ |
 | 8 | Sign in once on the website and each app against the new API (apps: reopen twice to load the update) | You | ⬜ |
+| 12 | Email: privacy@ + hello@ → Chamia, support@ → Kipkiren Web Services (needs a DPA before real customer mail), catch-all off. No sending from @klokd.co.ke until SPF/DKIM are added | You | ✅ / ⬜ DPA |
 | 9 | 19 Oct work pushed + live: API (3 migrations applied), website (prerendered pages, sitemap), worker + employer OTA on `preview` (groups 6490aa3e, 682dd993) | Eng | ✅ |
 | 10 | Check production for old seed-demo rows (OQ-21) — staff console → Users, phones `+25472000000…` / `+25471000000…` | You | ⬜ |
 | 11 | Privacy Policy §6 says "encrypted at rest" — not true of the SQLite file until the Postgres move (OQ-22) | You + counsel | ⬜ |

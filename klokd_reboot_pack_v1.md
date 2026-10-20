@@ -545,7 +545,7 @@ These are unresolved as of the pack date. Any session that resolves one must upd
 | OQ-15 | Identiti's Supabase project (`tjqpyblyoslyoplmnlua`) free tier auto-paused 3× (22 May, 18 Jul, 08 Oct) — move to a paid plan | All sign-ups (account creation fails while paused) | P0 |
 | OQ-16 | Helpan rail returned 500 on every write (25 Jul) — fixed? | Any Helpan feature work | P2 |
 | OQ-17 | Hakken `klokd` app still `provisioning` — Silvia to flip to `active` | Formal Hakken go-live | P2 |
-| OQ-18 | Two `_dmarc` TXT records on klokd.co.ke — 19 Oct: you have Cloudflare access; the `p=reject` record was deleted by mistake and is being re-added as the single record (both report addresses). Confirm one record remains | Email deliverability / anti-spoofing | P1 |
+| OQ-18 | ~~Two `_dmarc` records~~ Closed 19 Oct: one `p=reject` record live | — | — |
 | OQ-19 | Push to phones: the API now sends Expo push to registered device tokens (POST /me/push-token) and keeps an in-app inbox, but neither app registers a token yet — that needs `expo-notifications`, a native module, so a new store build (not an OTA). Until then alerts appear in the app/website inbox and bell | Alerts when the app is closed | P1 |
 | OQ-21 | Production may still hold rows from the old `/admin/seed-demo` endpoint (fake employers with real brand names, fake shifts, synthetic phones `+25472000000x` / `+25471000000x`). Check the admin Users page; purge if present | Clean data | P1 |
 | OQ-20 | Attendance-event retention period (proposed 12 months, then aggregate) — needs counsel + ODPC position. The job is built (D-64); set `ATTENDANCE_RETENTION_MONTHS` once decided | DPA compliance | P2 |
