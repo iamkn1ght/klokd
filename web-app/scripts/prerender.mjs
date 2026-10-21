@@ -105,6 +105,31 @@ ${footer}`;
   );
 }
 
+// ─── 404 page ───────────────────────────────────────────
+// Served by Caddy with a real 404 status. No app bundle: the app would mount
+// and show the landing page at a URL that doesn't exist.
+fs.writeFileSync(
+  path.join(dist, '404.html'),
+  page({
+    urlPath: '/',
+    title: 'Page not found — Klokd',
+    description: 'This page doesn’t exist.',
+    body: `${nav}\n<h1>Page not found</h1>\n<p>There’s nothing at this address. <a href="/">Go to the Klokd home page</a>.</p>\n${footer}`,
+  })
+    .replace(/<script src="[^"]*" defer><\/script>/g, '')
+    .replace(/<link rel="canonical"[^>]*>/, '<meta name="robots" content="noindex" />')
+);
+
+// ─── security.txt (RFC 9116) ────────────────────────────
+// Where someone who finds a security hole reports it. Rebuilt on every deploy,
+// so Expires (max one year) keeps moving.
+const expires = new Date(Date.now() + 330 * 86_400_000).toISOString().replace(/\.\d+Z$/, '.000Z');
+fs.mkdirSync(path.join(dist, '.well-known'), { recursive: true });
+fs.writeFileSync(
+  path.join(dist, '.well-known', 'security.txt'),
+  `Contact: mailto:support@klokd.co.ke\nExpires: ${expires}\nPreferred-Languages: en\nCanonical: ${ORIGIN}/.well-known/security.txt\n`
+);
+
 // ─── Sitemap + robots ───────────────────────────────────
 const today = new Date().toISOString().slice(0, 10);
 const urls = ['/', '/terms', '/privacy'];
