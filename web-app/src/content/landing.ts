@@ -6,6 +6,7 @@
  */
 
 export const HERO = {
+  kicker: 'Hospitality shift work in Nairobi',
   h1Lead: 'The shift you',
   h1Accent: 'can trust.',
   sub:

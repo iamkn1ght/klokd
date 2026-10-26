@@ -24,6 +24,14 @@ import { AREAS, BUILT_IN, CLOSING, EMPLOYER_FLOW, EMPLOYER_STEPS, HERO, HOW, PRO
 
 const WAITLIST_MIN_TO_SHOW = 25;
 
+// Static pages built by scripts/prerender.mjs from content/pages.ts.
+const SITE_PAGES: [string, string][] = [
+  ['/workers', 'For workers'],
+  ['/businesses', 'For businesses'],
+  ['/pricing', 'Pricing'],
+  ['/guides', 'Guides'],
+];
+
 // Web-only glass for custom surfaces (cards get it via GlassCard).
 const glass = Platform.OS === 'web' ? (GLASS_WEB as any) : null;
 const glassBlur = Platform.OS === 'web' ? ({ backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)' } as any) : null;
@@ -129,8 +137,12 @@ export function LandingScreen({ onSignIn, onOpenApp }: { onSignIn: () => void; o
       {/* ─── Hero ─── */}
       <View style={[styles.hero, !wide && styles.heroStacked]}>
         <View style={[styles.heroLeft, !wide && { maxWidth: undefined }]}>
+          <FadeUp delay={100}>
+            {/* Names the service and the city for search (the h1 is the brand line). */}
+            <Text role="heading" aria-level={2} style={styles.kicker}>{HERO.kicker}</Text>
+          </FadeUp>
           <FadeUp delay={140}>
-            <Text style={[styles.h1, mobile && styles.h1Mobile]}>
+            <Text role="heading" aria-level={1} style={[styles.h1, mobile && styles.h1Mobile]}>
               {HERO.h1Lead}{'\n'}
               <Text style={styles.h1Accent}>{HERO.h1Accent}</Text>
             </Text>
@@ -272,6 +284,12 @@ export function LandingScreen({ onSignIn, onOpenApp }: { onSignIn: () => void; o
           <Text style={styles.footerTagline}>© {new Date().getFullYear()} Klokd · Nairobi, Kenya</Text>
         </View>
         <View style={styles.footerLinks}>
+          {/* Real <a href> links to the prerendered pages, so people and crawlers can follow them. */}
+          {SITE_PAGES.map(([href, label]) => (
+            <Text key={href} {...({ href } as any)} style={[styles.footerLink, styles.footerLinkText]}>
+              {label}
+            </Text>
+          ))}
           <Pressable onPress={() => navigate('/terms')} style={({ hovered }: any) => [styles.footerLink, hovered && styles.footerLinkHover]}>
             <Text style={styles.footerLinkText}>Terms</Text>
           </Pressable>
@@ -355,6 +373,7 @@ const styles = StyleSheet.create({
   heroLeft: { flex: 1.25, maxWidth: 660 },
   heroRight: { flex: 1, alignItems: 'center' },
   heroRightStacked: { alignItems: 'center' },
+  kicker: { color: colors.electric, fontSize: 13, fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: spacing.lg },
   h1: { fontSize: 72, fontWeight: '900', letterSpacing: -3.2, lineHeight: 74, color: colors.white, marginBottom: spacing.xl },
   h1Mobile: { fontSize: 46, letterSpacing: -2, lineHeight: 50 },
   h1Accent: { color: colors.electric },
@@ -427,7 +446,7 @@ const styles = StyleSheet.create({
   footer: { paddingTop: spacing.xl, paddingBottom: spacing.xxl, borderTopWidth: 1, borderTopColor: colors.white06, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
   footerLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexWrap: 'wrap' },
   footerTagline: { color: colors.white50, fontSize: 12, fontWeight: '600' },
-  footerLinks: { flexDirection: 'row', gap: 6 },
+  footerLinks: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   footerLink: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   footerLinkHover: { backgroundColor: colors.white06 },
   footerLinkText: { color: colors.white70, fontSize: 12.5, fontWeight: '700' },

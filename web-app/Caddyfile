@@ -35,7 +35,7 @@
 
 	# Hashed bundles never change; the HTML pages must always be fresh.
 	header /_expo/* Cache-Control "public, max-age=31536000, immutable"
-	@pages path / /index.html /terms /terms/* /privacy /privacy/*
+	@pages path / /index.html /terms* /privacy* /workers* /businesses* /pricing* /guides* /llms.txt
 	header @pages Cache-Control "no-cache"
 
 	handle {
