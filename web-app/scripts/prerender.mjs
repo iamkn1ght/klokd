@@ -81,17 +81,32 @@ const landingBody = `${nav}
 <h2>${esc(CLOSING.h)}</h2><p>${esc(CLOSING.p)}</p>
 ${footer}`;
 
-const description = 'Klokd connects Nairobi businesses with verified shift workers. Post a shift, pick an ID-verified worker, and approve the hours in one place.';
+// Who Klokd is, for search engines: the brand, its Kenyan name, and where it works.
+// Add sameAs: [social profile URLs] once they exist (they confirm the brand).
+const ORG_FULL = {
+  '@type': 'Organization',
+  '@id': `${ORIGIN}/#org`,
+  name: 'Klokd',
+  alternateName: ['Klokd Kenya', 'klokd.co.ke'],
+  url: `${ORIGIN}/`,
+  logo: `${ORIGIN}/icon.png`,
+  image: `${ORIGIN}/og.png`,
+  description: 'Klokd is a Kenyan marketplace for hospitality shift work in Nairobi: ID-verified workers, shifts started with a PIN, written contracts and payslips for every shift.',
+  email: 'support@klokd.co.ke',
+  address: { '@type': 'PostalAddress', addressLocality: 'Nairobi', addressCountry: 'KE' },
+  areaServed: { '@type': 'Country', name: 'Kenya' },
+};
+const description = 'Klokd Kenya connects Nairobi restaurants, hotels and cafés with ID-verified shift workers. Post a shift, pick a verified worker and approve the hours.';
 fs.writeFileSync(
   path.join(dist, 'index.html'),
   page({
     urlPath: '/',
-    title: 'Klokd — Verified shift workers in Nairobi',
+    title: 'Klokd Kenya — Verified Shift Workers in Nairobi | klokd.co.ke',
     description,
     body: landingBody,
     jsonLd: [
-      { '@context': 'https://schema.org', '@type': 'Organization', name: 'Klokd', url: `${ORIGIN}/`, logo: `${ORIGIN}/icon.png`, areaServed: 'Nairobi, Kenya' },
-      { '@context': 'https://schema.org', '@type': 'WebSite', name: 'Klokd', url: `${ORIGIN}/` },
+      { '@context': 'https://schema.org', ...ORG_FULL },
+      { '@context': 'https://schema.org', '@type': 'WebSite', name: 'Klokd', alternateName: ['Klokd Kenya', 'klokd.co.ke'], url: `${ORIGIN}/`, inLanguage: 'en-KE', publisher: { '@id': `${ORIGIN}/#org` } },
     ],
   })
 );
@@ -116,7 +131,7 @@ ${footer}`;
 // Real pages for search: one per audience, pricing, and guides, each with its
 // own title, description, canonical and structured data. Pure HTML + one
 // inline stylesheet (the CSP allows inline styles, no inline script runs).
-const ORG = { '@type': 'Organization', name: 'Klokd', url: `${ORIGIN}/`, logo: `${ORIGIN}/icon.png` };
+const ORG = { '@type': 'Organization', '@id': `${ORIGIN}/#org`, name: 'Klokd', alternateName: 'Klokd Kenya', url: `${ORIGIN}/`, logo: `${ORIGIN}/icon.png` };
 const LOGO = `<svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><rect width="28" height="28" rx="8" fill="#00E5A0"/><path d="M9 7h3.4v5.6L17.2 7h4.1l-5.6 6.4L21.6 21h-4.2l-4.1-5.6-.9 1V21H9z" fill="#0A0A0F"/></svg>`;
 const SITE_CSS = `
 :root{--ink:#0A0A0F;--ink2:#12121A;--line:rgba(255,255,255,.09);--text:#F2F2F5;--mute:#A6A6B4;--soft:#7E7E8C;--el:#00E5A0;--volt:#BCFF4E}
@@ -263,9 +278,9 @@ for (const p of PAGES) {
 // ─── llms.txt — a plain summary AI assistants read ──────
 fs.writeFileSync(
   path.join(dist, 'llms.txt'),
-  `# Klokd
+  `# Klokd (Klokd Kenya, klokd.co.ke)
 
-> Klokd is a hospitality shift-work marketplace in Nairobi, Kenya. Workers verify their National ID once and pick shifts near them with the pay shown up front; businesses post shifts, pick an ID-verified worker, start the shift with a PIN on arrival, and approve the hours. Every shift has a written contract and a payslip with statutory deductions (PAYE, NSSF, SHIF). Free for workers; businesses pay 4% on top of the shift pay. M-Pesa payouts switch on with Klokd payments.
+> Klokd is a Kenyan hospitality shift-work marketplace in Nairobi, Kenya. Workers verify their National ID once and pick shifts near them with the pay shown up front; businesses post shifts, pick an ID-verified worker, start the shift with a PIN on arrival, and approve the hours. Every shift has a written contract and a payslip with statutory deductions (PAYE, NSSF, SHIF). Free for workers; businesses pay 4% on top of the shift pay. M-Pesa payouts switch on with Klokd payments.
 
 ## Pages
 ${PAGES.filter(p => p.kind !== 'guide').map(p => `- [${p.h1}](${ORIGIN}${p.path}): ${p.description}`).join('\n')}
