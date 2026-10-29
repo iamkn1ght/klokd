@@ -26,6 +26,7 @@ import { colors } from '../../theme';
 import { day } from '../../lib/format';
 import type { WorkerMe } from './HomeScreen';
 import { useTabBarSpace } from '../../components/KlokdTabBar';
+import { AgentPermissions } from '../../components/AgentPermissions';
 
 type Props = { navigation: NativeStackNavigationProp<any> };
 type Sheet = null | 'name' | 'nameCorrection' | 'correction' | 'deletion';
@@ -53,6 +54,7 @@ export function ProfileScreen({ navigation }: Props) {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [sheet, setSheet] = useState<Sheet>(null);
+  const [agentOpen, setAgentOpen] = useState(false);
   const [first, setFirst] = useState('');
   const [last, setLast] = useState('');
   const [note, setNote] = useState('');
@@ -292,6 +294,13 @@ export function ProfileScreen({ navigation }: Props) {
                 ))}
               </View>
             )}
+
+            {/* ── Agent permissions (Helpan Console) ─── */}
+            <Text style={styles.groupLabel}>AGENT</Text>
+            <Glass style={styles.group}>
+              <Row label="Agent permissions" detail="What your agent may do" onPress={() => setAgentOpen(true)} last />
+            </Glass>
+            <AgentPermissions visible={agentOpen} onClose={() => setAgentOpen(false)} />
 
             {/* ── Support, legal, sign out ───────────── */}
             <Text style={styles.groupLabel}>SUPPORT</Text>
